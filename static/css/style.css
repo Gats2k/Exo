@@ -201,19 +201,21 @@ body {
 }
 
 .message {
-    width: 60%;
+    max-width: 700px;
     margin: 20px 0;
     position: relative;
 }
 
 .message.bot {
     margin-right: auto;
-    left: 0;
+    padding-right: 280px; /* Creates space on the right for bot messages */
+    width: 100%;
 }
 
 .message:not(.bot) {
     margin-left: auto;
-    right: 0;
+    padding-left: 280px; /* Creates space on the left for user messages */
+    width: 100%;
 }
 
 .message-content {
