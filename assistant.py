@@ -5,7 +5,10 @@ from datetime import datetime
 
 class AssistantChat:
     def __init__(self):
-        self.client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        self.client = OpenAI(api_key=api_key)
         self.assistant = None
         self.thread = None
 
@@ -34,12 +37,14 @@ class AssistantChat:
     async def send_message(self, user_message):
         try:
             if not self.thread or not self.assistant:
-                await self.initialize()
+                success = await self.initialize()
+                if not success:
+                    return "Failed to initialize the chat assistant."
 
             # Add the user's message to the thread
             await asyncio.to_thread(
                 self.client.beta.threads.messages.create,
-                self.thread.id,
+                thread_id=self.thread.id,
                 role="user",
                 content=user_message
             )
@@ -47,31 +52,33 @@ class AssistantChat:
             # Create a run
             run = await asyncio.to_thread(
                 self.client.beta.threads.runs.create,
-                self.thread.id,
+                thread_id=self.thread.id,
                 assistant_id=self.assistant.id
             )
 
-            # Poll for completion
+            # Wait for completion
             response = await self.wait_for_completion(self.thread.id, run.id)
 
             # Get the latest messages
             messages = await asyncio.to_thread(
                 self.client.beta.threads.messages.list,
-                self.thread.id
+                thread_id=self.thread.id
             )
 
-            return messages.data[0].content[0].text.value
+            if messages.data:
+                return messages.data[0].content[0].text.value
+            return "No response received from the assistant."
         except Exception as e:
             print(f"Error sending message: {e}")
-            return "Sorry, there was an error processing your message."
+            return f"Sorry, there was an error processing your message: {str(e)}"
 
     async def wait_for_completion(self, thread_id, run_id):
         while True:
             try:
                 run = await asyncio.to_thread(
                     self.client.beta.threads.runs.retrieve,
-                    thread_id,
-                    run_id
+                    thread_id=thread_id,
+                    run_id=run_id
                 )
 
                 if run.status == 'completed':
