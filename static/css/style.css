@@ -5,7 +5,7 @@
     --accent-color: #4169E1;
     --text-light: #FFFFFF;
     --text-muted: #A0A0A0;
-    --sidebar-width: 300px;
+    --container-max-width: 1200px;
 }
 
 body {
@@ -18,59 +18,21 @@ body {
 .app-container {
     display: flex;
     height: 100vh;
-    position: relative;
-}
-
-/* Toggle Button */
-.sidebar-toggle {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    z-index: 1000;
-    background: none;
-    border: none;
-    color: var(--text-light);
-    cursor: pointer;
-    padding: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: transform 0.3s ease;
 }
 
 /* Sidebar Styles */
 .sidebar {
-    width: var(--sidebar-width);
+    width: 300px;
     background-color: var(--sidebar-bg);
     color: var(--text-light);
     display: flex;
     flex-direction: column;
     padding: 20px;
-    position: fixed;
-    height: 100%;
-    left: calc(-1 * var(--sidebar-width));
-    transition: transform 0.3s ease;
-    z-index: 999;
-}
-
-.sidebar.visible {
-    transform: translateX(var(--sidebar-width));
-}
-
-/* Hover trigger area */
-.hover-area {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 20px;
-    height: 100%;
-    z-index: 998;
 }
 
 .sidebar-header {
     padding-bottom: 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    margin-top: 40px;
 }
 
 .badge-container {
@@ -142,20 +104,21 @@ body {
     color: var(--text-muted);
 }
 
-
 /* Main Area Styles */
 .main-area {
     flex-grow: 1;
-    margin-left: 0;
     background: linear-gradient(135deg, var(--main-gradient-start), var(--main-gradient-end));
-    transition: margin-left 0.3s ease;
-    width: 100%;
-    padding-left: 60px; /* Space for the toggle button */
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 120px;
 }
 
 .chat-header {
     padding: 20px;
     color: var(--text-light);
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    width: 100%;
 }
 
 .chat-header h1 {
@@ -174,17 +137,28 @@ body {
     right: 20px;
     background-color: var(--accent-color);
     border: none;
+    color: var(--text-light);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
 .chat-messages {
     flex-grow: 1;
     padding: 20px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: var(--container-max-width);
+    margin: 0 auto;
+    width: 100%;
 }
 
 .message {
     max-width: 80%;
     margin-bottom: 20px;
+    width: 100%;
 }
 
 .message.bot {
@@ -202,6 +176,7 @@ body {
     display: flex;
     gap: 10px;
     margin-top: 8px;
+    padding: 0 10px;
 }
 
 .action-btn {
@@ -213,8 +188,16 @@ body {
 }
 
 .chat-input {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     padding: 20px;
     background-color: rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    backdrop-filter: blur(10px);
 }
 
 .input-container {
@@ -224,6 +207,9 @@ body {
     border-radius: 8px;
     padding: 8px;
     gap: 10px;
+    max-width: var(--container-max-width);
+    width: 100%;
+    margin: 0 auto;
 }
 
 .input-action {
@@ -231,7 +217,10 @@ body {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 5px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .input-container input {
@@ -239,6 +228,7 @@ body {
     border: none;
     outline: none;
     padding: 8px;
+    text-align: left;
 }
 
 .send-btn {
@@ -248,6 +238,9 @@ body {
     padding: 8px 15px;
     border-radius: 6px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .response-time {
@@ -257,19 +250,59 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
+    max-width: var(--container-max-width);
+    width: 100%;
 }
 
-/* Media Queries for Mobile */
+/* Cohérence des icônes de graduation */
+.sidebar-header .bi-mortarboard-fill,
+.sidebar-toggle .bi-mortarboard-fill {
+    font-size: 1.2em;
+    color: var(--text-light);
+}
+
+/* Styles pour la barre latérale rétractable */
+.hover-area {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 100%;
+    z-index: 100;
+}
+
+.sidebar-toggle {
+    position: fixed;
+    left: 20px;
+    top: 20px;
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    z-index: 101;
+    display: none;
+}
+
+/* Media Queries pour la réactivité */
 @media (max-width: 768px) {
-    .hover-area {
-        display: none;
+    .sidebar {
+        position: fixed;
+        left: -300px;
+        top: 0;
+        height: 100%;
+        transition: left 0.3s ease;
+        z-index: 1000;
     }
 
-    .main-area {
-        padding-left: 70px;
+    .sidebar.active {
+        left: 0;
     }
 
     .sidebar-toggle {
-        display: flex;
+        display: block;
+    }
+
+    .main-area {
+        padding-left: 0;
     }
 }
