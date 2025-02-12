@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="badge-container">
+                <i class="bi bi-mortarboard-fill"></i>
+                <span>1er de la Classe</span>
+            </div>
+            <div class="credits">
+                {{ credits }} crédits restants
+            </div>
+        </div>
+
+        <div class="sidebar-nav">
+            <div class="nav-item active">
+                <i class="bi bi-globe"></i>
+                <span>Général</span>
+            </div>
+            <div class="nav-item">
+                <i class="bi bi-book"></i>
+                <span>Matières</span>
+                <i class="bi bi-chevron-right"></i>
+            </div>
+        </div>
+
+        <div class="recent-history">
+            <h6>Historique récent</h6>
+            {% for item in history %}
+            <div class="history-item">
+                <div class="history-content">
+                    <div class="history-title">{{ item.title }}</div>
+                    <div class="history-subject">{{ item.subject }}</div>
+                </div>
+                <div class="history-time">{{ item.time }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="nav-item">
+                <i class="bi bi-gear"></i>
+                <span>Paramètres</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="main-area">
+        <div class="chat-header">
+            <h1>Chat avec Mōjo</h1>
+            <div class="mode-label">Mode Général - Toutes matières</div>
+            <button class="btn btn-primary reload-credits">Recharger mes crédits</button>
+        </div>
+
+        <div class="chat-messages">
+            <div class="message bot">
+                <div class="message-content">
+                    Bonjour ! Je suis Mōjo, votre assistant pour la résolution d'exercices. Comment puis-je vous aider aujourd'hui ?
+                </div>
+                <div class="message-actions">
+                    <button class="action-btn"><i class="bi bi-hand-thumbs-up"></i></button>
+                    <button class="action-btn"><i class="bi bi-hand-thumbs-down"></i></button>
+                    <button class="action-btn"><i class="bi bi-download"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <div class="input-container">
+                <button class="input-action"><i class="bi bi-camera"></i></button>
+                <button class="input-action"><i class="bi bi-image"></i></button>
+                <button class="input-action"><i class="bi bi-link-45deg"></i></button>
+                <input type="text" placeholder="Écrivez ou envoyez une photo de votre exercice">
+                <button class="send-btn"><i class="bi bi-send-fill"></i></button>
+            </div>
+            <div class="response-time">
+                <i class="bi bi-clock"></i>
+                Temps de réponse estimé : ~30 secondes
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
