@@ -180,6 +180,9 @@ body {
     flex-grow: 1;
     padding: 20px;
     overflow-y: auto;
+    max-width: 800px;
+    margin: 0 auto;
+    padding-bottom: 180px; /* Space for fixed input area */
 }
 
 .message {
@@ -213,11 +216,18 @@ body {
 }
 
 .chat-input {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     padding: 20px;
     background-color: rgba(0, 0, 0, 0.2);
+    z-index: 100;
 }
 
 .input-container {
+    max-width: 800px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     background: white;
@@ -257,6 +267,11 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
+}
+
+/* Icon size consistency */
+.bi-mortarboard-fill {
+    font-size: 1.2rem;
 }
 
 /* Media Queries for Mobile */
