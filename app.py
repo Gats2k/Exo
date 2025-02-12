@@ -24,8 +24,8 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 # initialize the app with the extension, flask-sqlalchemy >= 3.0.x
 db.init_app(app)
 
-# Initialize SocketIO
-socketio = SocketIO(app)
+# Initialize SocketIO with async mode
+socketio = SocketIO(app, async_mode='eventlet')
 
 with app.app_context():
     # Make sure to import the models here or their tables won't be created
@@ -35,13 +35,12 @@ with app.app_context():
     db.create_all()
 
 # Initialize OpenAI assistant
-assistant = AssistantChat()
+assistant = None
 
 @app.route('/')
 def chat():
-    # Get chat history from database
-    history = models.ChatMessage.query.order_by(models.ChatMessage.created_at.desc()).limit(10).all()
-    return render_template('chat.html', history=history, credits=42)
+    # Get chat history from database, but don't send any default messages
+    return render_template('chat.html', history=[], credits=42)
 
 @socketio.on('connect')
 def handle_connect():
@@ -53,7 +52,13 @@ def handle_disconnect():
 
 @socketio.on('message')
 async def handle_message(data):
+    global assistant
     try:
+        # Initialize assistant if not already done
+        if assistant is None:
+            assistant = AssistantChat()
+            await assistant.initialize()
+
         # Save user message to database
         user_message = models.ChatMessage(
             content=data['message'],
@@ -65,6 +70,7 @@ async def handle_message(data):
 
         # Get assistant's response
         response = await assistant.send_message(data['message'])
+        print(f"Assistant response: {response}")  # Debug log
 
         # Save assistant's response to database
         assistant_message = models.ChatMessage(
@@ -87,6 +93,5 @@ async def handle_message(data):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    # Add use_reloader and log_output parameters
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, 
                 use_reloader=True, log_output=True)
