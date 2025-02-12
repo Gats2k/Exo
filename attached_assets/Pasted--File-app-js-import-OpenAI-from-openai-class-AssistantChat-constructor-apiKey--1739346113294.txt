@@ -1,0 +1,173 @@
+// File: app.js
+import OpenAI from "openai";
+
+class AssistantChat {
+  constructor(apiKey) {
+    this.client = new OpenAI({ apiKey });
+    this.assistant = null;
+    this.thread = null;
+  }
+
+  async initialize() {
+    try {
+      // Create an assistant
+      this.assistant = await this.client.beta.assistants.create({
+        name: "Simple Helper",
+        instructions: "You are a helpful assistant who provides clear and concise responses.",
+        tools: [{ type: "code_interpreter" }],
+        model: "gpt-4-turbo-preview"
+      });
+
+      // Create a thread
+      this.thread = await this.client.beta.threads.create();
+      
+      return true;
+    } catch (error) {
+      console.error("Initialization error:", error);
+      return false;
+    }
+  }
+
+  async sendMessage(userMessage) {
+    try {
+      // Add the user's message to the thread
+      await this.client.beta.threads.messages.create(
+        this.thread.id,
+        {
+          role: "user",
+          content: userMessage
+        }
+      );
+
+      // Create a run
+      const run = await this.client.beta.threads.runs.create(
+        this.thread.id,
+        {
+          assistant_id: this.assistant.id
+        }
+      );
+
+      // Poll for the completion
+      let response = await this.waitForCompletion(this.thread.id, run.id);
+      
+      // Get the latest messages
+      const messages = await this.client.beta.threads.messages.list(
+        this.thread.id
+      );
+
+      // Return the assistant's latest response
+      return messages.data[0].content[0].text.value;
+    } catch (error) {
+      console.error("Error sending message:", error);
+      return "Sorry, there was an error processing your message.";
+    }
+  }
+
+  async waitForCompletion(threadId, runId) {
+    while (true) {
+      const run = await this.client.beta.threads.runs.retrieve(
+        threadId,
+        runId
+      );
+
+      if (run.status === 'completed') {
+        return run;
+      } else if (run.status === 'failed') {
+        throw new Error('Run failed');
+      }
+
+      // Wait for 1 second before checking again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+// File: index.html
+const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Assistant Chat</title>
+    <style>
+        #chat-container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .assistant-message {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        #message-input {
+            width: 80%;
+            padding: 8px;
+        }
+        button {
+            padding: 8px 15px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div>
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize your chat (you'll need to replace with your actual API key)
+        const chat = new AssistantChat('your-api-key-here');
+        chat.initialize();
+
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const messagesDiv = document.getElementById('messages');
+            
+            // Add user message to chat
+            const userMessage = input.value;
+            messagesDiv.innerHTML += `
+                <div class="message user-message">
+                    ${userMessage}
+                </div>
+            `;
+            
+            input.value = '';
+            
+            // Get assistant response
+            const response = await chat.sendMessage(userMessage);
+            
+            // Add assistant response to chat
+            messagesDiv.innerHTML += `
+                <div class="message assistant-message">
+                    ${response}
+                </div>
+            `;
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
+`;
