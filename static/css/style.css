@@ -1,7 +1,7 @@
 :root {
-    --sidebar-bg: #1E1338;
-    --main-gradient-start: #2D1B4E;
-    --main-gradient-end: #1E1338;
+    --main-gradient-start: #312E81;  /* indigo-900 */
+    --main-gradient-middle: #581C87; /* purple-900 */
+    --main-gradient-end: #831843;    /* pink-900 */
     --accent-color: #4169E1;
     --text-light: #FFFFFF;
     --text-muted: #A0A0A0;
@@ -41,7 +41,9 @@ body {
 /* Sidebar Styles */
 .sidebar {
     width: var(--sidebar-width);
-    background-color: var(--sidebar-bg);
+    background-color: rgba(0, 0, 0, 0.3); /* équivalent à bg-black/30 */
+    backdrop-filter: blur(16px);          /* équivalent à backdrop-blur-xl */
+    -webkit-backdrop-filter: blur(16px);  /* support Safari */
     color: var(--text-light);
     display: flex;
     flex-direction: column;
@@ -51,6 +53,7 @@ body {
     left: calc(-1 * var(--sidebar-width));
     transition: transform 0.3s ease;
     z-index: 999;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .sidebar.visible {
@@ -147,14 +150,14 @@ body {
 .main-area {
     flex-grow: 1;
     margin-left: 0;
-    background: linear-gradient(135deg, var(--main-gradient-start), var(--main-gradient-end));
+    background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
     transition: margin-left 0.3s ease;
     width: 100%;
-    padding-left: 60px; /* Space for the toggle button */
 }
 
 .chat-header {
     padding: 20px;
+    padding-left: 60px; /* Space for the toggle button */
     color: var(--text-light);
     display: flex;
     justify-content: space-between;
@@ -169,7 +172,7 @@ body {
     gap: 8px;
     font-size: 1.5em;
     position: absolute;
-    left: -25px; /* Distance par rapport à l'icône de la sidebar */
+    left: 40px; /* Distance par rapport à l'icône de la sidebar */
     top: 17px;
 }
 
@@ -183,7 +186,7 @@ body {
 
 .credits {
     position: absolute;
-    top: calc(100% - -12px);
+    top: calc(100% - -15px);
     right: 50px;
     color: var(--text-muted);
     font-size: 0.9em;
@@ -194,29 +197,29 @@ body {
     flex-grow: 1;
     padding: 20px;
     overflow-y: auto;
-    max-width: 700px;
+    max-width: 700px; /* Match input container width */
     margin: 0 auto;
     padding-bottom: 180px; /* Space for fixed input area */
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .message {
-    max-width: 60%; /* Réduit la largeur maximale des messages */
+    max-width: 90%; /* Réduit la largeur maximale des messages */
     margin-bottom: 20px;
     position: relative;
     clear: both;
 }
 
 .message.bot {
-    position: absolute;
-    left: -100px; /* Aligne exactement avec la bordure gauche */
-    margin: 20px 0;
+    align-self: flex-start;  /* Remplace position: absolute */
+    margin: 20px 0;         /* Garde la même marge */
 }
 
 .message:not(.bot) {
-    position: absolute;
-    right: 0; /* Aligne exactement avec la bordure droite */
-    margin: 20px 0;
+    align-self: flex-end;    /* Remplace position: absolute */
+    margin: 20px 0;         /* Garde la même marge */
 }
 
 .message-content {
@@ -287,7 +290,7 @@ body {
 }
 
 .response-time {
-    max-width: 800px;
+    max-width: 700px;
     margin: 10px auto 0;
     color: var(--text-muted);
     font-size: 0.9em;

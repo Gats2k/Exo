@@ -1,0 +1,82 @@
+mport OpenAI from "openai";
+
+class AssistantChat {
+  constructor(apiKey) {
+    this.client = new OpenAI({ apiKey });
+    this.assistant = null;
+    this.thread = null;
+  }
+
+  async initialize() {
+    try {
+      // Create an assistant
+      this.assistant = await this.client.beta.assistants.create({
+        name: "Simple Helper",
+        instructions: "You are a helpful assistant who provides clear and concise responses.",
+        tools: [{ type: "code_interpreter" }],
+        model: "gpt-4-turbo-preview"
+      });
+
+      // Create a thread
+      this.thread = await this.client.beta.threads.create();
+      
+      return true;
+    } catch (error) {
+      console.error("Initialization error:", error);
+      return false;
+    }
+  }
+
+  async sendMessage(userMessage) {
+    try {
+      // Add the user's message to the thread
+      await this.client.beta.threads.messages.create(
+        this.thread.id,
+        {
+          role: "user",
+          content: userMessage
+        }
+      );
+
+      // Create a run
+      const run = await this.client.beta.threads.runs.create(
+        this.thread.id,
+        {
+          assistant_id: this.assistant.id
+        }
+      );
+
+      // Poll for the completion
+      let response = await this.waitForCompletion(this.thread.id, run.id);
+      
+      // Get the latest messages
+      const messages = await this.client.beta.threads.messages.list(
+        this.thread.id
+      );
+
+      // Return the assistant's latest response
+      return messages.data[0].content[0].text.value;
+    } catch (error) {
+      console.error("Error sending message:", error);
+      return "Sorry, there was an error processing your message.";
+    }
+  }
+
+  async waitForCompletion(threadId, runId) {
+    while (true) {
+      const run = await this.client.beta.threads.runs.retrieve(
+        threadId,
+        runId
+      );
+
+      if (run.status === 'completed') {
+        return run;
+      } else if (run.status === 'failed') {
+        throw new Error('Run failed');
+      }
+
+      // Wait for 1 second before checking again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
