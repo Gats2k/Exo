@@ -190,7 +190,6 @@ body {
     margin-top: 5px;
 }
 
-/* Message container styles */
 .chat-messages {
     flex-grow: 1;
     padding: 20px 0;
@@ -198,9 +197,9 @@ body {
     width: 700px;
     margin: 0 auto;
     padding-bottom: 180px; /* Space for fixed input area */
+    position: relative;
 }
 
-/* Message styles */
 .message {
     width: 60%;
     margin: 20px 0;
@@ -209,11 +208,11 @@ body {
 }
 
 .message.bot {
-    float: left;  /* Aligns to left */
+    float: left;  /* Aligne à gauche */
 }
 
 .message:not(.bot) {
-    float: right;  /* Aligns to right */
+    float: right;  /* Aligne à droite */
 }
 
 .message-content {
@@ -224,7 +223,20 @@ body {
     width: 100%;
 }
 
-/* Input area styles */
+.message-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 5px;
+}
+
 .chat-input {
     position: fixed;
     bottom: 0;
@@ -240,7 +252,7 @@ body {
     display: flex;
     align-items: center;
     background: white;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 8px;
     gap: 10px;
 }
