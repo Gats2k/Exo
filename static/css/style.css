@@ -5,6 +5,7 @@
     --accent-color: #4169E1;
     --text-light: #FFFFFF;
     --text-muted: #A0A0A0;
+    --sidebar-width: 300px;
 }
 
 body {
@@ -17,21 +18,59 @@ body {
 .app-container {
     display: flex;
     height: 100vh;
+    position: relative;
+}
+
+/* Toggle Button */
+.sidebar-toggle {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.3s ease;
 }
 
 /* Sidebar Styles */
 .sidebar {
-    width: 300px;
+    width: var(--sidebar-width);
     background-color: var(--sidebar-bg);
     color: var(--text-light);
     display: flex;
     flex-direction: column;
     padding: 20px;
+    position: fixed;
+    height: 100%;
+    left: calc(-1 * var(--sidebar-width));
+    transition: transform 0.3s ease;
+    z-index: 999;
+}
+
+.sidebar.visible {
+    transform: translateX(var(--sidebar-width));
+}
+
+/* Hover trigger area */
+.hover-area {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 100%;
+    z-index: 998;
 }
 
 .sidebar-header {
     padding-bottom: 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 40px;
 }
 
 .badge-container {
@@ -103,12 +142,15 @@ body {
     color: var(--text-muted);
 }
 
+
 /* Main Area Styles */
 .main-area {
     flex-grow: 1;
+    margin-left: 0;
     background: linear-gradient(135deg, var(--main-gradient-start), var(--main-gradient-end));
-    display: flex;
-    flex-direction: column;
+    transition: margin-left 0.3s ease;
+    width: 100%;
+    padding-left: 60px; /* Space for the toggle button */
 }
 
 .chat-header {
@@ -215,4 +257,19 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
+}
+
+/* Media Queries for Mobile */
+@media (max-width: 768px) {
+    .hover-area {
+        display: none;
+    }
+
+    .main-area {
+        padding-left: 70px;
+    }
+
+    .sidebar-toggle {
+        display: flex;
+    }
 }
