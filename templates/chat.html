@@ -14,11 +14,7 @@
     <div class="sidebar">
         <div class="sidebar-header">
             <div class="badge-container">
-                <i class="bi bi-mortarboard-fill"></i>
                 <span>1er de la Classe</span>
-            </div>
-            <div class="credits">
-                {{ credits }} crédits restants
             </div>
         </div>
 
@@ -58,9 +54,12 @@
     <!-- Main Chat Area -->
     <div class="main-area">
         <div class="chat-header">
-            <h1>Chat avec Mōjo</h1>
-            <div class="mode-label">Mode Général - Toutes matières</div>
+            <div class="header-title">
+                <i class="bi bi-mortarboard-fill"></i>
+                <span>Môjo</span>
+            </div>
             <button class="btn btn-primary reload-credits">Recharger mes crédits</button>
+            <div class="credits">{{ credits }} crédits restants</div>
         </div>
 
         <div class="chat-messages">
