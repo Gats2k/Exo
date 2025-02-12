@@ -192,30 +192,31 @@ body {
 
 .chat-messages {
     flex-grow: 1;
-    padding: 20px 0;
+    padding: 20px;
     overflow-y: auto;
-    width: 700px;
+    max-width: 700px;
     margin: 0 auto;
     padding-bottom: 180px; /* Space for fixed input area */
     position: relative;
 }
 
 .message {
-    max-width: 700px;
-    margin: 20px 0;
+    max-width: 60%; /* Réduit la largeur maximale des messages */
+    margin-bottom: 20px;
     position: relative;
+    clear: both;
 }
 
 .message.bot {
-    margin-right: auto;
-    padding-right: 280px; /* Creates space on the right for bot messages */
-    width: 100%;
+    position: absolute;
+    left: -100px; /* Aligne exactement avec la bordure gauche */
+    margin: 20px 0;
 }
 
 .message:not(.bot) {
-    margin-left: auto;
-    padding-left: 280px; /* Creates space on the left for user messages */
-    width: 100%;
+    position: absolute;
+    right: 0; /* Aligne exactement avec la bordure droite */
+    margin: 20px 0;
 }
 
 .message-content {
@@ -223,8 +224,7 @@ body {
     padding: 15px;
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    box-sizing: border-box;
+    word-wrap: break-word;
 }
 
 .message-actions {
@@ -251,7 +251,7 @@ body {
 }
 
 .input-container {
-    width: 700px;
+    max-width: 700px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -259,6 +259,7 @@ body {
     border-radius: 8px;
     padding: 8px;
     gap: 10px;
+    position: relative; /* Ajoute un contexte de positionnement */
 }
 
 .input-action {
@@ -286,7 +287,7 @@ body {
 }
 
 .response-time {
-    width: 700px;
+    max-width: 800px;
     margin: 10px auto 0;
     color: var(--text-muted);
     font-size: 0.9em;
