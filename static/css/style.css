@@ -164,7 +164,6 @@ body {
     align-items: center;
     position: relative;
     z-index: 1001;
-    padding-left: 60px;
 }
 
 .header-title {
@@ -202,8 +201,8 @@ body {
     margin: 0 auto;
     padding-bottom: 180px; /* Space for fixed input area */
     position: relative;
-    display: flex;           /* Ajout */
-    flex-direction: column;  /* Ajout */
+    display: flex;
+    flex-direction: column;
 }
 
 .message {
@@ -313,10 +312,80 @@ body {
     }
 
     .main-area {
-        padding-left: 70px;
+        padding-left: 0;
     }
 
-    .sidebar-toggle {
-        display: flex;
+    .chat-messages {
+        padding: 10px;
+        padding-bottom: 120px;
+    }
+
+    .message.bot,
+    .message:not(.bot) {
+        padding-left: 10px;
+        padding-right: 10px;
+        width: 100%;
+    }
+
+    .message-content {
+        max-width: 100%;
+    }
+
+    .chat-input {
+        padding: 10px;
+    }
+
+    .input-container {
+        max-width: 100%;
+    }
+
+    .header-title {
+        left: 50px;
+        font-size: 1.2em;
+    }
+
+    .reload-credits {
+        right: 10px;
+        padding: 5px 10px;
+        font-size: 0.9em;
+    }
+
+    .credits {
+        right: 10px;
+        font-size: 0.8em;
+    }
+
+    .response-time {
+        font-size: 0.8em;
+        padding: 0 10px;
+    }
+
+    .sidebar {
+        width: 80%;
+        max-width: 300px;
+    }
+}
+
+/* Additional breakpoint for very small screens */
+@media (max-width: 480px) {
+    .input-action {
+        padding: 3px;
+    }
+
+    .input-container input {
+        padding: 6px;
+        font-size: 0.9em;
+    }
+
+    .send-btn {
+        padding: 6px 12px;
+    }
+
+    .header-title {
+        font-size: 1.1em;
+    }
+
+    .chat-messages {
+        padding-bottom: 100px;
     }
 }
