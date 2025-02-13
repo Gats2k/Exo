@@ -215,29 +215,38 @@ body {
     flex-grow: 1;
     padding: 20px;
     overflow-y: auto;
-    max-width: 720px;
+    width: 670px;
     margin: 0 auto;
-    padding-bottom: 180px; /* Space for fixed input area */
-    position: relative;
+    height: calc(100vh - 200px);
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
+    z-index: 1;
+    background-color: rgba(0, 0, 0, 0.3); /* Fond noir semi-transparent */
+    backdrop-filter: blur(16px);          /* Effet de flou */
+    -webkit-backdrop-filter: blur(16px);  /* Support Safari */
+    border-radius: 12px;                  /* Coins arrondis */
+    border: 1px solid rgba(255, 255, 255, 0.1); /* Bordure subtile */
 }
 
 .message {
-    max-width: 90%; /* Réduit la largeur maximale des messages */
+    width: 60%;
     margin-bottom: 20px;
     position: relative;
-    clear: both;
+    display: flex;
 }
 
 .message.bot {
-    align-self: flex-start;  /* Remplace position: absolute */
-    margin: 20px 0;         /* Garde la même marge */
+    align-self: flex-start;
+    padding-left: -10000px;
 }
 
 .message:not(.bot) {
-    align-self: flex-end;    /* Remplace position: absolute */
-    margin: 20px 0;         /* Garde la même marge */
+    align-self: flex-end;
+    padding-right: 20px;
 }
 
 .message-content {
@@ -246,6 +255,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     word-wrap: break-word;
+     width: 100%;
 }
 
 .message-actions {
@@ -268,7 +278,15 @@ body {
     left: 0;
     right: 0;
     padding: 20px;
-    z-index: 100;
+    background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
+    z-index: 100;  /* Au-dessus de la zone de messages */
+}
+
+/* À AJOUTER */
+.main-area {
+    position: relative;
+    overflow-y: hidden; /* Empêche le scroll de la zone principale */
+    height: 100vh;
 }
 
 .input-container {
