@@ -60,12 +60,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Chat functionality
+    // Handle message input
     const input = document.querySelector('.input-container input');
     const sendBtn = document.querySelector('.send-btn');
-    const chatMessages = document.querySelector('.chat-messages');
 
-    function showLoadingIndicator() {
+    function addLoadingIndicator() {
+        const chatMessages = document.querySelector('.chat-messages');
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'message loading';
         loadingDiv.innerHTML = `
@@ -77,9 +77,10 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         chatMessages.appendChild(loadingDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        return loadingDiv;
     }
 
-    function hideLoadingIndicator() {
+    function removeLoadingIndicator() {
         const loadingIndicator = document.querySelector('.message.loading');
         if (loadingIndicator) {
             loadingIndicator.remove();
@@ -90,6 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const message = input.value.trim();
         if (message) {
             // Add user message to chat
+            const chatMessages = document.querySelector('.chat-messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message user';
             messageDiv.innerHTML = `
@@ -99,8 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
-            // Show loading indicator before sending message
-            showLoadingIndicator();
+            // Add loading indicator
+            addLoadingIndicator();
 
             // Send message through socket
             socket.emit('send_message', { message: message });
@@ -115,9 +117,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle assistant responses
     socket.on('receive_message', function(data) {
-        // Hide loading indicator
-        hideLoadingIndicator();
+        // Remove loading indicator
+        removeLoadingIndicator();
 
+        const chatMessages = document.querySelector('.chat-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
         messageDiv.innerHTML = `
@@ -129,25 +132,12 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
-    // Handle errors
-    socket.on('connect_error', function() {
-        hideLoadingIndicator();
-        // Optionally show an error message
-    });
-
-    socket.on('error', function() {
-        hideLoadingIndicator();
-        // Optionally show an error message
-    });
-
-
     // Send message on button click
     sendBtn.addEventListener('click', sendMessage);
 
-    // Handle Enter key
+    // Send message on Enter key
     input.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
+        if (e.key === 'Enter') {
             sendMessage();
         }
     });

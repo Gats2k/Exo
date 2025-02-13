@@ -265,7 +265,6 @@ body {
     width: 100%;
     min-width: fit-content;
     color: var(--text-light);
-    white-space: pre-wrap;  /* Preserve line breaks */
 }
 
 .message-actions {
@@ -456,12 +455,11 @@ body {
     }
 }
 
-/* Loading indicator styles */
+/* Add loading indicator styles after the .message styles */
 .message.loading {
     margin-right: auto;
     padding-left: 20px;
     width: fit-content;
-    margin-bottom: 20px;
 }
 
 .loading-dots {
@@ -479,7 +477,6 @@ body {
     border-radius: 50%;
     background-color: var(--text-light);
     animation: bounce 1.4s infinite ease-in-out;
-    display: inline-block;
 }
 
 .loading-dots span:nth-child(1) {
