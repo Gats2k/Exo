@@ -79,9 +79,18 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
-            // Show typing indicator
-            const typingIndicator = document.querySelector('.typing-indicator');
-            typingIndicator.style.display = 'block';
+            // Create and show typing indicator at the bottom
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator message assistant';
+            typingIndicator.innerHTML = `
+                <div class="message-content">
+                    Môjo est en train de réfléchir
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+            chatMessages.appendChild(typingIndicator);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
             // Send message through socket
@@ -95,9 +104,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle assistant responses
     socket.on('receive_message', function(data) {
         const chatMessages = document.querySelector('.chat-messages');
-        // Hide typing indicator
+        // Remove typing indicator
         const typingIndicator = document.querySelector('.typing-indicator');
-        typingIndicator.style.display = 'none';
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
 
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
