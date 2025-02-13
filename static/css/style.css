@@ -167,9 +167,6 @@ body {
     background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
     transition: margin-left 0.3s ease;
     width: 100%;
-    position: relative;
-    overflow-y: hidden; /* Empêche le scroll de la zone principale */
-    height: 100vh;
 }
 
 .chat-header {
@@ -217,54 +214,38 @@ body {
 .chat-messages {
     flex-grow: 1;
     padding: 20px;
-    overflow-y: scroll;
-    width: 670px;
+    overflow-y: auto;
+    max-width: 720px;
     margin: 0 auto;
-    height: calc(100vh - 200px);
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
+    padding-bottom: 180px; /* Space for fixed input area */
+    position: relative;
     display: flex;
     flex-direction: column;
-    z-index: 1;
-    background-color: transparent;
-    -webkit-backdrop-filter: blur(16px);  /* Support Safari */
-    scrollbar-width: none;  /* Firefox */
-    -ms-overflow-style: none;  /* Internet Explorer / Edge */
-}
-
-.chat-messages::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
 }
 
 .message {
-    max-width: 80%;
+    max-width: 90%; /* Réduit la largeur maximale des messages */
     margin-bottom: 20px;
     position: relative;
+    clear: both;
 }
 
-.message.user {
-    margin-left: auto;
-    padding-right: 20px;
-    width: fit-content;
+.message.bot {
+    align-self: flex-start;  /* Remplace position: absolute */
+    margin: 20px 0;         /* Garde la même marge */
 }
 
-.message.assistant {
-    margin-right: auto;
-    padding-left: 20px;
-    width: fit-content;
+.message:not(.bot) {
+    align-self: flex-end;    /* Remplace position: absolute */
+    margin: 20px 0;         /* Garde la même marge */
 }
 
 .message-content {
-    background: rgba(255, 255, 255, 0.1);
+    background: white;
     padding: 15px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     word-wrap: break-word;
-    width: 100%;
-    min-width: fit-content;
-    color: var(--text-light);
 }
 
 .message-actions {
@@ -287,21 +268,19 @@ body {
     left: 0;
     right: 0;
     padding: 20px;
-    z-index: 100;  /* Au-dessus de la zone de messages */
+    z-index: 100;
 }
 
-/* À AJOUTER */
 .input-container {
     max-width: 700px;
     margin: 0 auto;
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.1);
+    background: white;
     border-radius: 8px;
     padding: 8px;
     gap: 10px;
-    position: relative;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative; /* Ajoute un contexte de positionnement */
 }
 
 .input-action {
@@ -317,12 +296,6 @@ body {
     border: none;
     outline: none;
     padding: 8px;
-    background: transparent;
-    color: var(--text-light);
-}
-
-.input-container input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
 }
 
 .send-btn {
@@ -376,11 +349,8 @@ body {
     }
 
     .chat-messages {
-        width: 90%;  /* Largeur relative à l'écran */
         padding: 10px;
         padding-bottom: 120px;
-        left: 50%;
-        transform: translateX(-50%);
     }
 
     .message.bot,
@@ -396,7 +366,6 @@ body {
 
     .chat-input {
         padding: 10px;
-        height: 95px; /* ou la valeur de votre choix */
     }
 
     .input-container {
@@ -450,50 +419,6 @@ body {
     }
 
     .chat-messages {
-        width: 95%;  /* Encore plus large pour les très petits écrans */
-        padding: 10px;
         padding-bottom: 100px;
-    }
-}
-
-/* Loading indicator styles */
-.typing-indicator {
-    display: none;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 15px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    margin-bottom: 20px;
-    width: fit-content;
-    color: var(--text-light);
-}
-
-.typing-indicator span {
-    display: inline-block;
-    margin-right: 3px;
-    width: 8px;
-    height: 8px;
-    background: var(--text-light);
-    border-radius: 50%;
-    opacity: 0.4;
-    animation: typing 1s infinite;
-}
-
-.typing-indicator span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-
-.typing-indicator span:nth-child(3) {
-    animation-delay: 0.4s;
-}
-
-@keyframes typing {
-    0%, 100% {
-        transform: translateY(0);
-        opacity: 0.4;
-    }
-    50% {
-        transform: translateY(-5px);
-        opacity: 1;
     }
 }

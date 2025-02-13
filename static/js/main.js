@@ -65,7 +65,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sendBtn = document.querySelector('.send-btn');
 
     function sendMessage() {
-        const input = document.querySelector('.input-container input');
         const message = input.value.trim();
         if (message) {
             // Add user message to chat
@@ -79,26 +78,20 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
-            // Show typing indicator
-            const typingIndicator = document.querySelector('.typing-indicator');
-            typingIndicator.style.display = 'block';
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-
             // Send message through socket
             socket.emit('send_message', { message: message });
 
             // Clear input
             input.value = '';
+
+            // Auto scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
 
     // Handle assistant responses
     socket.on('receive_message', function(data) {
         const chatMessages = document.querySelector('.chat-messages');
-        // Hide typing indicator
-        const typingIndicator = document.querySelector('.typing-indicator');
-        typingIndicator.style.display = 'none';
-
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
         messageDiv.innerHTML = `

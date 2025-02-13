@@ -5,6 +5,9 @@ from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
@@ -39,21 +42,12 @@ def handle_message(data):
             assistant_id=ASSISTANT_ID
         )
 
-        # Wait for response with shorter timeout
-        import time
-        start_time = time.time()
-        timeout = 30  # 30 seconds timeout
-
+        # Wait for response
         while True:
-            if time.time() - start_time > timeout:
-                emit('receive_message', {'message': 'Délai d\'attente dépassé. Veuillez réessayer.'})
-                return
-
             run_status = client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
-            time.sleep(0.5)  # Poll every 500ms instead of continuously
             if run_status.status == 'completed':
                 break
             elif run_status.status == 'failed':
