@@ -167,6 +167,9 @@ body {
     background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
     transition: margin-left 0.3s ease;
     width: 100%;
+    position: relative;
+    overflow-y: hidden; /* Empêche le scroll de la zone principale */
+    height: 100vh;
 }
 
 .chat-header {
@@ -288,12 +291,6 @@ body {
 }
 
 /* À AJOUTER */
-.main-area {
-    position: relative;
-    overflow-y: hidden; /* Empêche le scroll de la zone principale */
-    height: 100vh;
-}
-
 .input-container {
     max-width: 700px;
     margin: 0 auto;
@@ -456,5 +453,47 @@ body {
         width: 95%;  /* Encore plus large pour les très petits écrans */
         padding: 10px;
         padding-bottom: 100px;
+    }
+}
+
+/* Loading indicator styles */
+.typing-indicator {
+    display: none;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 20px;
+    width: fit-content;
+    color: var(--text-light);
+}
+
+.typing-indicator span {
+    display: inline-block;
+    margin-right: 3px;
+    width: 8px;
+    height: 8px;
+    background: var(--text-light);
+    border-radius: 50%;
+    opacity: 0.4;
+    animation: typing 1s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing {
+    0%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    50% {
+        transform: translateY(-5px);
+        opacity: 1;
     }
 }
