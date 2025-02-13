@@ -6,9 +6,12 @@
     <div class="hover-area"></div>
 
     <!-- Toggle button -->
-    <button class="sidebar-toggle">
-        <i class="bi bi-mortarboard-fill"></i>
-    </button>
+    <div class="sidebar-toggle">
+        <button class="icon-button">
+            <i class="bi bi-mortarboard"></i>
+        </button>
+        <span>Môjo</span>
+    </div>
 
     <!-- Sidebar -->
     <div class="sidebar">
@@ -54,11 +57,10 @@
     <!-- Main Chat Area -->
     <div class="main-area">
         <div class="chat-header">
-            <div class="header-title">
-                <span>Môjo</span>
+            <div class="credits-container">
+                <button class="btn btn-primary reload-credits">Recharger mes crédits</button>
+                <div class="credits">{{ credits }} crédits restants</div>
             </div>
-            <button class="btn btn-primary reload-credits">Recharger mes crédits</button>
-            <div class="credits">{{ credits }} crédits restants</div>
         </div>
 
         <div class="chat-messages">

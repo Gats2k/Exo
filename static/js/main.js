@@ -2,14 +2,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sidebar functionality
     const sidebar = document.querySelector('.sidebar');
     const hoverArea = document.querySelector('.hover-area');
-    const toggleButton = document.querySelector('.sidebar-toggle');
+    const mortarboardIcon = document.querySelector('.bi-mortarboard');
+    const iconButton = document.querySelector('.icon-button');
     let sidebarTimeout;
+    const updateIcon = (isVisible) => {
+        if (isVisible) {
+            mortarboardIcon.classList.remove('bi-mortarboard');
+            mortarboardIcon.classList.add('bi-mortarboard-fill');
+        } else {
+            mortarboardIcon.classList.remove('bi-mortarboard-fill');
+            mortarboardIcon.classList.add('bi-mortarboard');
+        }
+    };
 
-    // Toggle sidebar on hover (desktop only)
     if (window.innerWidth > 768) {
         hoverArea.addEventListener('mouseenter', () => {
             clearTimeout(sidebarTimeout);
             sidebar.classList.add('visible');
+            updateIcon(true);
         });
 
         sidebar.addEventListener('mouseenter', () => {
@@ -19,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebar.addEventListener('mouseleave', () => {
             sidebarTimeout = setTimeout(() => {
                 sidebar.classList.remove('visible');
+                updateIcon(false);
             }, 300);
         });
 
@@ -26,14 +37,42 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!sidebar.matches(':hover')) {
                 sidebarTimeout = setTimeout(() => {
                     sidebar.classList.remove('visible');
+                    updateIcon(false);
                 }, 300);
             }
         });
     }
 
-    // Toggle sidebar on button click (works on both desktop and mobile)
-    toggleButton.addEventListener('click', () => {
-        sidebar.classList.toggle('visible');
+    iconButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = sidebar.classList.toggle('visible');
+        updateIcon(isVisible);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!sidebar.contains(e.target) && !iconButton.contains(e.target)) {
+            sidebar.classList.remove('visible');
+            updateIcon(false);
+        }
+    });
+
+    /* À AJOUTER */
+    document.addEventListener('click', function(e) {
+        if (!sidebar.contains(e.target) && !iconButton.contains(e.target)) {
+            sidebar.classList.remove('visible');
+            mortarboardIcon.classList.remove('bi-mortarboard-fill');
+            mortarboardIcon.classList.add('bi-mortarboard');
+        }
+    });
+
+    hoverArea.addEventListener('mouseleave', () => {
+        if (!sidebar.matches(':hover')) {
+            sidebarTimeout = setTimeout(() => {
+                sidebar.classList.remove('visible');
+                mortarboardIcon.classList.remove('bi-mortarboard-fill');
+                mortarboardIcon.classList.add('bi-mortarboard');
+            }, 300);
+        }
     });
 
     // Handle message input
