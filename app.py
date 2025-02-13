@@ -5,9 +5,6 @@ from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
