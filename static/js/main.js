@@ -64,6 +64,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const input = document.querySelector('.input-container input');
     const sendBtn = document.querySelector('.send-btn');
 
+    function addLoadingIndicator() {
+        const chatMessages = document.querySelector('.chat-messages');
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'message loading';
+        loadingDiv.innerHTML = `
+            <div class="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        `;
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return loadingDiv;
+    }
+
+    function removeLoadingIndicator() {
+        const loadingIndicator = document.querySelector('.message.loading');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+
     function sendMessage() {
         const message = input.value.trim();
         if (message) {
@@ -78,6 +101,9 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
+            // Add loading indicator
+            addLoadingIndicator();
+
             // Send message through socket
             socket.emit('send_message', { message: message });
 
@@ -91,6 +117,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle assistant responses
     socket.on('receive_message', function(data) {
+        // Remove loading indicator
+        removeLoadingIndicator();
+
         const chatMessages = document.querySelector('.chat-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
@@ -117,7 +146,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const actionButtons = document.querySelectorAll('.action-btn');
     actionButtons.forEach(button => {
         button.addEventListener('click', function() {
-            // Toggle active state
             button.classList.toggle('active');
         });
     });
