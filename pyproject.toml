@@ -9,7 +9,11 @@ dependencies = [
     "flask>=3.1.0",
     "flask-sqlalchemy>=3.1.1",
     "gunicorn>=23.0.0",
-    "openai>=1.62.0",
+    "openai[datalib]>=1.62.0",
     "psycopg2-binary>=2.9.10",
     "python-dotenv>=1.0.1",
+    "twilio>=9.4.5",
+    "eventlet>=0.39.0",
+    "numpy>=2.2.3",
+    "pandas>=2.2.3",
 ]
