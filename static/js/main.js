@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle message input
     const input = document.querySelector('.input-container textarea');
     const sendBtn = document.querySelector('.send-btn');
+    const chatMessages = document.querySelector('.chat-messages');
 
     function addLoadingIndicator() {
-        const chatMessages = document.querySelector('.chat-messages');
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'message loading';
         loadingDiv.innerHTML = `
