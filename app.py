@@ -39,12 +39,21 @@ def handle_message(data):
             assistant_id=ASSISTANT_ID
         )
 
-        # Wait for response
+        # Wait for response with shorter timeout
+        import time
+        start_time = time.time()
+        timeout = 30  # 30 seconds timeout
+
         while True:
+            if time.time() - start_time > timeout:
+                emit('receive_message', {'message': 'Délai d\'attente dépassé. Veuillez réessayer.'})
+                return
+
             run_status = client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
                 run_id=run.id
             )
+            time.sleep(0.5)  # Poll every 500ms instead of continuously
             if run_status.status == 'completed':
                 break
             elif run_status.status == 'failed':
