@@ -1,10 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Socket.IO
+    const socket = io();
+
     // Sidebar functionality
     const sidebar = document.querySelector('.sidebar');
     const hoverArea = document.querySelector('.hover-area');
     const mortarboardIcon = document.querySelector('.bi-mortarboard');
     const iconButton = document.querySelector('.icon-button');
     let sidebarTimeout;
+
     const updateIcon = (isVisible) => {
         if (isVisible) {
             mortarboardIcon.classList.remove('bi-mortarboard');
@@ -56,25 +60,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    /* À AJOUTER */
-    document.addEventListener('click', function(e) {
-        if (!sidebar.contains(e.target) && !iconButton.contains(e.target)) {
-            sidebar.classList.remove('visible');
-            mortarboardIcon.classList.remove('bi-mortarboard-fill');
-            mortarboardIcon.classList.add('bi-mortarboard');
-        }
-    });
-
-    hoverArea.addEventListener('mouseleave', () => {
-        if (!sidebar.matches(':hover')) {
-            sidebarTimeout = setTimeout(() => {
-                sidebar.classList.remove('visible');
-                mortarboardIcon.classList.remove('bi-mortarboard-fill');
-                mortarboardIcon.classList.add('bi-mortarboard');
-            }, 300);
-        }
-    });
-
     // Handle message input
     const input = document.querySelector('.input-container input');
     const sendBtn = document.querySelector('.send-btn');
@@ -93,6 +78,9 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
+            // Send message through socket
+            socket.emit('send_message', { message: message });
+
             // Clear input
             input.value = '';
 
@@ -100,6 +88,20 @@ document.addEventListener('DOMContentLoaded', function() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
+
+    // Handle assistant responses
+    socket.on('receive_message', function(data) {
+        const chatMessages = document.querySelector('.chat-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant';
+        messageDiv.innerHTML = `
+            <div class="message-content">
+                ${data.message}
+            </div>
+        `;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
 
     // Send message on button click
     sendBtn.addEventListener('click', sendMessage);
