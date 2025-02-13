@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Handle message input
-    const input = document.querySelector('.input-container input');
+    const input = document.querySelector('.input-container textarea');
     const sendBtn = document.querySelector('.send-btn');
 
     function addLoadingIndicator() {
@@ -90,16 +90,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function sendMessage() {
         const message = input.value.trim();
         if (message) {
-            // Add user message to chat
-            const chatMessages = document.querySelector('.chat-messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message user';
             messageDiv.innerHTML = `
                 <div class="message-content">
-                    ${message}
+                    ${message.replace(/\n/g, '<br>')}
                 </div>
-            `;
+                    `;
             chatMessages.appendChild(messageDiv);
+            // Réinitialiser la hauteur du textarea
+            input.style.height = 'auto';
 
             // Add loading indicator
             addLoadingIndicator();
@@ -117,15 +117,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle assistant responses
     socket.on('receive_message', function(data) {
-        // Remove loading indicator
         removeLoadingIndicator();
-
-        const chatMessages = document.querySelector('.chat-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
         messageDiv.innerHTML = `
             <div class="message-content">
-                ${data.message}
+                ${data.message.replace(/\n/g, '<br>')}
             </div>
         `;
         chatMessages.appendChild(messageDiv);
@@ -136,10 +133,17 @@ document.addEventListener('DOMContentLoaded', function() {
     sendBtn.addEventListener('click', sendMessage);
 
     // Send message on Enter key
-    input.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             sendMessage();
         }
+    });
+
+    // Ajuster automatiquement la hauteur du textarea
+    input.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
     });
 
     // Handle action buttons

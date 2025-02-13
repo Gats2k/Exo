@@ -217,11 +217,11 @@ body {
 .chat-messages {
     flex-grow: 1;
     padding: 20px;
-    overflow-y: scroll;
+    overflow-y: auto;
     width: 670px;
     margin: 0 auto;
-    height: calc(100vh - 200px);
-    position: fixed;
+    height: calc(100vh - 200px); /* Adjust height to account for input area */
+    position: relative;
     top: 80px;
     left: 50%;
     transform: translateX(-50%);
@@ -229,9 +229,10 @@ body {
     flex-direction: column;
     z-index: 1;
     background-color: transparent;
-    -webkit-backdrop-filter: blur(16px);  /* Support Safari */
-    scrollbar-width: none;  /* Firefox */
-    -ms-overflow-style: none;  /* Internet Explorer / Edge */
+    -webkit-backdrop-filter: blur(16px);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    margin-bottom: 120px; /* Add space for input container */
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -287,21 +288,46 @@ body {
     left: 0;
     right: 0;
     padding: 20px;
-    z-index: 100;  /* Au-dessus de la zone de messages */
+    background: transparent;
+    z-index: 100;
+    width: 100%;
 }
 
-/* À AJOUTER */
 .input-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     max-width: 700px;
-    margin: 0 auto;
+    width: calc(100% - 40px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 8px;
     gap: 10px;
-    position: relative;
     border: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: 100;
+}
+
+.input-container textarea {
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    flex-grow: 1;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.5;
+    margin: 0;
+    min-height: 36px;
+    outline: none;
+    padding: 8px 0;
+    resize: none;
+    width: 100%;
+}
+
+.input-container textarea::placeholder {
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .input-action {
@@ -310,15 +336,9 @@ body {
     color: var(--text-muted);
     cursor: pointer;
     padding: 5px;
-}
-
-.input-container input {
-    flex-grow: 1;
-    border: none;
-    outline: none;
-    padding: 8px;
-    background: transparent;
-    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    height: 24px;
 }
 
 .input-container input::placeholder {
@@ -332,17 +352,28 @@ body {
     padding: 8px 15px;
     border-radius: 6px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 15px;
+    margin-bottom: 1px;
 }
 
 .response-time {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
     max-width: 700px;
-    margin: 10px auto 0;
+    width: calc(100% - 40px);
     color: var(--text-muted);
     font-size: 0.9em;
     display: flex;
     align-items: center;
     gap: 5px;
     text-align: left;
+    padding: 10px 0;
+    z-index: 99;
 }
 
 /* Import de la police - à mettre dans le head du HTML */
