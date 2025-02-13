@@ -12,15 +12,11 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-# Create assistant (to be done only once)
-assistant = client.beta.assistants.create(
-    name="Môjo",
-    instructions="You are Môjo, a French teacher assistant who helps students in their studies.",
-    tools=[{"type": "code_interpreter"}],
-    model="gpt-4-turbo-preview"
-)
+# Initialize OpenAI client with API key from environment
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# Get assistant ID from environment
+ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
 @app.route('/')
 def chat():
@@ -40,10 +36,10 @@ def handle_message(data):
             content=data['message']
         )
 
-        # Create a run
+        # Create a run using the existing assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=assistant.id
+            assistant_id=ASSISTANT_ID
         )
 
         # Wait for response
