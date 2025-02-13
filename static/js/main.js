@@ -63,35 +63,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle message input
     const input = document.querySelector('.input-container input');
     const sendBtn = document.querySelector('.send-btn');
-    const lineBreakBtn = document.querySelector('.line-break-btn');
-
-    // Add line break button handler
-    if (lineBreakBtn) {
-        lineBreakBtn.addEventListener('click', function() {
-            input.value = input.value + '\n';
-            input.focus();
-        });
-    }
-
-    // Handle message input with Shift+Enter support
-    input.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            if (e.shiftKey) {
-                // Prevent the default form submission
-                e.preventDefault();
-                // Insert a new line at the cursor position
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                this.value = this.value.substring(0, start) + '\n' + this.value.substring(end);
-                // Move cursor after the inserted newline
-                this.selectionStart = this.selectionEnd = start + 1;
-            } else {
-                // Regular Enter key sends the message
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-    });
 
     function addLoadingIndicator() {
         const chatMessages = document.querySelector('.chat-messages');
@@ -164,6 +135,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Send message on button click
     sendBtn.addEventListener('click', sendMessage);
 
+    // Send message on Enter key
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
 
     // Handle action buttons
     const actionButtons = document.querySelectorAll('.action-btn');
