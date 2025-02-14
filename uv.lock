@@ -1025,7 +1025,6 @@ dependencies = [
     { name = "pandas" },
     { name = "psycopg2-binary" },
     { name = "python-dotenv" },
-    { name = "requests" },
     { name = "twilio" },
 ]
 
@@ -1042,7 +1041,6 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "requests", specifier = ">=2.32.3" },
     { name = "twilio", specifier = ">=9.4.5" },
 ]
 
