@@ -389,7 +389,7 @@ body {
 
 .response-time {
     position: fixed;
-    bottom: 0;
+    bottom: -10px;
     left: 50%;
     transform: translateX(-50%);
     max-width: 700px;
@@ -406,7 +406,7 @@ body {
 }
 
 .response-time.centered {
-    bottom: calc(50% - 80px);
+    bottom: calc(50% - 65px);
 }
 
 /* Import de la police - à mettre dans le head du HTML */
@@ -503,6 +503,11 @@ body {
     .response-time {
         font-size: 0.8em;
         padding: 0 10px;
+        bottom: 0px;
+    }
+
+    .response-time.centered {
+        bottom: calc(50% - 50px);
     }
 
     .sidebar {

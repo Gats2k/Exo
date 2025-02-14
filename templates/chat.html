@@ -1,10 +1,8 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="app-container">
     <!-- Hover trigger area -->
     <div class="hover-area"></div>
-
     <!-- Toggle button -->
     <div class="sidebar-toggle">
         <button class="icon-button">
@@ -12,7 +10,6 @@
         </button>
         <span>Môjo</span>
     </div>
-
     <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -20,7 +17,6 @@
                 <span>1er de la Classe</span>
             </div>
         </div>
-
         <div class="sidebar-nav">
             <div class="nav-item active">
                 <i class="bi bi-globe"></i>
@@ -32,7 +28,6 @@
                 <i class="bi bi-chevron-right"></i>
             </div>
         </div>
-
         <div class="recent-history">
             <h6>Historique récent</h6>
             {% for item in history %}
@@ -45,7 +40,6 @@
             </div>
             {% endfor %}
         </div>
-
         <div class="sidebar-footer">
             <div class="nav-item">
                 <i class="bi bi-gear"></i>
@@ -53,7 +47,6 @@
             </div>
         </div>
     </div>
-
     <!-- Main Chat Area -->
     <div class="main-area">
         <div class="chat-header">
@@ -62,7 +55,6 @@
                 <div class="credits">{{ credits }} crédits restants</div>
             </div>
         </div>
-
         <div class="chat-container">
             <div class="chat-viewport">
                 <div class="chat-messages">
@@ -70,7 +62,6 @@
                 </div>
             </div>
         </div>
-
             <div class="input-container">
                 <button class="input-action"><i class="bi bi-camera"></i></button>
                 <button class="input-action"><i class="bi bi-image"></i></button>

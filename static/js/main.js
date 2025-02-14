@@ -9,12 +9,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const iconButton = document.querySelector('.icon-button');
     const inputContainer = document.querySelector('.input-container');
     const responseTime = document.querySelector('.response-time');
+    const chatMessages = document.querySelector('.chat-messages');
     let isFirstMessage = true;
     let sidebarTimeout;
 
-    // Add initial centered class
-    inputContainer.classList.add('centered');
-    responseTime.classList.add('centered');
+    // Check if there are any existing messages
+    if (chatMessages.children.length === 0) {
+        // No messages yet, center the input
+        inputContainer.classList.add('centered');
+        responseTime.classList.add('centered');
+    } else {
+        // Messages exist, position at bottom
+        inputContainer.classList.remove('centered');
+        responseTime.classList.remove('centered');
+        isFirstMessage = false;
+    }
 
     const updateIcon = (isVisible) => {
         if (isVisible) {
@@ -54,9 +63,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    iconButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = sidebar.classList.toggle('visible');
+        updateIcon(isVisible);
+    });
+
     const input = document.querySelector('.input-container textarea');
     const sendBtn = document.querySelector('.send-btn');
-    const chatMessages = document.querySelector('.chat-messages');
 
     function addLoadingIndicator() {
         const loadingDiv = document.createElement('div');
@@ -100,17 +114,13 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             chatMessages.appendChild(messageDiv);
 
-            // Move input to bottom after first message
+            // Move input to bottom after first message is actually sent
             moveInputToBottom();
 
             input.style.height = 'auto';
-
             addLoadingIndicator();
-
             socket.emit('send_message', { message: message });
-
             input.value = '';
-
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
@@ -139,11 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 sendMessage();
             }
         }
-    });
-
-    sendBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        sendMessage();
     });
 
     input.addEventListener('input', function() {
