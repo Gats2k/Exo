@@ -2,7 +2,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
@@ -10,8 +10,6 @@ from dotenv import load_dotenv
 import time
 import logging
 import base64
-import tempfile
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,19 +19,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
-socketio = SocketIO(
-    app,
-    async_mode='eventlet',
-    cors_allowed_origins="*",
-    ping_timeout=60,
-    ping_interval=25,
-    reconnection=True,
-    reconnection_attempts=5,
-    reconnection_delay=1000,
-    reconnection_delay_max=5000,
-    logger=True,
-    engineio_logger=True
-)
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -79,38 +65,12 @@ def wait_for_run_completion(thread_id, run_id):
 
 @socketio.on('connect')
 def handle_connect():
-    try:
-        logger.info("Client connected")
-        emit('connect_response', {'status': 'connected'})
-    except Exception as e:
-        logger.error("Error in handle_connect: %s", str(e))
+    logger.info("Client connected")
+    emit('connect_response', {'status': 'connected'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    try:
-        logger.info("Client disconnected")
-    except Exception as e:
-        logger.error("Error in handle_disconnect: %s", str(e))
-
-def save_base64_image(base64_data):
-    """Save base64 image data to a temporary file and return its path."""
-    try:
-        # Create a temporary file with .png extension
-        temp_dir = Path(tempfile.gettempdir())
-        temp_file = temp_dir / f"image_{time.time()}.png"
-
-        # Remove header if present and decode
-        if ',' in base64_data:
-            base64_data = base64_data.split(',')[1]
-
-        # Decode and save the image
-        with open(temp_file, 'wb') as f:
-            f.write(base64.b64decode(base64_data))
-
-        return temp_file
-    except Exception as e:
-        logger.error(f"Error saving image: {str(e)}")
-        return None
+    logger.info("Client disconnected")
 
 @socketio.on('send_message')
 def handle_message(data):
@@ -128,31 +88,17 @@ def handle_message(data):
             # Add image if present
             if 'image' in data and data['image']:
                 try:
-                    # Save the base64 image to a temporary file
-                    temp_file = save_base64_image(data['image'])
-                    if temp_file is None:
-                        emit('receive_message', {'message': 'Error processing the image. Please try again.'})
-                        return
+                    # Extract base64 data after the comma
+                    image_data = data['image'].split(',')[1] if ',' in data['image'] else data['image']
+                    logger.debug("Processing image data")
 
-                    # Upload the image file to OpenAI
-                    with open(temp_file, 'rb') as f:
-                        response = client.files.create(
-                            file=f,
-                            purpose="assistants"
-                        )
-                        file_id = response.id
-                        logger.debug(f"Uploaded image with file_id: {file_id}")
-
-                    # Add the image to message content
                     message_content.append({
-                        "type": "image_file",
-                        "file_id": file_id
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                        }
                     })
                     logger.debug("Added image to message content")
-
-                    # Clean up the temporary file
-                    temp_file.unlink()
-
                 except Exception as img_error:
                     logger.error(f"Error processing image: {str(img_error)}")
                     emit('receive_message', {'message': 'Error processing the image. Please try again.'})

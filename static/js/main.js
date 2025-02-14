@@ -25,14 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let sidebarTimeout;
     let currentImage = null;
     let isConnected = false;
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
 
     // Socket connection handling
     socket.on('connect', () => {
         console.log('Connected to server');
         isConnected = true;
-        retryCount = 0; // Reset retry count on successful connection
     });
 
     socket.on('disconnect', () => {
@@ -42,13 +39,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        if (retryCount < MAX_RETRIES) {
-            retryCount++;
-            setTimeout(() => {
-                console.log(`Attempting to reconnect (${retryCount}/${MAX_RETRIES})...`);
-                socket.connect();
-            }, 1000 * retryCount);
-        }
     });
 
     // Check if there are any existing messages
@@ -186,15 +176,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function sendMessage() {
         if (!isConnected) {
-            console.log('Not connected, attempting to reconnect...');
+            console.log('Attempting to reconnect...');
             socket.connect();
-            setTimeout(() => {
-                if (isConnected) {
-                    sendMessage();
-                } else {
-                    console.error('Unable to connect to server');
-                }
-            }, 1000);
             return;
         }
 
