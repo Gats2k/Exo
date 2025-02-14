@@ -46,30 +46,21 @@ def chat():
     return render_template('chat.html', history=history, credits=42)
 
 def process_image(base64_string):
-    """Process base64 image data and create content for the OpenAI API"""
     try:
         logger.debug("Starting image processing")
-        # Remove the data URL prefix if present
         if ',' in base64_string:
             base64_string = base64_string.split(',')[1]
 
-        # Convert base64 to bytes
         image_bytes = base64.b64decode(base64_string)
 
-        # Create a temporary file for the image
+        # Create file object with proper MIME type and filename
         file = client.files.create(
-            file=io.BytesIO(image_bytes),
+            file=("image.jpg", io.BytesIO(image_bytes), "image/jpeg"),  # Add name and MIME type
             purpose='assistants'
         )
 
-        # Get the file URL
-        file_url = f"https://api.openai.com/v1/files/{file.id}/content"
         logger.debug(f"Created file with ID: {file.id}")
-
-        return {
-            "type": "image",
-            "file_id": file.id
-        }
+        return file.id  # Return just the file ID
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
         raise
@@ -80,33 +71,36 @@ def handle_message(data):
         logger.debug("Received message data: %s", data)
         thread = client.beta.threads.create()
 
-        # Handle image and message
+        # Initialize the lists
+        file_ids = []
         message_content = []
 
+        # Process image first if present
+        if data.get('image'):
+            try:
+                file_id = process_image(data['image'])
+                file_ids.append(file_id)  # Add to file IDs list
+                logger.debug(f"Added file_id to list: {file_id}")
+            except Exception as img_error:
+                logger.error("Image processing error: %s", str(img_error))
+                emit('receive_message', {
+                    'message': 'Error processing image.'
+                })
+                return
+
+        # Add message text if present
         if data.get('message'):
             message_content.append({
                 "type": "text",
                 "text": data['message']
             })
 
-        if data.get('image'):
-            try:
-                # Process the image
-                image_content = process_image(data['image'])
-                message_content.append(image_content)
-                logger.debug("Added image content to message")
-            except Exception as img_error:
-                logger.error("Image processing error: %s", str(img_error))
-                emit('receive_message', {
-                    'message': 'Error processing image. Please ensure the image is in a supported format (JPG or PNG) and try again.'
-                })
-                return
-
-        # Create message in thread
+        # Create message with text and files attached
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=message_content,
+            file_ids=file_ids  # Attach the files here
         )
 
         # Create a run using the existing assistant
