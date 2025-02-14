@@ -29,11 +29,32 @@ def handle_message(data):
         # Create thread for conversation
         thread = client.beta.threads.create()
 
-        # Add user message
+        # Create message content based on whether there's an image or text or both
+        message_content = []
+
+        # Add image if present
+        if 'image' in data and data['image']:
+            # Remove the data:image/jpeg;base64, prefix
+            base64_image = data['image'].split(',')[1]
+            message_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}"
+                }
+            })
+
+        # Add text if present
+        if 'message' in data and data['message'].strip():
+            message_content.append({
+                "type": "text",
+                "text": data['message']
+            })
+
+        # Add message to thread
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=data['message']
+            content=message_content
         )
 
         # Create a run using the existing assistant

@@ -12,8 +12,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.querySelector('.chat-messages');
     const welcomeContainer = document.querySelector('.welcome-container');
     const suggestionsContainer = document.querySelector('.suggestions-container');
+    const cameraInput = document.getElementById('camera-input');
+    const imageInput = document.getElementById('image-input');
+    const imagePreviewContainer = document.querySelector('.image-preview-container');
     let isFirstMessage = true;
     let sidebarTimeout;
+    let currentImage = null;
 
     // Check if there are any existing messages
     if (chatMessages.children.length === 0) {
@@ -110,25 +114,79 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function handleImageUpload(file) {
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Image = e.target.result;
+                currentImage = base64Image;
+
+                // Create preview
+                imagePreviewContainer.innerHTML = `
+                    <div class="image-preview">
+                        <img src="${base64Image}" alt="Preview">
+                        <button class="remove-image" onclick="removeImage()">×</button>
+                    </div>
+                `;
+                imagePreviewContainer.classList.add('visible');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    window.removeImage = function() {
+        currentImage = null;
+        imagePreviewContainer.innerHTML = '';
+        imagePreviewContainer.classList.remove('visible');
+    };
+
+    cameraInput.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+    });
+
+    imageInput.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+    });
+
+
     function sendMessage() {
         const message = input.value.trim();
-        if (message) {
+        if (message || currentImage) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message user';
+
+            let content = '';
+            if (currentImage) {
+                content += `<img src="${currentImage}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
+            }
+            if (message) {
+                content += message.replace(/\n/g, '<br>');
+            }
+
             messageDiv.innerHTML = `
                 <div class="message-content">
-                    ${message.replace(/\n/g, '<br>')}
+                    ${content}
                 </div>
             `;
             chatMessages.appendChild(messageDiv);
 
-            // Move input to bottom after first message is actually sent
             moveInputToBottom();
-
             input.style.height = 'auto';
             addLoadingIndicator();
-            socket.emit('send_message', { message: message });
+
+            // Send both message and image to the server
+            socket.emit('send_message', {
+                message: message,
+                image: currentImage
+            });
+
+            // Clear input and image
             input.value = '';
+            removeImage();
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
@@ -137,9 +195,15 @@ document.addEventListener('DOMContentLoaded', function() {
         removeLoadingIndicator();
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
+        let content = '';
+        if (data.image) {
+            content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
+        }
+        content += data.message.replace(/\n/g, '<br>');
+
         messageDiv.innerHTML = `
             <div class="message-content">
-                ${data.message.replace(/\n/g, '<br>')}
+                ${content}
             </div>
         `;
         chatMessages.appendChild(messageDiv);

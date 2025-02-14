@@ -317,8 +317,8 @@ body {
     align-items: center;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 8px;
-    gap: 10px;
+    padding: 4px 15px 6px 1px;
+    gap: 0px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     z-index: 100;
     transition: all 0.3s ease;
@@ -335,7 +335,16 @@ body {
 .input-container .input-action, 
 .input-container .send-btn {
     align-self: flex-end;
-    margin-top: 8px; /* Pour maintenir l'alignement initial */
+    margin-top: 0px; /* Pour maintenir l'alignement initial */
+    margin-right: 8px;
+    margin-bottom: 0px;
+}
+
+.send-btn {
+    align-self: flex-end;
+    margin-top: 0px; /* Pour maintenir l'alignement initial */
+    margin-right: 5px;
+    margin-bottom: 0px;
 }
 
 .input-container textarea {
@@ -372,11 +381,9 @@ body {
 }
 
 .send-btn {
-    background-color: var(--accent-color);
+    background-color: transparent;
     border: none;
     color: white;
-    padding: 8px 15px;
-    border-radius: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -526,6 +533,13 @@ body {
         max-height: 120px; /* Un peu plus grand que le textarea pour les boutons */
         overflow: visible;
     }
+
+    .input-container .input-action, 
+    .input-container .send-btn {
+        margin-top: 0px;
+        margin-right: 1px; /* Ajout du padding à droite */
+        margin-bottom: 0px;
+    }
 }
 
 /* Additional breakpoint for very small screens */
@@ -616,7 +630,7 @@ body {
     width: 100%;
     max-width: 700px;
     z-index: 97;
-    bottom: calc(50% + 80px); /* Initial position below center */
+    bottom: calc(50% + 70px); /* Initial position below center */
 }
 
 .welcome-container.visible {
@@ -624,14 +638,21 @@ body {
     pointer-events: auto;
 }
 
+@keyframes pulseScale {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
 .welcome-title {
-    font-size: 2.5em;
+    font-size: 3.5em;
     font-weight: 700;
     margin-bottom: 0.5em;
     background: linear-gradient(45deg, #FFD700, #FFA500);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    animation: pulseScale 2s ease-in-out infinite;
 }
 
 .welcome-text {
@@ -685,6 +706,21 @@ body {
     color: #FFD700;
 }
 
+.send-btn:hover .bi-rocket-fill {
+    transform: translateY(-2px) rotate(-45deg);
+    transition: transform 0.3s ease;
+}
+
+.send-btn .bi-rocket-fill {
+    transform: rotate(-45deg);
+    transition: transform 0.3s ease;
+}
+
+.send-btn .bi-rocket-fill {
+    transform: rotate(-45deg);
+    transition: transform 0.3s ease;
+    font-size: 2rem;
+}
 
 /* Responsive adjustments for welcome and suggestions */
 @media (max-width: 768px) {
@@ -696,6 +732,10 @@ body {
         font-size: 1em;
     }
 
+    .welcome-container {
+        bottom: calc(50% + 60px); /* Réduit de 80px à 40px */
+    }
+
     .suggestions-container {
         padding: 0 20px;
     }
@@ -704,4 +744,87 @@ body {
         padding: 12px 20px;
         font-size: 0.9em;
     }
+
+    .send-btn .bi-rocket-fill {
+        font-size: 1.5rem;
+    }
+}
+
+/* Add these styles after the input-container styles */
+.image-preview-container {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    padding: 10px;
+    width: auto;
+    max-width: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px 8px 0 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: none;
+}
+
+.image-preview-container.visible {
+    display: block;
+}
+
+.image-preview {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.image-preview img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.remove-image {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    padding: 0;
+    font-size: 18px;
+}
+
+.remove-image:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.input-actions-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+}
+
+.input-actions-container textarea {
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    flex-grow: 1;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.5;
+    margin: 0;
+    min-height: 36px;
+    outline: none;
+    padding: 8px 0;
+    resize: none;
+}
+
+.input-actions-container textarea::placeholder {
+    color: rgba(255, 255, 255, 0.6);
 }
