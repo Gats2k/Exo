@@ -21,7 +21,19 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    async_mode='eventlet',
+    cors_allowed_origins="*",
+    ping_timeout=60,
+    ping_interval=25,
+    reconnection=True,
+    reconnection_attempts=5,
+    reconnection_delay=1000,
+    reconnection_delay_max=5000,
+    logger=True,
+    engineio_logger=True
+)
 
 # Initialize OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -67,12 +79,18 @@ def wait_for_run_completion(thread_id, run_id):
 
 @socketio.on('connect')
 def handle_connect():
-    logger.info("Client connected")
-    emit('connect_response', {'status': 'connected'})
+    try:
+        logger.info("Client connected")
+        emit('connect_response', {'status': 'connected'})
+    except Exception as e:
+        logger.error("Error in handle_connect: %s", str(e))
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    logger.info("Client disconnected")
+    try:
+        logger.info("Client disconnected")
+    except Exception as e:
+        logger.error("Error in handle_disconnect: %s", str(e))
 
 def save_base64_image(base64_data):
     """Save base64 image data to a temporary file and return its path."""
