@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 import time
 import logging
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -86,15 +87,22 @@ def handle_message(data):
 
             # Add image if present
             if 'image' in data and data['image']:
-                # Remove the data:image/jpeg;base64, prefix
-                base64_image = data['image'].split(',')[1]
-                message_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    }
-                })
-                logger.debug("Added image to message content")
+                try:
+                    # Extract base64 data after the comma
+                    image_data = data['image'].split(',')[1] if ',' in data['image'] else data['image']
+                    logger.debug("Processing image data")
+
+                    message_content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                        }
+                    })
+                    logger.debug("Added image to message content")
+                except Exception as img_error:
+                    logger.error(f"Error processing image: {str(img_error)}")
+                    emit('receive_message', {'message': 'Error processing the image. Please try again.'})
+                    return
 
             # Add text if present
             if 'message' in data and data['message'].strip():
@@ -107,6 +115,9 @@ def handle_message(data):
             if not message_content:
                 emit('receive_message', {'message': 'No message or image provided.'})
                 return
+
+            # Log the message content for debugging
+            logger.debug(f"Sending message content to OpenAI: {message_content}")
 
             # Add message to thread
             message = client.beta.threads.messages.create(
@@ -132,9 +143,14 @@ def handle_message(data):
                     logger.error("No messages found in thread")
                     raise Exception("No response received from assistant")
 
-                assistant_message = messages.data[0].content[0].text.value
+                # Get all content parts from the assistant's response
+                assistant_message = ""
+                for content in messages.data[0].content:
+                    if content.type == "text":
+                        assistant_message += content.text.value + "\n"
+
                 logger.info("Successfully received assistant response")
-                emit('receive_message', {'message': assistant_message})
+                emit('receive_message', {'message': assistant_message.strip()})
                 return
 
             logger.warning("Run did not complete successfully, retrying...")
