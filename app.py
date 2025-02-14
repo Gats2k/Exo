@@ -24,21 +24,6 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI client with API key from environment
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-# Get assistant ID from environment or create a new one
-ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
-
-def create_assistant():
-    """Create a new assistant with vision capabilities if needed"""
-    assistant = client.beta.assistants.create(
-        name="Vision Assistant",
-        instructions="You are a helpful assistant capable of understanding images and text. Help students with their exercises and questions.",
-        model="gpt-4-vision-preview",
-        tools=[{"type": "code_interpreter"}]
-    )
-    return assistant.id
-
-if not ASSISTANT_ID:
-    ASSISTANT_ID = create_assistant()
 
 @app.route('/')
 def chat():
@@ -69,6 +54,15 @@ def process_image(base64_string):
 def handle_message(data):
     try:
         logger.debug("Received message data: %s", data)
+
+        # Create a new assistant for this conversation with vision capabilities
+        assistant = client.beta.assistants.create(
+            name="Vision Assistant",
+            instructions="You are a helpful assistant capable of understanding images and text. Help students with their exercises and questions.",
+            model="gpt-4-vision-preview",
+            tools=[{"type": "code_interpreter"}]
+        )
+
         thread = client.beta.threads.create()
 
         # Initialize content list for the message
@@ -82,12 +76,15 @@ def handle_message(data):
             })
 
         # Handle image if present
-        file_ids = []
         if data.get('image'):
             try:
                 file_id = process_image(data['image'])
-                file_ids.append(file_id)
-                logger.debug(f"Added file ID to message: {file_id}")
+                # Update assistant with the new file
+                assistant = client.beta.assistants.update(
+                    assistant_id=assistant.id,
+                    file_ids=[file_id]
+                )
+                logger.debug(f"Updated assistant with file ID: {file_id}")
 
                 # If no text message was provided, add a default one
                 if not data.get('message'):
@@ -114,8 +111,7 @@ def handle_message(data):
         # Create a run using the assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=ASSISTANT_ID,
-            file_ids=file_ids if file_ids else None
+            assistant_id=assistant.id
         )
 
         # Wait for response with timeout
