@@ -39,6 +39,7 @@ def process_image(base64_string):
 
         image_bytes = base64.b64decode(base64_string)
 
+        # Create a file object with proper MIME type
         file = client.files.create(
             file=("image.jpg", io.BytesIO(image_bytes), "image/jpeg"),
             purpose='assistants'
@@ -55,11 +56,12 @@ def handle_message(data):
     try:
         logger.debug("Received message data: %s", data)
 
-        # Create a new assistant for this conversation with vision capabilities
+        # Create a new assistant for this conversation
+        # Using gpt-4o as it's the latest model with vision capabilities
         assistant = client.beta.assistants.create(
             name="Vision Assistant",
             instructions="You are a helpful assistant capable of understanding images and text. Help students with their exercises and questions.",
-            model="gpt-4-vision-preview",
+            model="gpt-4o",  # Latest model with vision capabilities
             tools=[{"type": "code_interpreter"}]
         )
 
