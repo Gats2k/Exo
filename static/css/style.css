@@ -214,23 +214,38 @@ body {
     text-align: center;
 }
 
-.chat-messages {
-    flex-grow: 1;
-    padding: 20px;
-    overflow-y: auto;
-    width: 670px;
-    margin: 0 auto;
-    height: calc(100vh - 200px); /* Adjust height to account for input area */
-    position: relative;
+.chat-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.chat-viewport {
+    position: absolute;
     top: 80px;
+    bottom: 95px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    overflow: hidden;
+    pointer-events: all;
+}
+
+.chat-messages {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    z-index: 1;
+    padding: 15px;
     background-color: transparent;
     -webkit-backdrop-filter: blur(16px);
     scrollbar-width: none;
     -ms-overflow-style: none;
-    margin-bottom: 120px; /* Add space for input container */
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -238,26 +253,26 @@ body {
 }
 
 .message {
-    max-width: 80%;
+    max-width: 85%;
     margin-bottom: 20px;
     position: relative;
 }
 
 .message.user {
     margin-left: auto;
-    padding-right: 20px;
+    padding: 0 20px 0 0;
     width: fit-content;
 }
 
 .message.assistant {
     margin-right: auto;
-    padding-left: 20px;
+    padding: 0 0 0 20px;
     width: fit-content;
 }
 
 .message-content {
     background: rgba(255, 255, 255, 0.1);
-    padding: 15px;
+    padding: 12px 15px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     word-wrap: break-word;
@@ -306,6 +321,21 @@ body {
     gap: 10px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.input-container.centered {
+    position: fixed;
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    transition: all 0.3s ease;
+}
+
+.input-container .input-action, 
+.input-container .send-btn {
+    align-self: flex-end;
+    margin-top: 8px; /* Pour maintenir l'alignement initial */
 }
 
 .input-container textarea {
@@ -359,7 +389,7 @@ body {
 
 .response-time {
     position: fixed;
-    bottom: 70px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
     max-width: 700px;
@@ -371,7 +401,12 @@ body {
     gap: 5px;
     text-align: left;
     padding: 10px 0;
-    z-index: 99;
+    z-index: 98;
+    transition: all 0.3s ease;
+}
+
+.response-time.centered {
+    bottom: calc(50% - 80px);
 }
 
 /* Import de la police - à mettre dans le head du HTML */
@@ -404,19 +439,37 @@ body {
         padding-left: 0;
     }
 
-    .chat-messages {
-        width: 90%;  /* Largeur relative à l'écran */
-        padding: 10px;
-        padding-bottom: 120px;
+    .chat-viewport {
+        width: 100%;
+        max-width: calc(100% - 40px);
         left: 50%;
         transform: translateX(-50%);
     }
 
-    .message.bot,
-    .message:not(.bot) {
-        padding-left: 10px;
-        padding-right: 10px;
+    .chat-messages {
         width: 100%;
+        padding: 10px;
+    }
+
+    .message {
+        max-width: 90%;
+    }
+
+    .message.user, 
+    .message.assistant {
+        padding: 0 5px;
+    }
+
+    .message.user {
+        padding: 0 3px 0 0;
+        max-width: 85%;
+        width: auto;
+    }
+
+    .message.assistant {
+        padding: 0 0 0 3px;
+        max-width: 85%;
+        width: auto;
     }
 
     .message-content {
@@ -456,6 +509,18 @@ body {
         width: 80%;
         max-width: 300px;
     }
+
+    .input-container textarea {
+        max-height: 100px; /* Hauteur maximale sur mobile */
+        overflow-y: auto; /* Permet le défilement */
+        min-height: 10px;
+    }
+
+    /* Pour s'assurer que le conteneur s'adapte au textarea */
+    .input-container {
+        max-height: 120px; /* Un peu plus grand que le textarea pour les boutons */
+        overflow: visible;
+    }
 }
 
 /* Additional breakpoint for very small screens */
@@ -477,10 +542,22 @@ body {
         font-size: 1.1em;
     }
 
+    .chat-viewport {
+        max-width: calc(100% - 20px);
+        top: 70px;
+        bottom: 90px;
+    }
+
     .chat-messages {
-        width: 95%;  /* Encore plus large pour les très petits écrans */
-        padding: 10px;
-        padding-bottom: 100px;
+        padding: 8px;
+    }
+
+    .message {
+        max-width: 95%;
+    }
+
+    .input-container {
+        width: calc(100% - 40px);
     }
 }
 

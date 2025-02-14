@@ -7,7 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const hoverArea = document.querySelector('.hover-area');
     const mortarboardIcon = document.querySelector('.bi-mortarboard');
     const iconButton = document.querySelector('.icon-button');
+    const inputContainer = document.querySelector('.input-container');
+    const responseTime = document.querySelector('.response-time');
+    let isFirstMessage = true;
     let sidebarTimeout;
+
+    // Add initial centered class
+    inputContainer.classList.add('centered');
+    responseTime.classList.add('centered');
 
     const updateIcon = (isVisible) => {
         if (isVisible) {
@@ -47,20 +54,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    iconButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isVisible = sidebar.classList.toggle('visible');
-        updateIcon(isVisible);
-    });
-
-    document.addEventListener('click', function(e) {
-        if (!sidebar.contains(e.target) && !iconButton.contains(e.target)) {
-            sidebar.classList.remove('visible');
-            updateIcon(false);
-        }
-    });
-
-    // Handle message input
     const input = document.querySelector('.input-container textarea');
     const sendBtn = document.querySelector('.send-btn');
     const chatMessages = document.querySelector('.chat-messages');
@@ -87,6 +80,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function moveInputToBottom() {
+        if (isFirstMessage) {
+            inputContainer.classList.remove('centered');
+            responseTime.classList.remove('centered');
+            isFirstMessage = false;
+        }
+    }
+
     function sendMessage() {
         const message = input.value.trim();
         if (message) {
@@ -96,26 +97,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="message-content">
                     ${message.replace(/\n/g, '<br>')}
                 </div>
-                    `;
+            `;
             chatMessages.appendChild(messageDiv);
-            // Réinitialiser la hauteur du textarea
+
+            // Move input to bottom after first message
+            moveInputToBottom();
+
             input.style.height = 'auto';
 
-            // Add loading indicator
             addLoadingIndicator();
 
-            // Send message through socket
             socket.emit('send_message', { message: message });
 
-            // Clear input
             input.value = '';
 
-            // Auto scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
 
-    // Handle assistant responses
     socket.on('receive_message', function(data) {
         removeLoadingIndicator();
         const messageDiv = document.createElement('div');
@@ -129,24 +128,34 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
-    // Send message on button click
     sendBtn.addEventListener('click', sendMessage);
 
-    // Send message on Enter key
     input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        if (e.key === 'Enter') {
+            if (!isMobile && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         }
     });
 
-    // Ajuster automatiquement la hauteur du textarea
-    input.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
+    sendBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        sendMessage();
     });
 
-    // Handle action buttons
+    input.addEventListener('input', function() {
+        if (window.innerWidth <= 768) {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        } else {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        }
+    });
+
     const actionButtons = document.querySelectorAll('.action-btn');
     actionButtons.forEach(button => {
         button.addEventListener('click', function() {
