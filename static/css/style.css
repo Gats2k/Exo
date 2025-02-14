@@ -259,15 +259,15 @@ body {
 }
 
 .message.user {
-   margin-left: auto;
-   padding: 0 20px 0 0;
-   width: fit-content;
+    margin-left: auto;
+    padding: 0 20px 0 0;
+    width: fit-content;
 }
 
 .message.assistant {
-   margin-right: auto;
-   padding: 0 0 0 20px;
-   width: fit-content;
+    margin-right: auto;
+    padding: 0 0 0 20px;
+    width: fit-content;
 }
 
 .message-content {
@@ -321,6 +321,15 @@ body {
     gap: 10px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.input-container.centered {
+    position: fixed;
+    top: 50%;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    transition: all 0.3s ease;
 }
 
 .input-container .input-action, 
@@ -338,7 +347,7 @@ body {
     font-size: inherit;
     line-height: 1.5;
     margin: 0;
-    min-height: 36;
+    min-height: 36px;
     outline: none;
     padding: 8px 0;
     resize: none;
@@ -380,7 +389,7 @@ body {
 
 .response-time {
     position: fixed;
-    bottom: 10px; /* Position par rapport au bas de l'écran */
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
     max-width: 700px;
@@ -391,7 +400,13 @@ body {
     align-items: center;
     gap: 5px;
     text-align: left;
-    z-index: 98; /* Un z-index inférieur à l'input-container pour être sûr qu'il passe en dessous */
+    padding: 10px 0;
+    z-index: 98;
+    transition: all 0.3s ease;
+}
+
+.response-time.centered {
+    bottom: calc(50% - 80px);
 }
 
 /* Import de la police - à mettre dans le head du HTML */
