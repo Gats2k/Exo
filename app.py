@@ -10,6 +10,7 @@ import time
 import base64
 import io
 import logging
+import requests
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -47,15 +48,27 @@ def chat():
 def process_image(base64_string):
     """Process base64 image data and create content for the OpenAI API"""
     try:
+        logger.debug("Starting image processing")
         # Remove the data URL prefix if present
         if ',' in base64_string:
             base64_string = base64_string.split(',')[1]
 
+        # Convert base64 to bytes
+        image_bytes = base64.b64decode(base64_string)
+
+        # Create a temporary file for the image
+        file = client.files.create(
+            file=io.BytesIO(image_bytes),
+            purpose='assistants'
+        )
+
+        # Get the file URL
+        file_url = f"https://api.openai.com/v1/files/{file.id}/content"
+        logger.debug(f"Created file with ID: {file.id}")
+
         return {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_string}"
-            }
+            "type": "image",
+            "file_id": file.id
         }
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
@@ -89,11 +102,11 @@ def handle_message(data):
                 })
                 return
 
-        # Create the message with all content
+        # Create message in thread
         client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=message_content
+            content=message_content,
         )
 
         # Create a run using the existing assistant
