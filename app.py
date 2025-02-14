@@ -46,6 +46,7 @@ def chat():
     return render_template('chat.html', history=history, credits=42)
 
 def process_image(base64_string):
+    """Process base64 image data and create a file for the OpenAI API"""
     try:
         logger.debug("Starting image processing")
         if ',' in base64_string:
@@ -53,14 +54,13 @@ def process_image(base64_string):
 
         image_bytes = base64.b64decode(base64_string)
 
-        # Create file object with proper MIME type and filename
         file = client.files.create(
-            file=("image.jpg", io.BytesIO(image_bytes), "image/jpeg"),  # Add name and MIME type
+            file=("image.jpg", io.BytesIO(image_bytes), "image/jpeg"),
             purpose='assistants'
         )
 
         logger.debug(f"Created file with ID: {file.id}")
-        return file.id  # Return just the file ID
+        return file.id
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
         raise
@@ -71,46 +71,55 @@ def handle_message(data):
         logger.debug("Received message data: %s", data)
         thread = client.beta.threads.create()
 
-        # Initialize the lists
-        file_ids = []
-        message_content = []
+        # Initialize content list for the message
+        content = []
 
-        # Process image first if present
-        if data.get('image'):
-            try:
-                file_id = process_image(data['image'])
-                file_ids.append(file_id)  # Add to file IDs list
-                logger.debug(f"Added file_id to list: {file_id}")
-            except Exception as img_error:
-                logger.error("Image processing error: %s", str(img_error))
-                emit('receive_message', {
-                    'message': 'Error processing image.'
-                })
-                return
-
-        # Add message text if present
+        # Add text message if present
         if data.get('message'):
-            message_content.append({
+            content.append({
                 "type": "text",
                 "text": data['message']
             })
 
-        # Create message with text and files attached
-        client.beta.threads.messages.create(
+        # Handle image if present
+        file_ids = []
+        if data.get('image'):
+            try:
+                file_id = process_image(data['image'])
+                file_ids.append(file_id)
+                logger.debug(f"Added file ID to message: {file_id}")
+
+                # If no text message was provided, add a default one
+                if not data.get('message'):
+                    content.append({
+                        "type": "text",
+                        "text": "Please analyze this image."
+                    })
+            except Exception as img_error:
+                logger.error("Image processing error: %s", str(img_error))
+                emit('receive_message', {
+                    'message': 'Error processing image. Please ensure the image is in a supported format (JPG or PNG) and try again.'
+                })
+                return
+
+        # Create message in thread
+        logger.debug(f"Creating message with content: {content}")
+        message = client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=message_content,
-            file_ids=file_ids  # Attach the files here
+            content=content
         )
+        logger.debug(f"Created message: {message}")
 
-        # Create a run using the existing assistant
+        # Create a run using the assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
-            assistant_id=ASSISTANT_ID
+            assistant_id=ASSISTANT_ID,
+            file_ids=file_ids if file_ids else None
         )
 
         # Wait for response with timeout
-        timeout = 30  # 30 seconds timeout
+        timeout = 30
         start_time = time.time()
 
         while True:
@@ -125,8 +134,10 @@ def handle_message(data):
 
             if run_status.status == 'completed':
                 break
-            elif run_status.status == 'failed':
-                emit('receive_message', {'message': 'Sorry, there was an error processing your request.'})
+            elif run_status.status in ['failed', 'cancelled', 'expired']:
+                emit('receive_message', {
+                    'message': f'Sorry, there was an error processing your request. Status: {run_status.status}'
+                })
                 return
             elif run_status.status == 'requires_action':
                 emit('receive_message', {'message': 'The assistant needs additional information.'})
@@ -137,13 +148,13 @@ def handle_message(data):
         # Retrieve the answer
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         assistant_message = messages.data[0].content[0].text.value
-        logger.debug("Assistant response: %s", assistant_message)
+        logger.debug(f"Assistant response: {assistant_message}")
 
         emit('receive_message', {'message': assistant_message})
 
     except Exception as e:
         error_message = str(e)
-        logger.error("Error in handle_message: %s", error_message)
+        logger.error(f"Error in handle_message: {error_message}")
 
         if "image" in error_message.lower():
             emit('receive_message', {
@@ -155,7 +166,7 @@ def handle_message(data):
             })
         else:
             emit('receive_message', {
-                'message': f'An error occurred: {str(e)}'
+                'message': f'An error occurred: {error_message}'
             })
 
 if __name__ == '__main__':
