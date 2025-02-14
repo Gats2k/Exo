@@ -8,6 +8,12 @@ import os
 from dotenv import load_dotenv
 import time
 import base64
+import io
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -38,35 +44,55 @@ def chat():
     history = []
     return render_template('chat.html', history=history, credits=42)
 
+def process_image(base64_string):
+    """Process base64 image data and create a file for the OpenAI API"""
+    try:
+        # Remove the data URL prefix if present
+        if ',' in base64_string:
+            base64_string = base64_string.split(',')[1]
+
+        # Decode base64 string
+        image_data = base64.b64decode(base64_string)
+
+        # Create file object with the image data
+        image_file = client.files.create(
+            file=image_data,
+            purpose="assistants"
+        )
+        return image_file
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        raise
+
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Create thread for conversation
+        logger.debug("Received message data: %s", data)
         thread = client.beta.threads.create()
 
-        # Create message content based on whether there's an image or text or both
+        # Handle image and message
         if 'image' in data and data['image']:
-            # Remove the data:image/jpeg;base64, prefix
-            base64_image = data['image'].split(',')[1]
+            try:
+                # Process the image
+                image_file = process_image(data['image'])
 
-            # Create a temporary file for the image
-            image_file = client.files.create(
-                file=base64.b64decode(base64_image),
-                purpose="assistants"
-            )
-
-            # Create message with both image and text
-            client.beta.threads.messages.create(
-                thread_id=thread.id,
-                role="user",
-                content=[
-                    {
+                # Create message with both image and text
+                client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=[{
                         "type": "text",
                         "text": data.get('message', 'Please analyze this image.')
-                    }
-                ],
-                file_ids=[image_file.id]
-            )
+                    }],
+                    file_ids=[image_file.id]
+                )
+                logger.debug("Created message with image, file ID: %s", image_file.id)
+            except Exception as img_error:
+                logger.error("Image processing error: %s", str(img_error))
+                emit('receive_message', {
+                    'message': 'Error processing image. Please ensure the image is in a supported format (JPG or PNG) and try again.'
+                })
+                return
         else:
             # Text-only message
             client.beta.threads.messages.create(
@@ -109,17 +135,26 @@ def handle_message(data):
         # Retrieve the answer
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         assistant_message = messages.data[0].content[0].text.value
+        logger.debug("Assistant response: %s", assistant_message)
 
         emit('receive_message', {'message': assistant_message})
 
     except Exception as e:
         error_message = str(e)
+        logger.error("Error in handle_message: %s", error_message)
+
         if "file" in error_message.lower():
-            emit('receive_message', {'message': 'Error processing image. Please try a different image or format.'})
+            emit('receive_message', {
+                'message': 'Error processing image. Please ensure the image is in a supported format (JPG or PNG) and try again.'
+            })
         elif "rate limit" in error_message.lower():
-            emit('receive_message', {'message': 'Too many requests. Please wait a moment and try again.'})
+            emit('receive_message', {
+                'message': 'Too many requests. Please wait a moment and try again.'
+            })
         else:
-            emit('receive_message', {'message': f'An error occurred: {str(e)}'})
+            emit('receive_message', {
+                'message': f'An error occurred: {str(e)}'
+            })
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
