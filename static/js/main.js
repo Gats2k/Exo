@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize Socket.IO
     const socket = io();
 
-    // Sidebar functionality
+    // Get all necessary elements
     const sidebar = document.querySelector('.sidebar');
     const hoverArea = document.querySelector('.hover-area');
     const mortarboardIcon = document.querySelector('.bi-mortarboard');
@@ -10,18 +10,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputContainer = document.querySelector('.input-container');
     const responseTime = document.querySelector('.response-time');
     const chatMessages = document.querySelector('.chat-messages');
+    const welcomeContainer = document.querySelector('.welcome-container');
+    const suggestionsContainer = document.querySelector('.suggestions-container');
     let isFirstMessage = true;
     let sidebarTimeout;
 
     // Check if there are any existing messages
     if (chatMessages.children.length === 0) {
-        // No messages yet, center the input
+        // No messages yet, center the input and show welcome elements
         inputContainer.classList.add('centered');
         responseTime.classList.add('centered');
+        welcomeContainer.classList.add('visible');
+        suggestionsContainer.classList.add('visible');
     } else {
         // Messages exist, position at bottom
         inputContainer.classList.remove('centered');
         responseTime.classList.remove('centered');
+        welcomeContainer.classList.remove('visible');
+        suggestionsContainer.classList.remove('visible');
         isFirstMessage = false;
     }
 
@@ -98,6 +104,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isFirstMessage) {
             inputContainer.classList.remove('centered');
             responseTime.classList.remove('centered');
+            welcomeContainer.classList.remove('visible');
+            suggestionsContainer.classList.remove('visible');
             isFirstMessage = false;
         }
     }
