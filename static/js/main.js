@@ -1,6 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Socket.IO
-    const socket = io();
+    // Initialize Socket.IO with reconnection options
+    const socket = io({
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+    });
 
     // Get all necessary elements
     const sidebar = document.querySelector('.sidebar');
@@ -18,6 +24,22 @@ document.addEventListener('DOMContentLoaded', function() {
     let isFirstMessage = true;
     let sidebarTimeout;
     let currentImage = null;
+    let isConnected = false;
+
+    // Socket connection handling
+    socket.on('connect', () => {
+        console.log('Connected to server');
+        isConnected = true;
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+        isConnected = false;
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+    });
 
     // Check if there are any existing messages
     if (chatMessages.children.length === 0) {
@@ -152,8 +174,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-
     function sendMessage() {
+        if (!isConnected) {
+            console.log('Attempting to reconnect...');
+            socket.connect();
+            return;
+        }
+
         const message = input.value.trim();
         if (message || currentImage) {
             const messageDiv = document.createElement('div');
@@ -182,6 +209,19 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('send_message', {
                 message: message,
                 image: currentImage
+            }, (error) => {
+                if (error) {
+                    console.error('Send message error:', error);
+                    removeLoadingIndicator();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'message error';
+                    errorDiv.innerHTML = `
+                        <div class="message-content">
+                            Error sending message. Please try again.
+                        </div>
+                    `;
+                    chatMessages.appendChild(errorDiv);
+                }
             });
 
             // Clear input and image
@@ -191,19 +231,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Add the message receiving handler
     socket.on('receive_message', function(data) {
         removeLoadingIndicator();
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
-        let content = '';
-        if (data.image) {
-            content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
-        }
-        content += data.message.replace(/\n/g, '<br>');
-
         messageDiv.innerHTML = `
             <div class="message-content">
-                ${content}
+                ${data.message.replace(/\n/g, '<br>')}
             </div>
         `;
         chatMessages.appendChild(messageDiv);
