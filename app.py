@@ -76,12 +76,7 @@ def get_or_create_conversation(thread_id=None):
 
 @app.route('/')
 def chat():
-    # Always start with a new conversation
-    session.pop('thread_id', None)
-    conversation = get_or_create_conversation()
-    session['thread_id'] = conversation.thread_id
-
-    # Get recent conversations for sidebar
+    # Get recent conversations for sidebar without creating a new one
     recent_conversations = Conversation.query.order_by(Conversation.updated_at.desc()).limit(5).all()
     conversation_history = [
         {
@@ -92,16 +87,25 @@ def chat():
         } for conv in recent_conversations
     ]
 
+    # Clear any existing thread_id from session
+    session.pop('thread_id', None)
     return render_template('chat.html', history=[], conversation_history=conversation_history, credits=42)
 
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Get current conversation
-        conversation = get_or_create_conversation(session.get('thread_id'))
-        session['thread_id'] = conversation.thread_id
+        # Get current conversation or create a new one if this is the first message
+        thread_id = session.get('thread_id')
+        conversation = None
+        if thread_id:
+            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
 
-        # Create message content
+        if not conversation:
+            # Create new conversation for first message
+            conversation = get_or_create_conversation()
+            session['thread_id'] = conversation.thread_id
+
+        # Rest of the message handling code remains unchanged
         message_content = []
 
         # Handle image if present
