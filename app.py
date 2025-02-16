@@ -76,8 +76,8 @@ def get_or_create_conversation(thread_id=None):
 
 @app.route('/')
 def chat():
-    # Get recent conversations for sidebar without creating a new one
-    recent_conversations = Conversation.query.order_by(Conversation.updated_at.desc()).limit(5).all()
+    # Get recent non-deleted conversations for sidebar
+    recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
     conversation_history = [
         {
             'id': conv.id,
