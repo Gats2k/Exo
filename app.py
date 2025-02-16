@@ -16,12 +16,6 @@ import time
 from database import db
 from models import Conversation, Message
 
-import logging
-
-# Configure logging at the top of the file after imports
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 # Load environment variables
 load_dotenv()
 
@@ -111,7 +105,7 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Rest of the message handling code 
+        # Rest of the message handling code remains unchanged
         message_content = []
 
         # Handle image if present
@@ -226,45 +220,14 @@ def handle_delete(data):
     try:
         conversation = Conversation.query.get(data['id'])
         if conversation:
-            logger.debug(f"Attempting to delete conversation {data['id']}")
-
-            # Delete the OpenAI thread first
-            try:
-                client.beta.threads.delete(thread_id=conversation.thread_id)
-                logger.debug(f"OpenAI thread {conversation.thread_id} deleted successfully")
-            except Exception as e:
-                logger.error(f"Error deleting OpenAI thread: {e}")
-                # Continue with local deletion even if OpenAI deletion fails
-
-            try:
-                # Delete the conversation (messages will be deleted automatically due to cascade)
-                db.session.delete(conversation)
-                logger.debug(f"Deleted conversation from database session")
-
-                # Commit the changes
-                db.session.commit()
-                logger.debug(f"Committed database changes")
-
-                # Verify the deletion
-                deleted_check = Conversation.query.get(data['id'])
-                if deleted_check is None:
-                    logger.debug(f"Verified conversation {data['id']} was deleted successfully")
-                    emit('conversation_deleted', {'success': True})
-                else:
-                    # If conversation still exists, rollback and report error
-                    logger.error(f"Conversation {data['id']} still exists after deletion")
-                    db.session.rollback()
-                    raise Exception("Failed to delete conversation")
-
-            except Exception as e:
-                logger.error(f"Database error during deletion: {str(e)}")
-                db.session.rollback()
-                raise
+            # Delete associated messages first
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            db.session.delete(conversation)
+            db.session.commit()
+            emit('conversation_deleted', {'success': True})
     except Exception as e:
-        # Rollback in case of error
-        logger.error(f"Error during conversation deletion: {e}")
-        db.session.rollback()
         emit('conversation_deleted', {'success': False, 'error': str(e)})
+
 
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
