@@ -105,7 +105,7 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Rest of the message handling code remains unchanged
+        # Rest of the message handling code 
         message_content = []
 
         # Handle image if present
@@ -220,12 +220,23 @@ def handle_delete(data):
     try:
         conversation = Conversation.query.get(data['id'])
         if conversation:
-            # Delete associated messages first
-            Message.query.filter_by(conversation_id=conversation.id).delete()
+            # Delete the OpenAI thread first
+            try:
+                client.beta.threads.delete(thread_id=conversation.thread_id)
+            except Exception as e:
+                print(f"Error deleting OpenAI thread: {e}")
+                # Continue with local deletion even if OpenAI deletion fails
+
+            # Delete the conversation (messages will be deleted automatically due to cascade)
             db.session.delete(conversation)
+
+            # Commit the changes
             db.session.commit()
+
             emit('conversation_deleted', {'success': True})
     except Exception as e:
+        # Rollback in case of error
+        db.session.rollback()
         emit('conversation_deleted', {'success': False, 'error': str(e)})
 
 
