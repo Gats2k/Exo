@@ -1,6 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, render_template, request, jsonify, url_for
+from flask import Flask, render_template, request, jsonify, url_for, session
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
@@ -12,24 +12,37 @@ from io import BytesIO
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 import shutil
+import time
+from database import db
+from models import Conversation, Message
 
-# Charger les variables d'environnement
+# Load environment variables
 load_dotenv()
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
-# Configurations pour le nettoyage des images
+# Configurations for image cleanup
 MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
-IMAGE_MAX_AGE_HOURS = 24  # Durée de conservation des images
+IMAGE_MAX_AGE_HOURS = 24
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Créer le dossier uploads s'il n'existe pas
+# Initialize database
+db.init_app(app)
+
+# Create tables within application context
+with app.app_context():
+    # Import models and create tables
+    db.create_all()
+
+# Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize SocketIO
@@ -39,21 +52,168 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
+def create_assistant():
+    assistant = client.beta.assistants.create(
+        name="Vision Assistant",
+        instructions="You are a helpful assistant capable of understanding images and text.",
+        model="gpt-4-vision-preview",
+        tools=[{"type": "code_interpreter"}]
+    )
+    return assistant.id
+
+def get_or_create_conversation(thread_id=None):
+    if thread_id:
+        conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+        if conversation:
+            return conversation
+
+    # Create new thread and conversation
+    thread = client.beta.threads.create()
+    conversation = Conversation(thread_id=thread.id)
+    db.session.add(conversation)
+    db.session.commit()
+    return conversation
+
+@app.route('/')
+def chat():
+    # Get or create conversation for the session
+    thread_id = session.get('thread_id')
+    conversation = get_or_create_conversation(thread_id)
+    session['thread_id'] = conversation.thread_id
+
+    # Get conversation history
+    messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+    history = [
+        {
+            'role': msg.role,
+            'content': msg.content,
+            'image_url': msg.image_url
+        } for msg in messages
+    ]
+
+    return render_template('chat.html', history=history, credits=42)
+
+@socketio.on('send_message')
+def handle_message(data):
+    try:
+        # Get current conversation
+        conversation = get_or_create_conversation(session.get('thread_id'))
+        session['thread_id'] = conversation.thread_id
+
+        # Create message content
+        message_content = []
+
+        # Handle image if present
+        if 'image' in data and data['image']:
+            # Save the base64 image
+            filename = save_base64_image(data['image'])
+            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+
+            # Create file for assistant
+            base64_image = data['image'].split(',')[1]
+            image_file = client.files.create(
+                file=base64_image,
+                purpose="assistants"
+            )
+
+            # Store user message with image
+            user_message = Message(
+                conversation_id=conversation.id,
+                role='user',
+                content=data.get('message', ''),
+                image_url=image_url
+            )
+            db.session.add(user_message)
+
+            # Create message for OpenAI with file attachment
+            client.beta.threads.messages.create(
+                thread_id=conversation.thread_id,
+                role="user",
+                content=data.get('message', ''),
+                file_ids=[image_file.id]
+            )
+        else:
+            # Store text-only message
+            user_message = Message(
+                conversation_id=conversation.id,
+                role='user',
+                content=data.get('message', '')
+            )
+            db.session.add(user_message)
+
+            # Send message to OpenAI
+            client.beta.threads.messages.create(
+                thread_id=conversation.thread_id,
+                role="user",
+                content=data.get('message', '')
+            )
+
+        # Create and run assistant
+        run = client.beta.threads.runs.create(
+            thread_id=conversation.thread_id,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Wait for response with timeout
+        timeout = 30
+        start_time = time.time()
+
+        while True:
+            if time.time() - start_time > timeout:
+                emit('receive_message', {'message': 'Request timed out.'})
+                return
+
+            run_status = client.beta.threads.runs.retrieve(
+                thread_id=conversation.thread_id,
+                run_id=run.id
+            )
+
+            if run_status.status == 'completed':
+                break
+            elif run_status.status == 'failed':
+                emit('receive_message', {'message': 'Sorry, there was an error.'})
+                return
+
+            eventlet.sleep(1)
+
+        # Retrieve and store assistant's response
+        messages = client.beta.threads.messages.list(thread_id=conversation.thread_id)
+        assistant_message = messages.data[0].content[0].text.value
+
+        # Store assistant response in database
+        db_message = Message(
+            conversation_id=conversation.id,
+            role='assistant',
+            content=assistant_message
+        )
+        db.session.add(db_message)
+        db.session.commit()
+
+        # Send response to client
+        emit('receive_message', {'message': assistant_message})
+
+    except Exception as e:
+        error_message = str(e)
+        if "file" in error_message.lower():
+            emit('receive_message', {'message': 'Error processing image. Please try a different image or format.'})
+        else:
+            emit('receive_message', {'message': f'Error: {error_message}'})
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def save_base64_image(base64_string):
-    # Extraire le type de l'image et les données
+    # Extract image type and data
     header, encoded = base64_string.split(",", 1)
 
-    # Générer un nom de fichier unique
+    # Generate a unique filename
     filename = f"{uuid.uuid4()}.jpg"
 
-    # Décoder l'image
+    # Decode the image
     img_data = base64.b64decode(encoded)
 
-    # Sauvegarder l'image
+    # Save the image
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     with open(filepath, "wb") as f:
         f.write(img_data)
@@ -61,9 +221,9 @@ def save_base64_image(base64_string):
     return filename
 
 def cleanup_uploads():
-    """Nettoie le dossier uploads des images anciennes et vérifie la taille totale"""
+    """Cleans up the uploads folder of old images and checks the total size"""
     try:
-        # Supprimer les fichiers plus vieux que IMAGE_MAX_AGE_HOURS
+        # Delete files older than IMAGE_MAX_AGE_HOURS
         current_time = datetime.now()
         for filename in os.listdir(UPLOAD_FOLDER):
             filepath = os.path.join(UPLOAD_FOLDER, filename)
@@ -71,15 +231,15 @@ def cleanup_uploads():
             if current_time - file_modified > timedelta(hours=IMAGE_MAX_AGE_HOURS):
                 os.remove(filepath)
 
-        # Vérifier la taille totale du dossier
+        # Check the total size of the folder
         total_size = sum(os.path.getsize(os.path.join(UPLOAD_FOLDER, f)) 
                         for f in os.listdir(UPLOAD_FOLDER))
 
-        # Si la taille dépasse la limite, supprimer les fichiers les plus anciens
+        # If the size exceeds the limit, delete the oldest files
         if total_size > MAX_UPLOAD_FOLDER_SIZE:
             files = [(os.path.join(UPLOAD_FOLDER, f), os.path.getmtime(os.path.join(UPLOAD_FOLDER, f))) 
                     for f in os.listdir(UPLOAD_FOLDER)]
-            files.sort(key=lambda x: x[1])  # Trier par date de modification
+            files.sort(key=lambda x: x[1])  # Sort by modification date
 
             for filepath, _ in files:
                 os.remove(filepath)
@@ -89,83 +249,14 @@ def cleanup_uploads():
                     break
 
     except Exception as e:
-        print(f"Erreur lors du nettoyage des uploads: {str(e)}")
-
-@app.route('/')
-def chat():
-    history = []
-    return render_template('chat.html', history=history, credits=42)
-
-@socketio.on('send_message')
-def handle_message(data):
-    try:
-        # Create thread for conversation
-        thread = client.beta.threads.create()
-
-        # Create message content based on whether there's an image or text or both
-        message_content = []
-
-        # Add image if present
-        if 'image' in data and data['image']:
-            # Sauvegarder l'image et obtenir le nom du fichier
-            filename = save_base64_image(data['image'])
-
-            # Construire l'URL complète
-            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
-
-            message_content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": image_url
-                }
-            })
-
-        # Add text if present
-        if 'message' in data and data['message'].strip():
-            message_content.append({
-                "type": "text",
-                "text": data['message']
-            })
-
-        # Add message to thread
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=message_content
-        )
-
-        # Create a run using the existing assistant
-        run = client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=ASSISTANT_ID
-        )
-
-        # Wait for response
-        while True:
-            run_status = client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
-            if run_status.status == 'completed':
-                break
-            elif run_status.status == 'failed':
-                emit('receive_message', {'message': 'Sorry, there was an error.'})
-                return
-
-        # Retrieve the answer
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
-        assistant_message = messages.data[0].content[0].text.value
-        emit('receive_message', {'message': assistant_message})
-
-    except Exception as e:
-        emit('receive_message', {'message': f'Error: {str(e)}'})
+        print(f"Error during upload cleanup: {str(e)}")
 
 if __name__ == '__main__':
-    # Configurer le scheduler pour le nettoyage
+    # Configure scheduler for cleanup
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=cleanup_uploads, 
                      trigger="interval", 
-                     hours=1,  # Exécuter toutes les heures
+                     hours=1,
                      id='cleanup_job')
     scheduler.start()
 

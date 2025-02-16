@@ -62,7 +62,16 @@
             </div>
             <div class="chat-viewport">
                 <div class="chat-messages">
-                    <!-- Messages will be here -->
+                    {% for msg in history %}
+                    <div class="message {{ msg.role }}">
+                        <div class="message-content">
+                            {% if msg.image_url %}
+                            <img src="{{ msg.image_url }}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>
+                            {% endif %}
+                            {{ msg.content | safe }}
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
