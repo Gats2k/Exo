@@ -1,6 +1,38 @@
+// Define functions in global scope
+window.toggleDropdown = function(id) {
+    const dropdown = document.getElementById(`dropdown-${id}`);
+    const allDropdowns = document.querySelectorAll('.dropdown-menu');
+
+    // Close all other dropdowns
+    allDropdowns.forEach(menu => {
+        if (menu !== dropdown && menu.classList.contains('show')) {
+            menu.classList.remove('show');
+        }
+    });
+
+    dropdown.classList.toggle('show');
+};
+
+window.renameConversation = function(id, event) {
+    event.preventDefault();
+    const newTitle = prompt('Nouveau nom de la conversation:');
+    if (newTitle) {
+        window.socket.emit('rename_conversation', { id: id, title: newTitle });
+    }
+};
+
+window.deleteConversation = function(id, event) {
+    event.preventDefault();
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
+        window.socket.emit('delete_conversation', { id: id });
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Socket.IO
     const socket = io();
+    // Make socket available globally for our conversation functions
+    window.socket = socket;
 
     // Get all necessary elements
     const sidebar = document.querySelector('.sidebar');
@@ -152,7 +184,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-
     function sendMessage() {
         const message = input.value.trim();
         if (message || currentImage) {
@@ -210,6 +241,21 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
+    // Listen for conversation updates
+    socket.on('conversation_updated', function(data) {
+        if (data.success) {
+            // Reload the page to show the updated conversation list
+            window.location.reload();
+        }
+    });
+
+    socket.on('conversation_deleted', function(data) {
+        if (data.success) {
+            // Reload the page to show the updated conversation list
+            window.location.reload();
+        }
+    });
+
     sendBtn.addEventListener('click', sendMessage);
 
     input.addEventListener('keydown', function(e) {
@@ -240,35 +286,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-
-    function toggleDropdown(id) {
-        const dropdown = document.getElementById(`dropdown-${id}`);
-        const allDropdowns = document.querySelectorAll('.dropdown-menu');
-
-        // Close all other dropdowns
-        allDropdowns.forEach(menu => {
-            if (menu !== dropdown && menu.classList.contains('show')) {
-                menu.classList.remove('show');
-            }
-        });
-
-        dropdown.classList.toggle('show');
-    }
-
-    function renameConversation(id, event) {
-        event.preventDefault();
-        const newTitle = prompt('Nouveau nom de la conversation:');
-        if (newTitle) {
-            socket.emit('rename_conversation', { id: id, title: newTitle });
-        }
-    }
-
-    function deleteConversation(id, event) {
-        event.preventDefault();
-        if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
-            socket.emit('delete_conversation', { id: id });
-        }
-    }
 
     // Close dropdowns when clicking outside
     document.addEventListener('click', function(event) {
