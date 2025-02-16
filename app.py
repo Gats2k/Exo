@@ -76,32 +76,23 @@ def get_or_create_conversation(thread_id=None):
 
 @app.route('/')
 def chat():
-    # Get or create conversation for the session
-    thread_id = session.get('thread_id')
-    conversation = get_or_create_conversation(thread_id)
+    # Always start with a new conversation
+    session.pop('thread_id', None)
+    conversation = get_or_create_conversation()
     session['thread_id'] = conversation.thread_id
-
-    # Get conversation history for the current conversation
-    messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
-    history = [
-        {
-            'role': msg.role,
-            'content': msg.content,
-            'image_url': msg.image_url
-        } for msg in messages
-    ]
 
     # Get recent conversations for sidebar
     recent_conversations = Conversation.query.order_by(Conversation.updated_at.desc()).limit(5).all()
     conversation_history = [
         {
+            'id': conv.id,
             'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-            'subject': 'Général',  # You can add a subject field to the Conversation model if needed
+            'subject': 'Général',
             'time': conv.created_at.strftime('%H:%M')
         } for conv in recent_conversations
     ]
 
-    return render_template('chat.html', history=history, conversation_history=conversation_history, credits=42)
+    return render_template('chat.html', history=[], conversation_history=conversation_history, credits=42)
 
 @socketio.on('send_message')
 def handle_message(data):
@@ -208,6 +199,31 @@ def handle_message(data):
             emit('receive_message', {'message': 'Error processing image. Please try a different image or format.'})
         else:
             emit('receive_message', {'message': f'Error: {error_message}'})
+
+@socketio.on('rename_conversation')
+def handle_rename(data):
+    try:
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
+            conversation.title = data['title']
+            db.session.commit()
+            emit('conversation_updated', {'success': True})
+    except Exception as e:
+        emit('conversation_updated', {'success': False, 'error': str(e)})
+
+@socketio.on('delete_conversation')
+def handle_delete(data):
+    try:
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
+            # Delete associated messages first
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            db.session.delete(conversation)
+            db.session.commit()
+            emit('conversation_deleted', {'success': True})
+    except Exception as e:
+        emit('conversation_deleted', {'success': False, 'error': str(e)})
+
 
 def allowed_file(filename):
     return '.' in filename and \

@@ -239,4 +239,43 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.toggle('active');
         });
     });
+
+
+    function toggleDropdown(id) {
+        const dropdown = document.getElementById(`dropdown-${id}`);
+        const allDropdowns = document.querySelectorAll('.dropdown-menu');
+
+        // Close all other dropdowns
+        allDropdowns.forEach(menu => {
+            if (menu !== dropdown && menu.classList.contains('show')) {
+                menu.classList.remove('show');
+            }
+        });
+
+        dropdown.classList.toggle('show');
+    }
+
+    function renameConversation(id, event) {
+        event.preventDefault();
+        const newTitle = prompt('Nouveau nom de la conversation:');
+        if (newTitle) {
+            socket.emit('rename_conversation', { id: id, title: newTitle });
+        }
+    }
+
+    function deleteConversation(id, event) {
+        event.preventDefault();
+        if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
+            socket.emit('delete_conversation', { id: id });
+        }
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        }
+    });
 });
