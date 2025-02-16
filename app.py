@@ -81,7 +81,7 @@ def chat():
     conversation = get_or_create_conversation(thread_id)
     session['thread_id'] = conversation.thread_id
 
-    # Get conversation history
+    # Get conversation history for the current conversation
     messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
     history = [
         {
@@ -91,7 +91,17 @@ def chat():
         } for msg in messages
     ]
 
-    return render_template('chat.html', history=history, credits=42)
+    # Get recent conversations for sidebar
+    recent_conversations = Conversation.query.order_by(Conversation.updated_at.desc()).limit(5).all()
+    conversation_history = [
+        {
+            'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+            'subject': 'Général',  # You can add a subject field to the Conversation model if needed
+            'time': conv.created_at.strftime('%H:%M')
+        } for conv in recent_conversations
+    ]
+
+    return render_template('chat.html', history=history, conversation_history=conversation_history, credits=42)
 
 @socketio.on('send_message')
 def handle_message(data):
