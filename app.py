@@ -92,7 +92,13 @@ def chat():
     ]
 
     # Get recent conversations for sidebar
-    recent_conversations = Conversation.query.order_by(Conversation.updated_at.desc()).limit(5).all()
+    recent_conversations = (
+        Conversation.query
+        .order_by(Conversation.updated_at.desc())
+        .group_by(Conversation.id)  # This ensures uniqueness
+        .limit(5)
+        .all()
+    )
     conversation_history = [
         {
             'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
