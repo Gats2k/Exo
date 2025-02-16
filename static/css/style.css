@@ -138,6 +138,7 @@ body {
     cursor: pointer;
     display: flex;
     justify-content: space-between;
+    transition: background-color 0.2s;
 }
 
 .history-item:hover {
@@ -154,11 +155,31 @@ body {
     color: var(--text-muted);
 }
 
+.history-title-edit {
+    width: 100%;
+}
+
+.history-title-edit .title-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: var(--text-light);
+    padding: 4px 8px;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.history-title-edit .title-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+
 .history-time {
     font-size: 0.8em;
     color: var(--text-muted);
 }
-
 
 /* Main Area Styles */
 .main-area {
@@ -884,4 +905,9 @@ body {
 
 .dropdown-menu a:hover {
     background-color: rgba(255, 255, 255, 0.1);
+}
+
+.history-content {
+    flex-grow: 1;
+    margin-right: 10px;
 }

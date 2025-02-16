@@ -31,19 +31,24 @@
         <div class="recent-history">
             <h6>Historique récent</h6>
             {% for item in conversation_history %}
-            <div class="history-item">
+            <div class="history-item" onclick="openConversation('{{ item.id }}', event)">
                 <div class="history-content">
-                    <div class="history-title">{{ item.title }}</div>
+                    <div class="history-title" id="title-{{ item.id }}">{{ item.title }}</div>
+                    <div class="history-title-edit" id="edit-{{ item.id }}" style="display: none;">
+                        <input type="text" class="title-input" value="{{ item.title }}" 
+                               onkeydown="handleTitleKeydown(event, '{{ item.id }}')"
+                               onclick="event.stopPropagation()">
+                    </div>
                     <div class="history-subject">{{ item.subject }}</div>
                 </div>
                 <div class="history-actions">
                     <div class="time">{{ item.time }}</div>
                     <div class="dropdown">
-                        <button class="btn-icon" onclick="toggleDropdown('{{ item.id }}')">
+                        <button class="btn-icon" onclick="toggleDropdown('{{ item.id }}', event)">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
                         <div id="dropdown-{{ item.id }}" class="dropdown-menu">
-                            <a href="#" onclick="renameConversation('{{ item.id }}', event)">
+                            <a href="#" onclick="startRename('{{ item.id }}', event)">
                                 <i class="bi bi-pencil"></i> Renommer
                             </a>
                             <a href="#" onclick="deleteConversation('{{ item.id }}', event)">

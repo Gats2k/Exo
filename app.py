@@ -225,6 +225,34 @@ def handle_delete(data):
         emit('conversation_deleted', {'success': False, 'error': str(e)})
 
 
+@socketio.on('open_conversation')
+def handle_open_conversation(data):
+    try:
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
+            # Update session with the opened conversation
+            session['thread_id'] = conversation.thread_id
+
+            # Get messages for this conversation
+            messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+            messages_data = [
+                {
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url
+                } for msg in messages
+            ]
+
+            emit('conversation_opened', {
+                'success': True,
+                'messages': messages_data
+            })
+    except Exception as e:
+        emit('conversation_opened', {
+            'success': False,
+            'error': str(e)
+        })
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

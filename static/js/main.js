@@ -1,9 +1,9 @@
 // Define functions in global scope
-window.toggleDropdown = function(id) {
+window.toggleDropdown = function(id, event) {
+    event.stopPropagation();
     const dropdown = document.getElementById(`dropdown-${id}`);
     const allDropdowns = document.querySelectorAll('.dropdown-menu');
 
-    // Close all other dropdowns
     allDropdowns.forEach(menu => {
         if (menu !== dropdown && menu.classList.contains('show')) {
             menu.classList.remove('show');
@@ -13,18 +13,63 @@ window.toggleDropdown = function(id) {
     dropdown.classList.toggle('show');
 };
 
-window.renameConversation = function(id, event) {
+window.startRename = function(id, event) {
     event.preventDefault();
-    const newTitle = prompt('Nouveau nom de la conversation:');
-    if (newTitle) {
-        window.socket.emit('rename_conversation', { id: id, title: newTitle });
+    event.stopPropagation();
+
+    const titleElement = document.getElementById(`title-${id}`);
+    const editElement = document.getElementById(`edit-${id}`);
+    const input = editElement.querySelector('input');
+
+    titleElement.style.display = 'none';
+    editElement.style.display = 'block';
+    input.value = titleElement.textContent;
+    input.focus();
+
+    // Close dropdown
+    document.getElementById(`dropdown-${id}`).classList.remove('show');
+};
+
+window.handleTitleKeydown = function(event, id) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const input = event.target;
+        const newTitle = input.value.trim();
+
+        if (newTitle) {
+            window.socket.emit('rename_conversation', { id: id, title: newTitle });
+
+            // Update UI immediately
+            const titleElement = document.getElementById(`title-${id}`);
+            const editElement = document.getElementById(`edit-${id}`);
+
+            titleElement.textContent = newTitle;
+            titleElement.style.display = 'block';
+            editElement.style.display = 'none';
+        }
+    } else if (event.key === 'Escape') {
+        const titleElement = document.getElementById(`title-${id}`);
+        const editElement = document.getElementById(`edit-${id}`);
+
+        titleElement.style.display = 'block';
+        editElement.style.display = 'none';
     }
 };
 
 window.deleteConversation = function(id, event) {
     event.preventDefault();
+    event.stopPropagation();
     if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
         window.socket.emit('delete_conversation', { id: id });
+        // Remove the conversation item immediately from UI
+        const item = document.querySelector(`.history-item[onclick*="${id}"]`);
+        item.remove();
+    }
+};
+
+window.openConversation = function(id, event) {
+    if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
+        window.socket.emit('open_conversation', { id: id });
     }
 };
 
@@ -244,15 +289,45 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listen for conversation updates
     socket.on('conversation_updated', function(data) {
         if (data.success) {
-            // Reload the page to show the updated conversation list
-            window.location.reload();
+            // UI already updated in handleTitleKeydown
+            console.log('Conversation renamed successfully');
         }
     });
 
     socket.on('conversation_deleted', function(data) {
         if (data.success) {
-            // Reload the page to show the updated conversation list
-            window.location.reload();
+            // UI already updated in deleteConversation
+            console.log('Conversation deleted successfully');
+        }
+    });
+
+    socket.on('conversation_opened', function(data) {
+        if (data.success) {
+            // Clear current messages
+            chatMessages.innerHTML = '';
+
+            // Add each message from the conversation history
+            data.messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.role}`;
+
+                let content = '';
+                if (msg.image_url) {
+                    content += `<img src="${msg.image_url}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
+                }
+                content += msg.content.replace(/\n/g, '<br>');
+
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        ${content}
+                    </div>
+                `;
+                chatMessages.appendChild(messageDiv);
+            });
+
+            // Update UI for existing conversation
+            moveInputToBottom();
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     });
 
