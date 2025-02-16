@@ -99,12 +99,8 @@ def chat():
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Get or create thread ID from session
-        if not hasattr(request, 'thread_id'):
-            thread = client.beta.threads.create()
-            request.thread_id = thread.id
-        else:
-            thread = type('Thread', (), {'id': request.thread_id})
+        # Create thread for conversation
+        thread = client.beta.threads.create()
 
         # Create message content based on whether there's an image or text or both
         message_content = []
