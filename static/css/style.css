@@ -317,7 +317,7 @@ body {
     align-items: center;
     background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 4px 15px 6px 1px;
+    padding: 4px 15px 10px 1px;
     gap: 0px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     z-index: 100;
@@ -333,7 +333,6 @@ body {
 }
 
 .input-container .input-action, 
-.input-container .send-btn {
     align-self: flex-end;
     margin-top: 0px; /* Pour maintenir l'alignement initial */
     margin-right: 8px;
