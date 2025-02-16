@@ -30,17 +30,15 @@
         </div>
         <div class="recent-history">
             <h6>Historique récent</h6>
-            <div class="history-items-container">
-                {% for item in conversation_history %}
-                <div class="history-item">
-                    <div class="history-content">
-                        <div class="history-title">{{ item.title }}</div>
-                        <div class="history-subject">{{ item.subject }}</div>
-                    </div>
-                    <div class="history-time">{{ item.time }}</div>
+            {% for item in conversation_history %}
+            <div class="history-item">
+                <div class="history-content">
+                    <div class="history-title">{{ item.title }}</div>
+                    <div class="history-subject">{{ item.subject }}</div>
                 </div>
-                {% endfor %}
+                <div class="history-time">{{ item.time }}</div>
             </div>
+            {% endfor %}
         </div>
         <div class="sidebar-footer">
             <div class="nav-item">
