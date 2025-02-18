@@ -338,6 +338,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add this to the existing socket event listeners
     socket.on('new_conversation', function(data) {
         const recentHistory = document.querySelector('.recent-history');
+        const titleElement = document.querySelector('.conversation-title');
+
+        // Update the header title with the new conversation title
+        titleElement.textContent = data.title;
 
         // Create new history item
         const historyItem = document.createElement('div');
