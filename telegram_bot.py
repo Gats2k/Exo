@@ -3,7 +3,7 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 # Set up logging
 logging.basicConfig(
@@ -12,8 +12,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client
-openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Initialize OpenAI client with error handling
+try:
+    openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+except Exception as e:
+    logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
+    raise
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
@@ -29,24 +33,34 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages and respond using OpenAI."""
+    if not update.message or not update.message.text:
+        return
+
     try:
         # Get the message text
         message_text = update.message.text
         logger.info(f"Received message: {message_text}")
 
         # Call OpenAI API to get a response
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": message_text}
-            ]
-        )
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": message_text}
+                ]
+            )
 
-        # Extract and send the response
-        ai_response = response.choices[0].message.content
-        logger.info(f"Sending response: {ai_response}")
-        await update.message.reply_text(ai_response)
+            # Extract and send the response
+            ai_response = response.choices[0].message.content
+            logger.info(f"Sending response: {ai_response}")
+            await update.message.reply_text(ai_response)
+
+        except OpenAIError as openai_error:
+            logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
+            await update.message.reply_text(
+                "I'm having trouble connecting to my AI brain. Please try again in a moment."
+            )
 
     except Exception as e:
         logger.error(f"Error handling message: {str(e)}", exc_info=True)
