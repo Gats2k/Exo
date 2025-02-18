@@ -105,7 +105,7 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Rest of the message handling code remains unchanged
+        # Rest of the message handling code 
         message_content = []
 
         # Handle image if present
@@ -249,7 +249,9 @@ def handle_open_conversation(data):
 
             emit('conversation_opened', {
                 'success': True,
-                'messages': messages_data
+                'messages': messages_data,
+                'conversation_id': conversation.id,
+                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
             })
     except Exception as e:
         emit('conversation_opened', {

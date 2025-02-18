@@ -306,6 +306,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear current messages
             chatMessages.innerHTML = '';
 
+            // Update the conversation title in header
+            const titleElement = document.querySelector('.conversation-title');
+            const conversation = recent_conversations.find(conv => conv.id === data.conversation_id);
+            titleElement.textContent = data.title || "Nouvelle conversation";
+
             // Add each message from the conversation history
             data.messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
