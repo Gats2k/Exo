@@ -1,6 +1,8 @@
 import os
 import logging
 import asyncio
+import base64
+from io import BytesIO
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
@@ -47,11 +49,107 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
     await update.message.reply_text(
-        'You can send me any message and I will respond using AI!'
+        'You can send me messages or images, and I will assist you!'
     )
 
+async def download_and_encode_image(file):
+    """Download image from Telegram and encode it in base64."""
+    image_data = await file.download_as_bytearray()
+    return base64.b64encode(image_data).decode('utf-8')
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming photo messages."""
+    if not update.message or not update.message.photo:
+        return
+
+    user_id = update.effective_user.id
+    try:
+        # Get or create thread ID for this user
+        thread_id = user_threads[user_id]
+        if not thread_id:
+            thread = openai_client.beta.threads.create()
+            thread_id = thread.id
+            user_threads[user_id] = thread_id
+            logger.info(f"Created new thread {thread_id} for user {user_id}")
+
+        # Start typing indication
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action=constants.ChatAction.TYPING
+        )
+
+        # Get the largest photo (best quality)
+        photo = update.message.photo[-1]
+        photo_file = await context.bot.get_file(photo.file_id)
+
+        # Download and encode the image
+        base64_image = await download_and_encode_image(photo_file)
+
+        # Get caption if any
+        caption = update.message.caption or "Please analyze this image."
+
+        # Create message with image
+        openai_client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=[
+                {
+                    "type": "text",
+                    "text": caption
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ]
+        )
+
+        # Run the assistant
+        run = openai_client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Wait for the run to complete while maintaining typing indication
+        while True:
+            # Refresh typing indicator every 4.5 seconds (Telegram's limit is 5 seconds)
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=constants.ChatAction.TYPING
+            )
+
+            run_status = openai_client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+            if run_status.status == 'completed':
+                break
+            elif run_status.status in ['failed', 'cancelled', 'expired']:
+                raise Exception(f"Assistant run failed with status: {run_status.status}")
+            await asyncio.sleep(4.5)  # Wait before refreshing typing indicator
+
+        # Get the assistant's response
+        messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+        assistant_message = messages.data[0].content[0].text.value
+        logger.info(f"Sending response to user {user_id}: {assistant_message}")
+
+        await update.message.reply_text(assistant_message)
+
+    except OpenAIError as openai_error:
+        logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
+        await update.message.reply_text(
+            "I'm having trouble analyzing the image. Please try again in a moment."
+        )
+    except Exception as e:
+        logger.error(f"Error handling photo: {str(e)}", exc_info=True)
+        await update.message.reply_text(
+            "I apologize, but I encountered an error processing your image. Please try again."
+        )
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle incoming messages and respond using OpenAI Assistant."""
+    """Handle incoming text messages and respond using OpenAI Assistant."""
     if not update.message or not update.message.text:
         return
 
@@ -137,6 +235,7 @@ def setup_telegram_bot():
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
         # Add error handler
         application.add_error_handler(error_handler)
