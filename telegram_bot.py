@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI
@@ -31,20 +32,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Get the message text
         message_text = update.message.text
-        
+
         # Call OpenAI API to get a response
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+            model="gpt-4",  # Using standard GPT-4 model
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": message_text}
             ]
         )
-        
+
         # Extract and send the response
         ai_response = response.choices[0].message.content
         await update.message.reply_text(ai_response)
-        
+
     except Exception as e:
         logger.error(f"Error handling message: {e}")
         await update.message.reply_text(
@@ -64,13 +65,19 @@ def setup_telegram_bot():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
+
     # Add error handler
     application.add_error_handler(error_handler)
-    
+
     return application
 
-def run_telegram_bot():
-    """Run the Telegram bot."""
+async def run_telegram_bot_async():
+    """Run the Telegram bot asynchronously."""
     application = setup_telegram_bot()
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    await application.initialize()
+    await application.start()
+    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+def run_telegram_bot():
+    """Run the Telegram bot with proper async event loop."""
+    asyncio.run(run_telegram_bot_async())

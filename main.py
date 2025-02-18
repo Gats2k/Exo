@@ -4,8 +4,11 @@ eventlet.monkey_patch()
 from app import app, socketio
 from telegram_bot import run_telegram_bot
 import threading
+import asyncio
 
 def start_telegram_bot():
+    # Create a new event loop for this thread
+    asyncio.set_event_loop(asyncio.new_event_loop())
     run_telegram_bot()
 
 if __name__ == "__main__":
