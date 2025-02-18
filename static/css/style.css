@@ -204,11 +204,17 @@ body {
     z-index: 1001;
 }
 
-/* Add these styles after the .chat-header styles */
-.conversation-title {
+/* Update conversation title container styles */
+.conversation-title-container {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.conversation-title {
     color: var(--text-light);
     font-size: 1.2em;
     font-weight: 500;
@@ -218,6 +224,22 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.new-conversation-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    opacity: 0.7;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    transition: opacity 0.2s;
+}
+
+.new-conversation-btn:hover {
+    opacity: 1;
 }
 
 .header-title {

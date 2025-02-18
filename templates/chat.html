@@ -70,12 +70,17 @@
     <!-- Main Chat Area -->
     <div class="main-area">
         <div class="chat-header">
-            <div class="conversation-title">
-                {% if history %}
-                    {{ conversation.title if conversation and conversation.title else "Nouvelle conversation" }}
-                {% else %}
-                    Nouvelle conversation
-                {% endif %}
+            <div class="conversation-title-container">
+                <div class="conversation-title">
+                    {% if history %}
+                        {{ conversation.title if conversation and conversation.title else "Nouvelle conversation" }}
+                    {% else %}
+                        Nouvelle conversation
+                    {% endif %}
+                </div>
+                <button class="new-conversation-btn" title="Nouvelle conversation">
+                    <i class="bi bi-pencil-square"></i>
+                </button>
             </div>
             <div class="credits-container">
                 <button class="btn btn-primary reload-credits">Recharger mes crédits</button>

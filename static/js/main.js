@@ -374,4 +374,27 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // Add handler for new conversation button
+    const newConversationBtn = document.querySelector('.new-conversation-btn');
+    if (newConversationBtn) {
+        newConversationBtn.addEventListener('click', function() {
+            // Clear messages
+            chatMessages.innerHTML = '';
+
+            // Reset title
+            const titleElement = document.querySelector('.conversation-title');
+            titleElement.textContent = "Nouvelle conversation";
+
+            // Move input to center if it's the first message
+            inputContainer.classList.add('centered');
+            responseTime.classList.add('centered');
+            welcomeContainer.classList.add('visible');
+            suggestionsContainer.classList.add('visible');
+            isFirstMessage = true;
+
+            // Clear any existing session
+            socket.emit('clear_session');
+        });
+    }
 });
