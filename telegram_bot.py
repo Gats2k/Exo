@@ -1,106 +1,8 @@
 import os
 import logging
-import aiohttp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-import uuid
-from pathlib import Path
 from openai import OpenAI
-
-# Configuration du dossier pour les images
-UPLOAD_FOLDER = 'static/uploads'
-Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
-
-async def download_image(file_path: str, save_path: str):
-    """Télécharge une image depuis Telegram."""
-    async with aiohttp.ClientSession() as session:
-        async with session.get(file_path) as response:
-            if response.status == 200:
-                with open(save_path, 'wb') as f:
-                    f.write(await response.read())
-                return True
-    return False
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Gère les images reçues."""
-    try:
-        # Obtenir le fichier photo (prendre la plus grande résolution disponible)
-        photo = update.message.photo[-1]
-
-        # Obtenir le chemin du fichier
-        file = await context.bot.get_file(photo.file_id)
-
-        # Générer un nom unique pour l'image
-        filename = f"{uuid.uuid4()}.jpg"
-        save_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        # Télécharger l'image
-        success = await download_image(file.file_path, save_path)
-
-        if not success:
-            await update.message.reply_text("Désolé, je n'ai pas pu traiter votre image.")
-            return
-
-        # Lire le fichier en base64
-        import base64
-        with open(save_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-            image_url = f"data:image/jpeg;base64,{encoded_string}"
-
-        # Obtenir le texte de la légende si présent
-        caption = update.message.caption or "Analyze this image"
-
-        # Appeler l'API OpenAI avec l'image
-        thread = openai_client.beta.threads.create()
-
-        # Créer le message avec l'image
-        openai_client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=[
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image_url
-                    }
-                },
-                {
-                    "type": "text",
-                    "text": caption
-                }
-            ]
-        )
-
-        # Créer et attendre la réponse
-        run = openai_client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=os.environ["OPENAI_ASSISTANT_ID"]
-        )
-
-        # Attendre la réponse
-        while True:
-            run_status = openai_client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
-            if run_status.status == 'completed':
-                break
-            elif run_status.status == 'failed':
-                await update.message.reply_text("Désolé, une erreur s'est produite lors de l'analyse de l'image.")
-                return
-
-        # Récupérer la réponse
-        messages = openai_client.beta.threads.messages.list(thread_id=thread.id)
-        assistant_message = messages.data[0].content[0].text.value
-
-        # Envoyer la réponse
-        await update.message.reply_text(assistant_message)
-
-    except Exception as e:
-        logger.error(f"Error handling photo: {e}")
-        await update.message.reply_text(
-            "Je suis désolé, mais j'ai rencontré une erreur en traitant votre image. Veuillez réessayer."
-        )
 
 # Set up logging
 logging.basicConfig(
@@ -157,11 +59,11 @@ def setup_telegram_bot():
     """Initialize and setup the Telegram bot."""
     # Create the Application
     application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     
     # Add error handler
     application.add_error_handler(error_handler)
