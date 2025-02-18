@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI
@@ -31,46 +32,61 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Get the message text
         message_text = update.message.text
-        
+        logger.info(f"Received message: {message_text}")
+
         # Call OpenAI API to get a response
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": message_text}
             ]
         )
-        
+
         # Extract and send the response
         ai_response = response.choices[0].message.content
+        logger.info(f"Sending response: {ai_response}")
         await update.message.reply_text(ai_response)
-        
+
     except Exception as e:
-        logger.error(f"Error handling message: {e}")
+        logger.error(f"Error handling message: {str(e)}", exc_info=True)
         await update.message.reply_text(
             "I apologize, but I encountered an error processing your message. Please try again."
         )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log Errors caused by Updates."""
-    logger.warning(f'Update "{update}" caused error "{context.error}"')
+    logger.error(f'Update "{update}" caused error "{context.error}"', exc_info=True)
 
 def setup_telegram_bot():
     """Initialize and setup the Telegram bot."""
-    # Create the Application
-    application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+    try:
+        # Create the Application
+        application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
 
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Add error handler
-    application.add_error_handler(error_handler)
-    
-    return application
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        # Add error handler
+        application.add_error_handler(error_handler)
+
+        return application
+    except Exception as e:
+        logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
+        raise
 
 def run_telegram_bot():
     """Run the Telegram bot."""
-    application = setup_telegram_bot()
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        application = setup_telegram_bot()
+        logger.info("Starting Telegram bot polling...")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
+        raise

@@ -4,9 +4,21 @@ eventlet.monkey_patch()
 from app import app, socketio
 from telegram_bot import run_telegram_bot
 import threading
+import logging
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 def start_telegram_bot():
-    run_telegram_bot()
+    try:
+        logger.info("Starting Telegram bot thread...")
+        run_telegram_bot()
+    except Exception as e:
+        logger.error(f"Error in Telegram bot thread: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     # Start Telegram bot in a separate thread
