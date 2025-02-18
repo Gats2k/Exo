@@ -15,6 +15,13 @@ import shutil
 import time
 from database import db
 from models import Conversation, Message
+from sqlalchemy import exc
+import logging
+from contextlib import contextmanager
+
+# Configure logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -33,6 +40,10 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 300,  # Recycle connections every 5 minutes
+    'pool_pre_ping': True,  # Enable connection pool pre-ping
+}
 
 # Initialize database
 db.init_app(app)
@@ -61,35 +72,54 @@ def create_assistant():
     )
     return assistant.id
 
-def get_or_create_conversation(thread_id=None):
-    if thread_id:
-        conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-        if conversation:
-            return conversation
+@contextmanager
+def db_retry_session(max_retries=3, retry_delay=1):
+    """Context manager for database operations with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            yield db.session
+            break
+        except exc.OperationalError as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.warning(f"Database connection failed, retrying... (attempt {attempt + 1}/{max_retries})")
+            time.sleep(retry_delay)
+        except Exception as e:
+            raise
 
-    # Create new thread and conversation
-    thread = client.beta.threads.create()
-    conversation = Conversation(thread_id=thread.id)
-    db.session.add(conversation)
-    db.session.commit()
-    return conversation
+def get_or_create_conversation(thread_id=None):
+    with db_retry_session() as session:
+        if thread_id:
+            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+            if conversation:
+                return conversation
+
+        # Create new thread and conversation
+        thread = client.beta.threads.create()
+        conversation = Conversation(thread_id=thread.id)
+        session.add(conversation)
+        session.commit()
+        return conversation
 
 @app.route('/')
 def chat():
-    # Get recent non-deleted conversations for sidebar
-    recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
-    conversation_history = [
-        {
-            'id': conv.id,
-            'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-            'subject': 'Général',
-            'time': conv.created_at.strftime('%H:%M')
-        } for conv in recent_conversations
-    ]
+    with db_retry_session() as db_session:
+        # Get recent non-deleted conversations for sidebar
+        recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
+        conversation_history = [
+            {
+                'id': conv.id,
+                'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                'subject': 'Général',
+                'time': conv.created_at.strftime('%H:%M')
+            } for conv in recent_conversations
+        ]
 
-    # Clear any existing thread_id from session
-    session.pop('thread_id', None)
-    return render_template('chat.html', history=[], conversation_history=conversation_history, credits=42)
+        # Clear any existing thread_id from Flask's session
+        if 'thread_id' in session:
+            session.pop('thread_id')
+
+        return render_template('chat.html', history=[], conversation_history=conversation_history, credits=42)
 
 @socketio.on('send_message')
 def handle_message(data):
@@ -332,7 +362,7 @@ def cleanup_uploads():
             for filepath, _ in files:
                 os.remove(filepath)
                 total_size = sum(os.path.getsize(os.path.join(UPLOAD_FOLDER, f)) 
-                               for f in os.listdir(UPLOAD_FOLDER))
+                                for f in os.listdir(UPLOAD_FOLDER))
                 if total_size <= MAX_UPLOAD_FOLDER_SIZE:
                     break
 
