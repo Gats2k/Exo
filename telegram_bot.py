@@ -1,7 +1,7 @@
 import os
 import logging
 import asyncio
-from telegram import Update
+from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
 from collections import defaultdict
@@ -69,6 +69,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_text = update.message.text
         logger.info(f"Received message from user {user_id}: {message_text}")
 
+        # Start typing indication
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action=constants.ChatAction.TYPING
+        )
+
         openai_client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
@@ -81,8 +87,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             assistant_id=ASSISTANT_ID
         )
 
-        # Wait for the run to complete
+        # Wait for the run to complete while maintaining typing indication
         while True:
+            # Refresh typing indicator every 4.5 seconds (Telegram's limit is 5 seconds)
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=constants.ChatAction.TYPING
+            )
+
             run_status = openai_client.beta.threads.runs.retrieve(
                 thread_id=thread_id,
                 run_id=run.id
@@ -91,7 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
             elif run_status.status in ['failed', 'cancelled', 'expired']:
                 raise Exception(f"Assistant run failed with status: {run_status.status}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(4.5)  # Wait before refreshing typing indicator
 
         # Get the assistant's response
         messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
