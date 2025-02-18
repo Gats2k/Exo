@@ -281,6 +281,12 @@ def handle_open_conversation(data):
             'error': str(e)
         })
 
+@socketio.on('clear_session')
+def handle_clear_session():
+    # Clear the thread_id from session
+    session.pop('thread_id', None)
+    emit('session_cleared', {'success': True})
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

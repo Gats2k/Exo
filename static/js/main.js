@@ -433,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = "Nouvelle conversation";
 
-            // Move input to center if it's the first message
+            // Reset UI state
             inputContainer.classList.add('centered');
             responseTime.classList.add('centered');
             welcomeContainer.classList.add('visible');
@@ -444,4 +444,11 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('clear_session');
         });
     }
+
+    // Listen for session cleared confirmation
+    socket.on('session_cleared', function(data) {
+        if (data.success) {
+            console.log('Session cleared successfully');
+        }
+    });
 });
