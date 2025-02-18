@@ -192,6 +192,28 @@ def handle_message(data):
             content=assistant_message
         )
         db.session.add(db_message)
+
+        # Generate and set conversation title if this is the first message
+        if not conversation.title:
+            first_user_message = Message.query.filter_by(
+                conversation_id=conversation.id,
+                role='user'
+            ).order_by(Message.created_at).first()
+
+            if first_user_message:
+                # Use the first 30 characters of the message as the title
+                title = first_user_message.content[:30] + "..." if len(first_user_message.content) > 30 else first_user_message.content
+                conversation.title = title
+                db.session.commit()
+
+                # Emit the new conversation to all clients for real-time history update
+                emit('new_conversation', {
+                    'id': conversation.id,
+                    'title': conversation.title,
+                    'subject': 'Général',
+                    'time': conversation.created_at.strftime('%H:%M')
+                }, broadcast=True)
+
         db.session.commit()
 
         # Send response to client

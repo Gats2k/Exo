@@ -335,6 +335,53 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Add this to the existing socket event listeners
+    socket.on('new_conversation', function(data) {
+        const recentHistory = document.querySelector('.recent-history');
+
+        // Create new history item
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item';
+        historyItem.setAttribute('onclick', `openConversation('${data.id}', event)`);
+
+        historyItem.innerHTML = `
+            <div class="history-content">
+                <div class="history-title" id="title-${data.id}">${data.title}</div>
+                <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
+                    <input type="text" class="title-input" value="${data.title}" 
+                           onkeydown="handleTitleKeydown(event, '${data.id}')"
+                           onclick="event.stopPropagation()">
+                </div>
+                <div class="history-subject">${data.subject}</div>
+            </div>
+            <div class="history-actions">
+                <div class="time">${data.time}</div>
+                <div class="dropdown">
+                    <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <div id="dropdown-${data.id}" class="dropdown-menu">
+                        <a href="#" onclick="startRename('${data.id}', event)">
+                            <i class="bi bi-pencil"></i> Renommer
+                        </a>
+                        <a href="#" onclick="deleteConversation('${data.id}', event)">
+                            <i class="bi bi-trash"></i> Supprimer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert at the beginning of the history
+        const firstHistoryItem = recentHistory.querySelector('.history-item');
+        if (firstHistoryItem) {
+            recentHistory.insertBefore(historyItem, firstHistoryItem);
+        } else {
+            recentHistory.appendChild(historyItem);
+        }
+    });
+
+
     sendBtn.addEventListener('click', sendMessage);
 
     input.addEventListener('keydown', function(e) {
