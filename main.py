@@ -24,4 +24,4 @@ if __name__ == "__main__":
     telegram_thread.start()
 
     # Run the Flask-SocketIO application
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True, use_reloader=False, log_output=True)

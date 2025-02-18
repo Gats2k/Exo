@@ -48,8 +48,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "I apologize, but I encountered an error processing your message. Please try again."
         )
 
-def run_telegram_bot():
-    """Run the Telegram bot with proper async setup."""
+async def run_telegram_bot_async():
+    """Run the telegram bot asynchronously."""
     try:
         # Create and setup application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
@@ -59,7 +59,19 @@ def run_telegram_bot():
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         logger.info("Starting Telegram bot...")
-        # Run the bot
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        await application.initialize()
+        await application.start()
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as e:
         logger.error(f"Error in run_telegram_bot: {e}", exc_info=True)
+
+def run_telegram_bot():
+    """Run the telegram bot in its own event loop."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(run_telegram_bot_async())
+    except Exception as e:
+        logger.error(f"Error in telegram bot event loop: {e}", exc_info=True)
+    finally:
+        loop.close()
