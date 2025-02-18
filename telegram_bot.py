@@ -18,29 +18,30 @@ openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     await update.message.reply_text(
-        'Hello! I am your AI assistant. You can send me text or images, and I will analyze them!'
+        'Bonjour! Je suis votre assistant IA. Vous pouvez m\'envoyer du texte ou des images à analyser!'
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
     await update.message.reply_text(
-        'You can send me:\n' +
-        '1. Any text message for a conversation\n' +
-        '2. Any image for analysis'
+        'Vous pouvez m\'envoyer:\n' +
+        '1. Un message texte pour une conversation\n' +
+        '2. Une image pour l\'analyse'
     )
 
 async def analyze_image_with_openai(image_data):
     """Analyze image using OpenAI's Vision model."""
     try:
+        logger.info("Starting image analysis with OpenAI")
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+            model="gpt-4-vision-preview",  # Use vision-specific model
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "Analyze this image in detail and describe what you see."
+                            "text": "Décrivez cette image en détail en français."
                         },
                         {
                             "type": "image_url",
@@ -50,18 +51,24 @@ async def analyze_image_with_openai(image_data):
                         }
                     ]
                 }
-            ]
+            ],
+            max_tokens=500
         )
+        logger.info("Successfully received OpenAI response")
         return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Error analyzing image with OpenAI: {e}")
-        return "Sorry, I encountered an error while analyzing the image. Please try again."
+        logger.error(f"Error analyzing image with OpenAI: {str(e)}")
+        return "Désolé, une erreur s'est produite lors de l'analyse de l'image. Veuillez réessayer."
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming photos."""
     try:
         # Get the photo with the highest resolution
         photo = update.message.photo[-1]
+        logger.info(f"Received photo with file_id: {photo.file_id}")
+
+        # Send initial processing message
+        processing_message = await update.message.reply_text("Traitement de votre image en cours...")
 
         # Download the photo
         photo_file = await context.bot.get_file(photo.file_id)
@@ -70,9 +77,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Convert to base64
         import base64
         image_base64 = base64.b64encode(photo_bytes).decode('utf-8')
-
-        # Send a message while processing
-        processing_message = await update.message.reply_text("Processing your image...")
+        logger.info("Successfully converted image to base64")
 
         # Analyze the image with OpenAI
         analysis = await analyze_image_with_openai(image_base64)
@@ -81,34 +86,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await processing_message.edit_text(analysis)
 
     except Exception as e:
-        logger.error(f"Error handling photo: {e}")
+        logger.error(f"Error handling photo: {str(e)}")
         await update.message.reply_text(
-            "I apologize, but I encountered an error processing your image. Please try again."
+            "Désolé, une erreur s'est produite lors du traitement de votre image. Veuillez réessayer."
         )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming text messages and respond using OpenAI."""
     try:
-        # Get the message text
         message_text = update.message.text
+        logger.info(f"Received message: {message_text}")
 
-        # Call OpenAI API to get a response
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "Vous êtes un assistant serviable qui répond en français."},
                 {"role": "user", "content": message_text}
             ]
         )
 
-        # Extract and send the response
         ai_response = response.choices[0].message.content
         await update.message.reply_text(ai_response)
 
     except Exception as e:
-        logger.error(f"Error handling message: {e}")
+        logger.error(f"Error handling message: {str(e)}")
         await update.message.reply_text(
-            "I apologize, but I encountered an error processing your message. Please try again."
+            "Désolé, une erreur s'est produite. Veuillez réessayer."
         )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
