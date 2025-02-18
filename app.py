@@ -103,23 +103,35 @@ def get_or_create_conversation(thread_id=None):
 
 @app.route('/')
 def chat():
-    with db_retry_session() as db_session:
-        # Get recent non-deleted conversations for sidebar
-        recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
-        conversation_history = [
-            {
-                'id': conv.id,
-                'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                'subject': 'Général',
-                'time': conv.created_at.strftime('%H:%M')
-            } for conv in recent_conversations
-        ]
+    try:
+        with db_retry_session() as db_session:
+            # Get recent non-deleted conversations for sidebar
+            recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
+            conversation_history = []
 
-        # Clear any existing thread_id from Flask's session
-        if 'thread_id' in session:
-            session.pop('thread_id')
+            for conv in recent_conversations:
+                conversation_history.append({
+                    'id': conv.id,
+                    'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                    'subject': 'Général',
+                    'time': conv.created_at.strftime('%H:%M')
+                })
 
-        return render_template('chat.html', history=[], conversation_history=conversation_history, credits=42)
+            # Clear any existing thread_id from Flask's session
+            if 'thread_id' in session:
+                session.pop('thread_id')
+
+            return render_template('chat.html', 
+                                history=[], 
+                                conversation_history=conversation_history, 
+                                credits=42)
+    except Exception as e:
+        logger.error(f"Error in chat route: {str(e)}")
+        return render_template('chat.html', 
+                             history=[], 
+                             conversation_history=[], 
+                             credits=42,
+                             error="Une erreur est survenue. Veuillez réessayer.")
 
 @socketio.on('send_message')
 def handle_message(data):
