@@ -1,5 +1,6 @@
 import os
 import logging
+import base64
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI
@@ -29,16 +30,39 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages and respond using OpenAI."""
     try:
-        # Get the message text
-        message_text = update.message.text
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
+        # Handle text message
+        if update.message.text:
+            messages.append({"role": "user", "content": update.message.text})
         
-        # Call OpenAI API to get a response
+        # Handle image message
+        if update.message.photo:
+            # Get the largest photo (best quality)
+            photo = update.message.photo[-1]
+            # Get the file from Telegram
+            file = await context.bot.get_file(photo.file_id)
+            # Download the file
+            file_path = f"static/uploads/{photo.file_id}.jpg"
+            await file.download_to_drive(file_path)
+
+            # Create image content for OpenAI
+            with open(file_path, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": update.message.caption or "Please analyze this image."},
+                    {"type": "image_url", "image_url": f"data:image/jpeg;base64,{base64_image}"}
+                ]
+            })
+
+        # Call OpenAI API with GPT-4 Vision
         response = openai_client.chat.completions.create(
-            model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": message_text}
-            ]
+            model="gpt-4-vision-preview",
+            messages=messages,
+            max_tokens=1000
         )
         
         # Extract and send the response
