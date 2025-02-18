@@ -4,6 +4,7 @@ import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
+from collections import defaultdict
 
 # Set up logging
 logging.basicConfig(
@@ -15,15 +16,33 @@ logger = logging.getLogger(__name__)
 # Initialize OpenAI client with error handling
 try:
     openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    ASSISTANT_ID = os.environ.get("OPENAI_ASSISTANT_ID")
+    if not ASSISTANT_ID:
+        raise ValueError("OPENAI_ASSISTANT_ID environment variable is not set")
 except Exception as e:
     logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
     raise
 
+# Store thread IDs for each user
+user_threads = defaultdict(lambda: None)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
-    await update.message.reply_text(
-        'Hello! I am your AI assistant. How can I help you today?'
-    )
+    user_id = update.effective_user.id
+    try:
+        # Create a new thread for the user
+        thread = openai_client.beta.threads.create()
+        user_threads[user_id] = thread.id
+        logger.info(f"Created new thread {thread.id} for user {user_id}")
+
+        await update.message.reply_text(
+            'Hello! I am your AI assistant. How can I help you today?'
+        )
+    except Exception as e:
+        logger.error(f"Error in start command: {str(e)}", exc_info=True)
+        await update.message.reply_text(
+            "I'm having trouble setting up our conversation. Please try again in a moment."
+        )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
@@ -32,36 +51,60 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle incoming messages and respond using OpenAI."""
+    """Handle incoming messages and respond using OpenAI Assistant."""
     if not update.message or not update.message.text:
         return
 
+    user_id = update.effective_user.id
     try:
-        # Get the message text
+        # Get or create thread ID for this user
+        thread_id = user_threads[user_id]
+        if not thread_id:
+            thread = openai_client.beta.threads.create()
+            thread_id = thread.id
+            user_threads[user_id] = thread_id
+            logger.info(f"Created new thread {thread_id} for user {user_id}")
+
+        # Add the user's message to the thread
         message_text = update.message.text
-        logger.info(f"Received message: {message_text}")
+        logger.info(f"Received message from user {user_id}: {message_text}")
 
-        # Call OpenAI API to get a response
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": message_text}
-                ]
+        openai_client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=message_text
+        )
+
+        # Run the assistant
+        run = openai_client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Wait for the run to complete
+        while True:
+            run_status = openai_client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
             )
+            if run_status.status == 'completed':
+                break
+            elif run_status.status in ['failed', 'cancelled', 'expired']:
+                raise Exception(f"Assistant run failed with status: {run_status.status}")
+            await asyncio.sleep(1)
 
-            # Extract and send the response
-            ai_response = response.choices[0].message.content
-            logger.info(f"Sending response: {ai_response}")
-            await update.message.reply_text(ai_response)
+        # Get the assistant's response
+        messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+        assistant_message = messages.data[0].content[0].text.value
+        logger.info(f"Sending response to user {user_id}: {assistant_message}")
 
-        except OpenAIError as openai_error:
-            logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
-            await update.message.reply_text(
-                "I'm having trouble connecting to my AI brain. Please try again in a moment."
-            )
+        await update.message.reply_text(assistant_message)
 
+    except OpenAIError as openai_error:
+        logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
+        await update.message.reply_text(
+            "I'm having trouble connecting to my AI brain. Please try again in a moment."
+        )
     except Exception as e:
         logger.error(f"Error handling message: {str(e)}", exc_info=True)
         await update.message.reply_text(
