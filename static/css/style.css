@@ -28,7 +28,7 @@ body {
     position: fixed;
     top: 20px;
     left: 10px;
-    z-index: 1000;
+    z-index: 1003;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -66,7 +66,7 @@ body {
     height: 100%;
     left: calc(-1 * var(--sidebar-width));
     transition: transform 0.3s ease;
-    z-index: 999;
+    z-index: 1002;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -416,10 +416,25 @@ body {
 
 .input-container.centered {
     position: fixed;
-    top: 50%;
-    bottom: auto;
-    transform: translate(-50%, -50%);
+    bottom: 50%;
+    transform: translate(-50%);
     transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column-reverse;
+}
+
+/* À AJOUTER */
+.input-container textarea {
+    position: relative;
+    bottom: 0;
+    resize: none;
+    max-height: 300px;
+    transition: height 0.1s ease;
+}
+
+.input-container.centered textarea {
+    position: relative;
+    bottom: 0;
 }
 
 .input-container .input-action, 
@@ -450,7 +465,6 @@ body {
     outline: none;
     padding: 8px 0;
     resize: none;
-    width: 100%;
 }
 
 .input-container textarea::placeholder {
@@ -462,7 +476,7 @@ body {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 5px;
+    padding: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -503,7 +517,7 @@ body {
 }
 
 .response-time.centered {
-    bottom: calc(50% - 65px);
+    bottom: calc(50% - 40px);
 }
 
 /* Import de la police - à mettre dans le head du HTML */
@@ -524,6 +538,22 @@ body {
     font-size: var(--sidebar-text-size, 1rem);
     font-weight: 700; /* Texte en gras */
     color: var(--text-light);
+}
+
+.sidebar-section-new {
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    color: var(--text-light);
+    margin-bottom: var(--sidebar-item-spacing, 0px);
+}
+
+.sidebar-section-new:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Media Queries for Mobile */
@@ -586,6 +616,10 @@ body {
         font-size: 1.2em;
     }
 
+    .conversation-title-container {
+        display: none;
+    }
+
     .reload-credits {
         right: 10px;
         padding: 5px 10px;
@@ -604,7 +638,7 @@ body {
     }
 
     .response-time.centered {
-        bottom: calc(50% - 50px);
+        bottom: calc(50% - 20px);
     }
 
     .sidebar {
@@ -636,6 +670,12 @@ body {
         margin-top: 0px;
         margin-right: 1px; /* Ajout du padding à droite */
         margin-bottom: 0px;
+    }
+}
+
+@media (min-width: 769px) {
+    .sidebar-section-new {
+        display: none;
     }
 }
 
@@ -727,7 +767,7 @@ body {
     width: 100%;
     max-width: 700px;
     z-index: 97;
-    bottom: calc(50% + 70px); /* Initial position below center */
+    bottom: calc(50% + 100px); /* Initial position below center */
 }
 
 .welcome-container.visible {
@@ -772,7 +812,7 @@ body {
     transition: opacity 0.3s ease;
     pointer-events: none;
     z-index: 97;
-    top: calc(50% + 80px); /* Initial position below center */
+    top: calc(50% + 50px); /* Initial position below center */
 }
 
 .suggestions-container.visible {
@@ -830,7 +870,7 @@ body {
     }
 
     .welcome-container {
-        bottom: calc(50% + 60px); /* Réduit de 80px à 40px */
+        bottom: calc(50% + 80px); /* Réduit de 80px à 40px */
     }
 
     .suggestions-container {
@@ -903,7 +943,7 @@ body {
 .input-actions-container {
     display: flex;
     align-items: flex-end;
-    gap: 8px;
+    gap: 4px;
     width: 100%;
 }
 

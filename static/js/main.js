@@ -13,6 +13,28 @@ window.toggleDropdown = function(id, event) {
     dropdown.classList.toggle('show');
 };
 
+document.addEventListener('DOMContentLoaded', function() {
+    // Récupérer les éléments existants
+    const sidebar = document.querySelector('.sidebar');
+    const mortarboardIcon = document.querySelector('.bi-mortarboard');
+
+    // Fonction pour fermer la sidebar
+    const closeSidebar = () => {
+        if (window.innerWidth <= 768 && sidebar.classList.contains('visible')) {
+            sidebar.classList.remove('visible');
+            mortarboardIcon.classList.remove('bi-mortarboard-fill');
+            mortarboardIcon.classList.add('bi-mortarboard');
+        }
+    };
+
+    // Ajouter l'événement de clic sur la zone principale
+    document.querySelector('.main-area').addEventListener('click', (e) => {
+        if (!e.target.closest('.sidebar') && !e.target.closest('.sidebar-toggle')) {
+            closeSidebar();
+        }
+    });
+});
+
 window.startRename = function(id, event) {
     event.preventDefault();
     event.stopPropagation();
@@ -251,7 +273,6 @@ document.addEventListener('DOMContentLoaded', function() {
             chatMessages.appendChild(messageDiv);
 
             moveInputToBottom();
-            input.style.height = 'auto';
             addLoadingIndicator();
 
             // Send both message and image to the server
@@ -263,6 +284,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear input and image
             input.value = '';
             removeImage();
+            // Réinitialiser la hauteur après un court délai pour éviter les saccades
+            setTimeout(() => {
+                adjustTextareaHeight(input);
+            }, 0);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
@@ -399,14 +424,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    input.addEventListener('input', function() {
-        if (window.innerWidth <= 768) {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-        } else {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
+    function adjustTextareaHeight(textarea) {
+        const maxHeight = window.innerWidth <= 768 ? 100 : 300;
+        const minHeight = 36;
+
+        // Si le textarea est vide, appliquer directement la hauteur minimale
+        if (!textarea.value) {
+            textarea.style.height = minHeight + 'px';
+            textarea.style.overflowY = 'hidden';
+            return;
         }
+
+        // Sauvegarder la position du curseur
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+
+        // Clone temporairement le texte pour mesurer sa hauteur réelle
+        const clone = textarea.cloneNode();
+        clone.style.position = 'absolute';
+        clone.style.visibility = 'hidden';
+        clone.style.height = minHeight + 'px'; // Forcer la hauteur minimale sur le clone
+        clone.value = textarea.value;
+        document.body.appendChild(clone);
+
+        // Calculer la hauteur nécessaire
+        const requiredHeight = Math.max(minHeight, Math.min(clone.scrollHeight, maxHeight));
+
+        // Supprimer le clone
+        document.body.removeChild(clone);
+
+        // Appliquer la nouvelle hauteur
+        textarea.style.height = requiredHeight + 'px';
+        textarea.style.overflowY = requiredHeight === maxHeight ? 'auto' : 'hidden';
+
+        // Restaurer la position du curseur
+        textarea.setSelectionRange(selectionStart, selectionEnd);
+    }
+
+    input.addEventListener('input', function() {
+        adjustTextareaHeight(this);
     });
 
     const actionButtons = document.querySelectorAll('.action-btn');
