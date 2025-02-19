@@ -18,6 +18,9 @@ from models import Conversation, Message
 from sqlalchemy import exc
 import logging
 from contextlib import contextmanager
+import PyPDF2
+from docx import Document
+import io
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
@@ -28,7 +31,7 @@ load_dotenv()
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'docx'}
 
 # Configurations for image cleanup
 MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -150,50 +153,76 @@ def handle_message(data):
         # Rest of the message handling code 
         message_content = []
 
-        # Handle image if present
-        if 'image' in data and data['image']:
-            # Save the base64 image
-            filename = save_base64_image(data['image'])
-            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+        # Handle file attachments if present
+        if 'file' in data and data['file']:
+            # Extract file type and data
+            header, encoded = data['file'].split(",", 1)
+            file_data = base64.b64decode(encoded)
 
-            # Create file for assistant
-            base64_image = data['image'].split(',')[1]
-            image_file = client.files.create(
-                file=base64_image,
-                purpose="assistants"
-            )
+            # Determine file type from header
+            file_type = header.split(';')[0].split('/')[1]
 
-            # Store user message with image
-            user_message = Message(
-                conversation_id=conversation.id,
-                role='user',
-                content=data.get('message', ''),
-                image_url=image_url
-            )
-            db.session.add(user_message)
+            if file_type in ['pdf', 'docx']:
+                # Extract text from document
+                text_content = None
+                if file_type == 'pdf':
+                    text_content = extract_text_from_pdf(file_data)
+                elif file_type == 'vnd.openxmlformats-officedocument.wordprocessingml.document':
+                    text_content = extract_text_from_docx(file_data)
 
-            # Create message for OpenAI with file attachment
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', ''),
-                file_ids=[image_file.id]
-            )
-        else:
-            # Store text-only message
-            user_message = Message(
-                conversation_id=conversation.id,
-                role='user',
-                content=data.get('message', '')
-            )
-            db.session.add(user_message)
+                if text_content:
+                    # Generate unique filename and save file
+                    filename = f"{uuid.uuid4()}.{file_type}"
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    with open(filepath, "wb") as f:
+                        f.write(file_data)
 
-            # Send message to OpenAI
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', '')
-            )
+                    # Store user message with document
+                    user_message = Message(
+                        conversation_id=conversation.id,
+                        role='user',
+                        content=f"{data.get('message', '')}\n\nDocument Content:\n{text_content}",
+                        file_url=url_for('static', filename=f'uploads/{filename}')
+                    )
+                    db.session.add(user_message)
+
+                    # Send message to OpenAI
+                    client.beta.threads.messages.create(
+                        thread_id=conversation.thread_id,
+                        role="user",
+                        content=f"{data.get('message', '')}\n\nDocument Content:\n{text_content}"
+                    )
+                else:
+                    raise Exception("Failed to extract text from document")
+            elif file_type in ['jpeg', 'png', 'gif']:
+                # Existing image handling code remains unchanged
+                filename = save_base64_image(data['file'])
+                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+
+                # Create file for assistant
+                image_file = client.files.create(
+                    file=encoded,
+                    purpose="assistants"
+                )
+
+                # Store user message with image
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role='user',
+                    content=data.get('message', ''),
+                    image_url=image_url
+                )
+                db.session.add(user_message)
+
+                # Create message for OpenAI with file attachment
+                client.beta.threads.messages.create(
+                    thread_id=conversation.thread_id,
+                    role="user",
+                    content=data.get('message', ''),
+                    file_ids=[image_file.id]
+                )
+            else:
+                raise Exception("Unsupported file type")
 
         # Create and run assistant
         run = client.beta.threads.runs.create(
@@ -349,6 +378,31 @@ def save_base64_image(base64_string):
         f.write(img_data)
 
     return filename
+
+def extract_text_from_pdf(pdf_data):
+    """Extract text from a PDF file."""
+    try:
+        pdf_file = io.BytesIO(pdf_data)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        return text.strip()
+    except Exception as e:
+        logger.error(f"Error extracting text from PDF: {str(e)}")
+        return None
+
+def extract_text_from_docx(docx_data):
+    """Extract text from a Word document."""
+    try:
+        doc = Document(io.BytesIO(docx_data))
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text.strip()
+    except Exception as e:
+        logger.error(f"Error extracting text from Word document: {str(e)}")
+        return None
 
 def cleanup_uploads():
     """Cleans up the uploads folder of old images and checks the total size"""
