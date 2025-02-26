@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Môjo - Connexion</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom right, #312E81, #581C87, #831843);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        :root {
+            --container-width: 500px;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            width: 100%;
+            max-width: var(--container-width);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background-color: white;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3B82F6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #2563EB;
+        }
+        .footer-text {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .main-title {
+            text-align: center;
+            color: #FFD700;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .main-subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.3em;
+            color: white;
+        }
+        .register-link {
+            text-align: center;
+            margin-top: 15px;
+            color: white;
+            text-decoration: none;
+        }
+        .register-link a {
+            color: #FFD700;
+            text-decoration: none;
+        }
+        .register-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="main-title">Môjo</h1>
+    <p class="main-subtitle">Votre assistant personnel pour réussir vos études</p>
+
+    <div class="container">
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label for="phone_number">Numéro de téléphone</label>
+                <input type="tel" id="phone_number" name="phone_number" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <p class="footer-text">Bienvenue à nouveau !</p>
+
+            <button type="submit">SE CONNECTER</button>
+            <p class="register-link">
+                Pas encore de compte ? <a href="{{ url_for('register') }}">Inscrivez-vous</a>
+            </p>
+        </form>
+    </div>
+</body>
+</html>

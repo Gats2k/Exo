@@ -80,8 +80,6 @@
             font-size: 1.3em;
             color: white;
         }
-
-        /* Modal Styles */
         .modal {
             position: fixed;
             top: 50%;
@@ -157,10 +155,22 @@
             width: auto;
             display: inline-block;
         }
+        .login-link {
+            text-align: center;
+            margin-top: 15px;
+            color: white;
+            text-decoration: none;
+        }
+        .login-link a {
+            color: #FFD700;
+            text-decoration: none;
+        }
+        .login-link a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <!-- Welcome Modal -->
     <div id="welcomeModal" class="modal">
         <button class="modal-close" onclick="closeModal()">&times;</button>
         <h2 style="color: #FFD700; font-size: 1.8em; margin-bottom: 20px;">
@@ -253,17 +263,17 @@
             <p class="footer-text">Ta réussite est à un clic de distance</p>
 
             <button type="submit">COMMENCER MAINTENANT</button>
+            <p class="login-link">
+                Vous avez déjà un compte ? <a href="{{ url_for('login') }}">Connectez-vous</a>
+            </p>
         </form>
     </div>
 
     <script>
-        // Modal functionality
         function closeModal() {
             document.getElementById('welcomeModal').style.display = 'none';
             document.getElementById('modalOverlay').style.display = 'none';
         }
-
-        // Show modal when page loads
         window.onload = function() {
             document.getElementById('welcomeModal').style.display = 'block';
             document.getElementById('modalOverlay').style.display = 'block';
