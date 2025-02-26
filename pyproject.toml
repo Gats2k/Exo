@@ -25,4 +25,5 @@ dependencies = [
     "aiohttp>=3.11.12",
     "requests>=2.32.3",
     "flask-login>=0.6.3",
+    "flask-wtf>=1.2.2",
 ]

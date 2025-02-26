@@ -383,6 +383,22 @@ def cleanup_uploads():
     except Exception as e:
         print(f"Error during upload cleanup: {str(e)}")
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        phone_number = request.form.get('phone_number')
+        password = request.form.get('password')
+
+        user = User.query.filter_by(phone_number=phone_number).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('chat'))
+
+        flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
+        return redirect(url_for('login'))
+
+    return render_template('login.html')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -425,22 +441,6 @@ def register():
             return redirect(url_for('register'))
 
     return render_template('register.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        phone_number = request.form.get('phone_number')
-        password = request.form.get('password')
-
-        user = User.query.filter_by(phone_number=phone_number).first()
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('chat'))
-
-        flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
-        return redirect(url_for('login'))
-
-    return render_template('login.html')
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup
