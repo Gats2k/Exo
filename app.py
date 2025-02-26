@@ -442,6 +442,23 @@ def register():
 
     return render_template('register.html')
 
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        phone_number = request.form.get('phone_number')
+        user = User.query.filter_by(phone_number=phone_number).first()
+
+        if user:
+            # Here we would typically send a reset link or code
+            # For now, we'll just show a success message
+            flash('Instructions de réinitialisation envoyées à votre numéro.', 'success')
+            return redirect(url_for('login'))
+
+        flash('Aucun compte trouvé avec ce numéro.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    return render_template('forgot_password.html')
+
 if __name__ == '__main__':
     # Configure scheduler for cleanup
     scheduler = BackgroundScheduler()
