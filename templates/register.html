@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Môjo - Inscription</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #6B46C1;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            text-align: center;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background-color: white;
+            box-sizing: border-box;
+        }
+        .optional {
+            color: #FFD700;
+            font-size: 0.8em;
+            margin-left: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3B82F6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #2563EB;
+        }
+        .footer-text {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Môjo</h1>
+        <p class="subtitle">Votre assistant personnel pour réussir vos études</p>
+        
+        <form method="POST" action="{{ url_for('register') }}">
+            <div class="form-group">
+                <label for="first_name">Prénom</label>
+                <input type="text" id="first_name" name="first_name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="last_name">Nom</label>
+                <input type="text" id="last_name" name="last_name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="age">Âge</label>
+                <input type="number" id="age" name="age" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="phone_number">Numéro de téléphone</label>
+                <input type="tel" id="phone_number" name="phone_number" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="study_level">Niveau d'étude <span class="optional">Facultatif</span></label>
+                <select id="study_level" name="study_level">
+                    <option value="">Sélectionnez votre niveau d'étude</option>
+                    <option value="Terminal A">Terminal A</option>
+                    <option value="Terminal D">Terminal D</option>
+                    <option value="Terminal C">Terminal C</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="grade_goals">Notes visées <span class="optional">Facultatif</span></label>
+                <select id="grade_goals" name="grade_goals">
+                    <option value="">Sélectionnez vos objectifs de notes</option>
+                    <option value="average">Avoir la moyenne</option>
+                    <option value="14-16">Avoir une note entre 14 et 16</option>
+                    <option value="maximum">Obtenir la note maximale</option>
+                </select>
+            </div>
+            
+            <button type="submit">COMMENCER MAINTENANT</button>
+        </form>
+        
+        <p class="footer-text">Ta réussite est à un clic de distance</p>
+    </div>
+</body>
+</html>

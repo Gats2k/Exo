@@ -1,6 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, render_template, request, jsonify, url_for, session
+from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
@@ -11,16 +11,15 @@ import base64
 from io import BytesIO
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import exc
 import shutil
 import time
-from database import db
-from models import Conversation, Message
-from sqlalchemy import exc
 import logging
 from contextlib import contextmanager
+from flask_login import LoginManager, current_user, login_user, logout_user, login_required
 
 # Configure logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -46,12 +45,8 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 # Initialize database
+from database import db
 db.init_app(app)
-
-# Create tables within application context
-with app.app_context():
-    # Import models and create tables
-    db.create_all()
 
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -63,14 +58,21 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
-def create_assistant():
-    assistant = client.beta.assistants.create(
-        name="Vision Assistant",
-        instructions="You are a helpful assistant capable of understanding images and text.",
-        model="gpt-4-vision-preview",
-        tools=[{"type": "code_interpreter"}]
-    )
-    return assistant.id
+# Initialize LoginManager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Import models after db initialization to avoid circular imports
+from models import Conversation, Message, User
+
+# Create tables within application context
+with app.app_context():
+    db.create_all()
+
+@login_manager.user_loader
+def load_user(id):
+    return User.query.get(int(id))
 
 @contextmanager
 def db_retry_session(max_retries=3, retry_delay=1):
@@ -380,6 +382,50 @@ def cleanup_uploads():
 
     except Exception as e:
         print(f"Error during upload cleanup: {str(e)}")
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        age = request.form.get('age')
+        phone_number = request.form.get('phone_number')
+        password = request.form.get('password')
+        study_level = request.form.get('study_level') or 'Terminal A'  # Default value
+        grade_goals = request.form.get('grade_goals') or 'average'  # Default value
+
+        # Basic validation
+        if not all([first_name, last_name, age, phone_number, password]):
+            flash('Tous les champs obligatoires doivent être remplis.', 'error')
+            return redirect(url_for('register'))
+
+        try:
+            # Create new user
+            user = User(
+                first_name=first_name,
+                last_name=last_name,
+                age=int(age),
+                phone_number=phone_number,
+                study_level=study_level,
+                grade_goals=grade_goals
+            )
+            user.set_password(password)
+
+            db.session.add(user)
+            db.session.commit()
+
+            # Log the user in
+            login_user(user)
+            return redirect(url_for('chat'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash('Une erreur est survenue lors de l\'inscription.', 'error')
+            app.logger.error(f"Registration error: {str(e)}")
+            return redirect(url_for('register'))
+
+    return render_template('register.html')
+
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup
