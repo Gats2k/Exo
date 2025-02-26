@@ -1,6 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, render_template, request, jsonify, url_for, session, flash, redirect
+from flask import Flask, render_template, request, jsonify, url_for, session
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
@@ -14,13 +14,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import shutil
 import time
 from database import db
-from models import Conversation, Message, User # Added User model import
+from models import Conversation, Message
 from sqlalchemy import exc
 import logging
 from contextlib import contextmanager
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user # Added Flask-Login imports
-from werkzeug.security import generate_password_hash
-
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
@@ -105,7 +102,6 @@ def get_or_create_conversation(thread_id=None):
         return conversation
 
 @app.route('/')
-@login_required # Added login_required decorator
 def chat():
     try:
         with db_retry_session() as db_session:
@@ -384,91 +380,6 @@ def cleanup_uploads():
 
     except Exception as e:
         print(f"Error during upload cleanup: {str(e)}")
-
-# Add LoginManager setup after app initialization
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-@login_manager.user_loader
-def load_user(id):
-    return User.query.get(int(id))
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        # Get form data
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        age = request.form.get('age')
-        phone = request.form.get('phone')
-        email = request.form.get('email')
-        study_level = request.form.get('study_level')
-        grade_target = request.form.get('grade_target')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-
-        # Validate data
-        if not all([first_name, last_name, age, phone, email, study_level, grade_target, password, confirm_password]):
-            flash('Tous les champs sont obligatoires.', 'error')
-            return redirect(url_for('register'))
-
-        if password != confirm_password:
-            flash('Les mots de passe ne correspondent pas.', 'error')
-            return redirect(url_for('register'))
-
-        # Check if user already exists
-        if User.query.filter_by(email=email).first():
-            flash('Cet email est déjà utilisé.', 'error')
-            return redirect(url_for('register'))
-
-        # Create new user
-        try:
-            user = User(
-                first_name=first_name,
-                last_name=last_name,
-                age=int(age),
-                phone=phone,
-                email=email,
-                study_level=study_level,
-                grade_target=grade_target
-            )
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-
-            # Log the user in
-            login_user(user)
-            flash('Inscription réussie!', 'success')
-            return redirect(url_for('chat'))
-
-        except Exception as e:
-            db.session.rollback()
-            flash('Une erreur est survenue lors de l\'inscription.', 'error')
-            return redirect(url_for('register'))
-
-    return render_template('register.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
-
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('chat'))
-
-        flash('Email ou mot de passe incorrect.', 'error')
-
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup
