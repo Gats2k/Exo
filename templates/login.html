@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="register-container">
+    <div class="register-box">
+        <h1>Connexion</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('login') }}" class="register-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" required class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary">Se connecter</button>
+            <p class="text-center mt-3" style="color: var(--text-light);">
+                Pas encore inscrit? <a href="{{ url_for('register') }}" style="color: var(--accent-color);">S'inscrire</a>
+            </p>
+        </form>
+    </div>
+</div>
+{% endblock %}
