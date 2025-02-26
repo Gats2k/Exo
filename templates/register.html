@@ -28,6 +28,7 @@
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
         .form-group {
             margin-bottom: 20px;
@@ -73,6 +74,7 @@
             color: #FFD700;
             margin-bottom: 10px;
             font-size: 2.5em;
+            animation: pulseScale 2s ease-in-out infinite;
         }
         .main-subtitle {
             text-align: center;
@@ -88,10 +90,11 @@
             background-color: rgba(91, 33, 182, 0.98);
             padding: 30px;
             border-radius: 15px;
-            max-width: 600px;
+            max-width: 550px;
             width: 90%;
             z-index: 1000;
             text-align: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
         }
         .modal-overlay {
             position: fixed;
@@ -168,6 +171,116 @@
         .login-link a:hover {
             text-decoration: underline;
         }
+        @keyframes pulseScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        /* À AJOUTER */
+        @media (max-width: 768px) {
+            :root {
+                --container-width: 90%;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .main-title {
+                font-size: 2em;
+            }
+
+            .main-subtitle {
+                font-size: 1.1em;
+            }
+
+            button {
+                padding: 10px;
+            }
+
+            /* Modal responsive */
+            .modal {
+                width: 90%;
+                padding: 20px;
+                max-height: 80vh;
+                overflow-y: auto;
+                max-width: 90%;
+            }
+
+            .stats-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .stat-item {
+                margin-bottom: 10px;
+            }
+        }
+
+        /* À AJOUTER */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+
+            .main-title {
+                font-size: 2em;
+            }
+
+            .main-subtitle {
+                font-size: 1em;
+                margin-bottom: 20px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            input, select {
+                padding: 8px;
+            }
+
+            button {
+                padding: 10px;
+                font-size: 0.9em;
+            }
+
+            .footer-text, .login-link {
+                font-size: 0.8em;
+            }
+
+            /* Modal pour très petits écrans */
+            .modal {
+                padding: 15px;
+                width: 85%;
+            }
+
+            .modal h2 {
+                font-size: 1.5em;
+            }
+
+            .stat-number {
+                font-size: 2em;
+            }
+
+            .stat-label {
+                font-size: 0.8em;
+            }
+
+            .testimonial {
+                padding: 15px;
+                font-size: 0.9em;
+            }
+
+            .modal-cta {
+                padding: 12px 20px;
+                font-size: 1em;
+            }
+        }
     </style>
 </head>
 <body>
@@ -210,7 +323,7 @@
     </div>
     <div id="modalOverlay" class="modal-overlay"></div>
 
-    <h1 class="main-title">Môjo</h1>
+    <h1 class="main-title">Bienvenue sur Môjo</h1>
     <p class="main-subtitle">Votre assistant personnel pour réussir vos études</p>
 
     <div class="container">
@@ -264,7 +377,7 @@
 
             <button type="submit">COMMENCER MAINTENANT</button>
             <p class="login-link">
-                Vous avez déjà un compte ? <a href="{{ url_for('login') }}">Connectez-vous</a>
+                Vous avez déjà un compte ? <a href="/login">Connectez-vous</a>
             </p>
         </form>
     </div>

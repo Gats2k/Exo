@@ -28,6 +28,7 @@
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
         .form-group {
             margin-bottom: 20px;
@@ -68,6 +69,7 @@
             color: #FFD700;
             margin-bottom: 10px;
             font-size: 2.5em;
+            animation: pulseScale 2s ease-in-out infinite;
         }
         .main-subtitle {
             text-align: center;
@@ -88,10 +90,74 @@
         .register-link a:hover {
             text-decoration: underline;
         }
+        @keyframes pulseScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        /* À AJOUTER */
+        @media (max-width: 768px) {
+            :root {
+                --container-width: 90%;
+            }
+
+            .main-title {
+                font-size: 2em;
+            }
+
+            .main-subtitle {
+                font-size: 1.1em;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            button {
+                padding: 10px;
+            }
+        }
+
+        /* À AJOUTER */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+
+            .main-title {
+                font-size: 1.8em;
+            }
+
+            .main-subtitle {
+                font-size: 1em;
+                margin-bottom: 20px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            input {
+                padding: 8px;
+            }
+
+            button {
+                padding: 10px;
+                font-size: 0.9em;
+            }
+
+            .footer-text, .register-link {
+                font-size: 0.8em;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1 class="main-title">Môjo</h1>
+    <h1 class="main-title">Bienvenue sur Môjo</h1>
     <p class="main-subtitle">Votre assistant personnel pour réussir vos études</p>
 
     <div class="container">
@@ -110,7 +176,7 @@
 
             <button type="submit">SE CONNECTER</button>
             <p class="register-link">
-                Pas encore de compte ? <a href="{{ url_for('register') }}">Inscrivez-vous</a>
+                Pas encore de compte ? <a href="/register">Inscrivez-vous</a>
             </p>
         </form>
     </div>
