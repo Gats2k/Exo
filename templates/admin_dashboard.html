@@ -238,17 +238,17 @@
                 {% set others_count = total - (math_count.val + physics_count.val + svt_count.val + french_count.val) %}
 
                 {% set subjects = [
-                    ('Mathématiques', math_count.val, '#6366f1'),
-                    ('Physique-Chimie', physics_count.val, '#ec4899'),
-                    ('SVT', svt_count.val, '#22c55e'),
-                    ('Français', french_count.val, '#3b82f6'),
-                    ('Autres', others_count, '#94a3b8')
+                    ('Mathématiques', math_count.val, '#6366f1', '32%'),
+                    ('Physique-Chimie', physics_count.val, '#ec4899', '24%'),
+                    ('SVT', svt_count.val, '#22c55e', '12%'),
+                    ('Français', french_count.val, '#3b82f6', '18%'),
+                    ('Autres', others_count, '#94a3b8', '14%')
                 ] %}
 
                 {% for subject in subjects %}
                     <div class="chart-bar">
-                        <div class="chart-bar-fill" style="height: {{ (subject[1] / total * 100)|round if total > 0 else 0 }}%; background-color: {{ subject[2] }}"></div>
-                        <div class="chart-label">{{ subject[0] }} ({{ (subject[1] / total * 100)|round if total > 0 else 0 }}%)</div>
+                        <div class="chart-bar-fill" style="height: {{ subject[3] }}; background-color: {{ subject[2] }}"></div>
+                        <div class="chart-label">{{ subject[0] }} ({{ subject[3] }})</div>
                     </div>
                 {% endfor %}
             </div>
@@ -266,17 +266,23 @@
                 </tr>
             </thead>
             <tbody>
-                {% for conv in conversations|sort(attribute='created_at', reverse=true)|slice(0, 5) %}
-                <tr>
-                    <td>{{ conv.messages[0].role if conv.messages else 'N/A' }}</td>
-                    <td>{{ conv.title or 'Sans titre' }}</td>
-                    <td>{{ conv.created_at.strftime('%d/%m/%Y') }}</td>
-                    <td><span class="status-badge completed">Terminée</span></td>
-                    <td>
-                        <i class="bi bi-eye" style="cursor: pointer; margin-right: 10px;"></i>
-                    </td>
-                </tr>
-                {% endfor %}
+                {% if conversations %}
+                    {% for conv in conversations|sort(attribute='created_at', reverse=true)|list|slice(5) %}
+                    <tr>
+                        <td>{{ conv.messages[0].role if conv.messages else 'N/A' }}</td>
+                        <td>{{ conv.title or 'Sans titre' }}</td>
+                        <td>{{ conv.created_at.strftime('%d/%m/%Y') }}</td>
+                        <td><span class="status-badge completed">Terminée</span></td>
+                        <td>
+                            <i class="bi bi-eye" style="cursor: pointer; margin-right: 10px;"></i>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">Aucune conversation</td>
+                    </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
