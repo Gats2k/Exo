@@ -1032,19 +1032,35 @@ body {
 
 /* Add these styles after the .nav-item styles */
 .subjects-dropdown {
+
     display: none;
+
     position: absolute;
+
     top: 100%;  /* Position below the parent nav-item */
+
     left: 0;
+
     width: 100%;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(30, 30, 50, 0.90)); /* Gradient plus complexe */
+
+    box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.4); /* Ombre intérieure pour effet de profondeur */
+
+    backdrop-filter: blur(20px) saturate(95%) contrast(125%); /* Combinaison d'effets */
+
+    -webkit-backdrop-filter: blur(20px) saturate(85%) contrast(125%); /* Pour Safari */
+
     border-radius: 8px;
+
     overflow: hidden;
+
     margin-top: 4px;  /* Small gap between nav-item and dropdown */
-    z-index: 1001;    /* Ensure it appears above other elements */
-    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    z-index: 1050;    /* Ensure it appears above other elements */
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
 }
 
 .subjects-dropdown.show {
