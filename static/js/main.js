@@ -4,6 +4,14 @@ window.toggleDropdown = function(id, event) {
     const dropdown = document.getElementById(`dropdown-${id}`);
     const allDropdowns = document.querySelectorAll('.dropdown-menu');
 
+    // Close subjects dropdown when opening conversation dropdown
+    const subjectsMenu = document.getElementById('subjects-menu');
+    const subjectsDropdown = document.getElementById('subjects-dropdown');
+    if (subjectsMenu && subjectsDropdown) {
+        subjectsMenu.classList.remove('active');
+        subjectsDropdown.classList.remove('show');
+    }
+
     allDropdowns.forEach(menu => {
         if (menu !== dropdown && menu.classList.contains('show')) {
             menu.classList.remove('show');
@@ -18,9 +26,6 @@ window.toggleSubjects = function(event) {
     const menuItem = document.getElementById('subjects-menu');
     const dropdown = document.getElementById('subjects-dropdown');
 
-    // Toggle active class for rotation animation
-    menuItem.classList.toggle('active');
-
     // Close any open conversation dropdowns
     document.querySelectorAll('.dropdown-menu').forEach(menu => {
         if (menu.classList.contains('show')) {
@@ -28,102 +33,56 @@ window.toggleSubjects = function(event) {
         }
     });
 
-    // Toggle the subjects dropdown
+    // Toggle active class and dropdown
+    menuItem.classList.toggle('active');
     dropdown.classList.toggle('show');
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Récupérer les éléments existants
+    // Existing sidebar functionality
     const sidebar = document.querySelector('.sidebar');
     const mortarboardIcon = document.querySelector('.bi-mortarboard');
 
-    // Fonction pour fermer la sidebar
+    // Function to close the sidebar
     const closeSidebar = () => {
         if (window.innerWidth <= 768 && sidebar.classList.contains('visible')) {
             sidebar.classList.remove('visible');
             mortarboardIcon.classList.remove('bi-mortarboard-fill');
             mortarboardIcon.classList.add('bi-mortarboard');
+
+            // Close subjects dropdown when sidebar closes
+            const subjectsMenu = document.getElementById('subjects-menu');
+            const subjectsDropdown = document.getElementById('subjects-dropdown');
+            if (subjectsMenu && subjectsDropdown) {
+                subjectsMenu.classList.remove('active');
+                subjectsDropdown.classList.remove('show');
+            }
         }
     };
 
-    // Ajouter l'événement de clic sur la zone principale
+    // Close dropdowns when clicking on nav items
+    document.querySelectorAll('.nav-item').forEach(item => {
+        if (!item.id || item.id !== 'subjects-menu') {
+            item.addEventListener('click', () => {
+                const subjectsMenu = document.getElementById('subjects-menu');
+                const subjectsDropdown = document.getElementById('subjects-dropdown');
+                if (subjectsMenu && subjectsDropdown) {
+                    subjectsMenu.classList.remove('active');
+                    subjectsDropdown.classList.remove('show');
+                }
+            });
+        }
+    });
+
+    // Add click event on main area to close sidebar
     document.querySelector('.main-area').addEventListener('click', (e) => {
         if (!e.target.closest('.sidebar') && !e.target.closest('.sidebar-toggle')) {
             closeSidebar();
         }
     });
-});
 
-window.startRename = function(id, event) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const titleElement = document.getElementById(`title-${id}`);
-    const editElement = document.getElementById(`edit-${id}`);
-    const input = editElement.querySelector('input');
-
-    titleElement.style.display = 'none';
-    editElement.style.display = 'block';
-    input.value = titleElement.textContent;
-    input.focus();
-
-    // Close dropdown
-    document.getElementById(`dropdown-${id}`).classList.remove('show');
-};
-
-window.handleTitleKeydown = function(event, id) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        const input = event.target;
-        const newTitle = input.value.trim();
-
-        if (newTitle) {
-            window.socket.emit('rename_conversation', { id: id, title: newTitle });
-
-            // Update UI immediately
-            const titleElement = document.getElementById(`title-${id}`);
-            const editElement = document.getElementById(`edit-${id}`);
-
-            titleElement.textContent = newTitle;
-            titleElement.style.display = 'block';
-            editElement.style.display = 'none';
-        }
-    } else if (event.key === 'Escape') {
-        const titleElement = document.getElementById(`title-${id}`);
-        const editElement = document.getElementById(`edit-${id}`);
-
-        titleElement.style.display = 'block';
-        editElement.style.display = 'none';
-    }
-};
-
-window.deleteConversation = function(id, event) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
-        window.socket.emit('delete_conversation', { id: id });
-        // Remove the conversation item immediately from UI
-        const item = document.querySelector(`.history-item[onclick*="${id}"]`);
-        item.remove();
-    }
-};
-
-window.openConversation = function(id, event) {
-    if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
-        window.socket.emit('open_conversation', { id: id });
-    }
-};
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Socket.IO
-    const socket = io();
-    // Make socket available globally for our conversation functions
-    window.socket = socket;
-
-    // Get all necessary elements
-    const sidebar = document.querySelector('.sidebar');
+    // Récupérer les éléments existants
     const hoverArea = document.querySelector('.hover-area');
-    const mortarboardIcon = document.querySelector('.bi-mortarboard');
     const iconButton = document.querySelector('.icon-button');
     const inputContainer = document.querySelector('.input-container');
     const responseTime = document.querySelector('.response-time');
@@ -310,6 +269,11 @@ document.addEventListener('DOMContentLoaded', function() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
+
+    // Initialize Socket.IO
+    const socket = io();
+    // Make socket available globally for our conversation functions
+    window.socket = socket;
 
     socket.on('receive_message', function(data) {
         removeLoadingIndicator();
@@ -538,4 +502,63 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Session cleared successfully');
         }
     });
+    window.startRename = function(id, event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const titleElement = document.getElementById(`title-${id}`);
+        const editElement = document.getElementById(`edit-${id}`);
+        const input = editElement.querySelector('input');
+
+        titleElement.style.display = 'none';
+        editElement.style.display = 'block';
+        input.value = titleElement.textContent;
+        input.focus();
+
+        // Close dropdown
+        document.getElementById(`dropdown-${id}`).classList.remove('show');
+    };
+
+    window.handleTitleKeydown = function(event, id) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const input = event.target;
+            const newTitle = input.value.trim();
+
+            if (newTitle) {
+                window.socket.emit('rename_conversation', { id: id, title: newTitle });
+
+                // Update UI immediately
+                const titleElement = document.getElementById(`title-${id}`);
+                const editElement = document.getElementById(`edit-${id}`);
+
+                titleElement.textContent = newTitle;
+                titleElement.style.display = 'block';
+                editElement.style.display = 'none';
+            }
+        } else if (event.key === 'Escape') {
+            const titleElement = document.getElementById(`title-${id}`);
+            const editElement = document.getElementById(`edit-${id}`);
+
+            titleElement.style.display = 'block';
+            editElement.style.display = 'none';
+        }
+    };
+
+    window.deleteConversation = function(id, event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
+            window.socket.emit('delete_conversation', { id: id });
+            // Remove the conversation item immediately from UI
+            const item = document.querySelector(`.history-item[onclick*="${id}"]`);
+            item.remove();
+        }
+    };
+
+    window.openConversation = function(id, event) {
+        if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
+            window.socket.emit('open_conversation', { id: id });
+        }
+    };
 });
