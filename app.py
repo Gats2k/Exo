@@ -114,6 +114,12 @@ def admin_required(f):
     return decorated_function
 
 # Add new admin routes
+@app.route('/admin')
+def admin_index():
+    if current_user.is_authenticated and current_user.is_administrator():
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if current_user.is_authenticated and current_user.is_administrator():
