@@ -23,7 +23,9 @@
         }
 
         .sidebar-header {
-            margin-bottom: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-header h1 {
@@ -41,16 +43,16 @@
 
         .sidebar-nav {
             flex-grow: 1;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .admin-card {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            padding: 12px;
+        .admin-info {
+            margin-top: 20px;
+            padding-top: 20px;
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-top: auto;
         }
 
         .admin-avatar {
@@ -65,7 +67,7 @@
             color: white;
         }
 
-        .admin-info {
+        .admin-text {
             flex-grow: 1;
         }
 
@@ -211,9 +213,9 @@
             </a>
         </div>
 
-        <div class="admin-card">
+        <div class="admin-info">
             <div class="admin-avatar">A</div>
-            <div class="admin-info">
+            <div class="admin-text">
                 <p class="admin-name">Admin</p>
                 <p class="admin-email">admin@mojo.edu</p>
             </div>
