@@ -80,7 +80,7 @@
 <body>
     <div class="container">
         <h1 class="main-title">Tableau de bord administrateur</h1>
-        
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-title">Utilisateurs totaux</div>
@@ -92,7 +92,15 @@
             </div>
             <div class="stat-card">
                 <div class="stat-title">Messages aujourd'hui</div>
-                <div class="stat-value">{{ conversations|selectattr('created_at', 'ge', today)|list|length }}</div>
+                <div class="stat-value">
+                    {% set today_count = namespace(count=0) %}
+                    {% for conv in conversations %}
+                        {% if conv.created_at.date() >= today %}
+                            {% set today_count.count = today_count.count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {{ today_count.count }}
+                </div>
             </div>
         </div>
 
