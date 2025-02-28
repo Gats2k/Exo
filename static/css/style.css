@@ -112,6 +112,7 @@ body {
 }
 
 .nav-item {
+    position: relative;  /* Make sure the parent has relative positioning */
     display: flex;
     align-items: center;
     padding: 12px;
@@ -1032,14 +1033,18 @@ body {
 /* Add these styles after the .nav-item styles */
 .subjects-dropdown {
     display: none;
-    position: relative;
-    margin-top: 8px;
-    margin-left: 24px;
+    position: absolute;
+    top: 100%;  /* Position below the parent nav-item */
+    left: 0;
+    width: 100%;
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border-radius: 8px;
     overflow: hidden;
+    margin-top: 4px;  /* Small gap between nav-item and dropdown */
+    z-index: 1001;    /* Ensure it appears above other elements */
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .subjects-dropdown.show {
