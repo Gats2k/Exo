@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-container">
+    <!-- Sidebar -->
+    <div class="admin-sidebar visible">
+        <div class="sidebar-header">
+            <div class="badge-container">
+                <span>Admin</span>
+                <span class="admin-email">admin@mojo.edu</span>
+            </div>
+        </div>
+        <div class="sidebar-nav">
+            <div class="nav-item active">
+                <i class="bi bi-grid"></i>
+                <span>Tableau de bord</span>
+            </div>
+            <div class="nav-item">
+                <i class="bi bi-people"></i>
+                <span>Utilisateurs</span>
+            </div>
+            <div class="nav-item">
+                <i class="bi bi-chat-dots"></i>
+                <span>Conversations</span>
+            </div>
+            <div class="nav-item">
+                <i class="bi bi-gear"></i>
+                <span>Paramètres</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Area -->
+    <div class="admin-main-area">
+        <div class="admin-header">
+            <h1>Tableau de bord</h1>
+            <div class="header-actions">
+                <div class="positive-label">
+                    <i class="bi bi-circle-fill"></i>
+                    Positive
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Utilisateurs actifs</div>
+                <div class="stat-value">{{ active_users }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Conversations</div>
+                <div class="stat-value">{{ total_conversations }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Temps de réponse</div>
+                <div class="stat-value">{{ avg_response_time }}s</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Satisfaction</div>
+                <div class="stat-value">{{ satisfaction_rate }}%</div>
+            </div>
+        </div>
+
+        <!-- Subjects Distribution -->
+        <div class="distribution-section">
+            <h2>Distribution des Matières</h2>
+            <div class="subject-bars">
+                {% for subject in subjects %}
+                <div class="subject-bar">
+                    <div class="bar" style="width: {{ subject.percentage }}%; background-color: {{ subject.color }}"></div>
+                    <div class="subject-label">{{ subject.name }} ({{ subject.percentage }}%)</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Recent Conversations -->
+        <div class="recent-conversations-section">
+            <div class="section-header">
+                <h2>Dernières Conversations</h2>
+                <a href="#" class="view-all">Voir toutes</a>
+            </div>
+            <div class="conversations-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Sujet</th>
+                            <th>Date</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for conv in recent_conversations %}
+                        <tr>
+                            <td>{{ conv.user }}</td>
+                            <td>{{ conv.subject }}</td>
+                            <td>{{ conv.date }}</td>
+                            <td><span class="status {{ conv.status_class }}">{{ conv.status }}</span></td>
+                            <td><i class="bi bi-eye"></i></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
