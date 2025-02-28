@@ -14,21 +14,12 @@ class User(UserMixin, db.Model):
     study_level = db.Column(db.String(20), nullable=False)  # Terminal A, D, or C
     grade_goals = db.Column(db.String(50), nullable=False)  # Different grade ranges
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_admin = db.Column(db.Boolean, default=False)  # New admin flag
-    admin_role = db.Column(db.String(50))  # Role for admin users
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-
-    def is_administrator(self):
-        return self.is_admin
-
-    @property
-    def full_name(self):
-        return f"{self.first_name} {self.last_name}"
 
 class Conversation(db.Model):
     __tablename__ = 'conversation'

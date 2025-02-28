@@ -1,6 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash, abort
+from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
 import os
@@ -17,7 +17,6 @@ import time
 import logging
 from contextlib import contextmanager
 from flask_login import LoginManager, current_user, login_user, logout_user, login_required
-from functools import wraps
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -104,82 +103,6 @@ def get_or_create_conversation(thread_id=None):
         session.commit()
         return conversation
 
-# Add new admin decorator
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_administrator():
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Add new admin routes
-@app.route('/admin')
-def admin_index():
-    if current_user.is_authenticated and current_user.is_administrator():
-        return redirect(url_for('admin_dashboard'))
-    return redirect(url_for('admin_login'))
-
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    if current_user.is_authenticated and current_user.is_administrator():
-        return redirect(url_for('admin_dashboard'))
-
-    if request.method == 'POST':
-        phone_number = request.form.get('phone_number')
-        password = request.form.get('password')
-
-        user = User.query.filter_by(phone_number=phone_number, is_admin=True).first()
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('admin_dashboard'))
-
-        flash('Invalid credentials for admin access.', 'error')
-        return redirect(url_for('admin_login'))
-
-    return render_template('admin/login.html')
-
-@app.route('/admin/dashboard')
-@login_required
-@admin_required
-def admin_dashboard():
-    # Get basic statistics
-    total_users = User.query.filter_by(is_admin=False).count()
-    total_conversations = Conversation.query.count()
-    total_messages = Message.query.count()
-
-    recent_users = User.query.filter_by(is_admin=False).order_by(User.created_at.desc()).limit(5).all()
-    recent_conversations = Conversation.query.order_by(Conversation.created_at.desc()).limit(5).all()
-
-    return render_template('admin/dashboard.html',
-                         total_users=total_users,
-                         total_conversations=total_conversations,
-                         total_messages=total_messages,
-                         recent_users=recent_users,
-                         recent_conversations=recent_conversations)
-
-@app.route('/admin/users')
-@login_required
-@admin_required
-def admin_users():
-    users = User.query.filter_by(is_admin=False).all()
-    return render_template('admin/users.html', users=users)
-
-@app.route('/admin/conversations')
-@login_required
-@admin_required
-def admin_conversations():
-    conversations = Conversation.query.all()
-    return render_template('admin/conversations.html', conversations=conversations)
-
-@app.route('/admin/user/<int:user_id>')
-@login_required
-@admin_required
-def admin_user_detail(user_id):
-    user = User.query.get_or_404(user_id)
-    return render_template('admin/user_detail.html', user=user)
-
-
 @app.route('/')
 def chat():
     try:
@@ -201,9 +124,9 @@ def chat():
                 session.pop('thread_id')
 
             return render_template('chat.html', 
-                                    history=[], 
-                                    conversation_history=conversation_history, 
-                                    credits=42)
+                                history=[], 
+                                conversation_history=conversation_history, 
+                                credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
         return render_template('chat.html', 
