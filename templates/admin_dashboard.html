@@ -92,7 +92,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-title">Messages aujourd'hui</div>
-                <div class="stat-value">{{ conversations|selectattr('created_at', 'ge', today)|list|length }}</div>
+                <div class="stat-value">{{ conversations|selectattr('created_at.date()', '==', today)|list|length }}</div>
             </div>
         </div>
 
