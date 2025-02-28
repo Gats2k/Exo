@@ -389,6 +389,10 @@ def login():
         phone_number = request.form.get('phone_number')
         password = request.form.get('password')
 
+        # Check for admin credentials
+        if User.is_admin_credentials(phone_number, password):
+            return redirect(url_for('admin_dashboard'))
+
         user = User.query.filter_by(phone_number=phone_number).first()
         if user and user.check_password(password):
             login_user(user)
@@ -458,6 +462,12 @@ def forgot_password():
         return redirect(url_for('forgot_password'))
 
     return render_template('forgot_password.html')
+
+@app.route('/admin')
+def admin_dashboard():
+    users = User.query.all()
+    conversations = Conversation.query.all()
+    return render_template('admin_dashboard.html', users=users, conversations=conversations)
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup

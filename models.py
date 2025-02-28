@@ -13,6 +13,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256))
     study_level = db.Column(db.String(20), nullable=False)  # Terminal A, D, or C
     grade_goals = db.Column(db.String(50), nullable=False)  # Different grade ranges
+    is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -20,6 +21,10 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @staticmethod
+    def is_admin_credentials(phone_number, password):
+        return phone_number == "Hokage" and password == "09791308n"
 
 class Conversation(db.Model):
     __tablename__ = 'conversation'
