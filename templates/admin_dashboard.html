@@ -47,12 +47,38 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-item i {
+            font-size: 1.2em;
+        }
+
         .admin-info {
             margin-top: 20px;
             padding-top: 20px;
             display: flex;
             align-items: center;
             gap: 12px;
+            position: absolute;
+            bottom: 20px; /* Added to fix to the bottom */
         }
 
         .admin-avatar {
@@ -83,35 +109,6 @@
             margin: 0;
         }
 
-        .main-content {
-            margin-left: 250px;
-            padding: 20px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            transition: background-color 0.2s;
-        }
-
-        .nav-item:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .nav-item.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .nav-item i {
-            font-size: 1.2em;
-        }
-
         body {
             font-family: Arial, sans-serif;
             background: linear-gradient(to bottom right, #312E81, #581C87, #831843);
@@ -122,6 +119,10 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 20px;
+        }
+        .main-content {
+            margin-left: 250px;
             padding: 20px;
         }
         .main-title {
