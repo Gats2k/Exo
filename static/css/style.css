@@ -1028,3 +1028,40 @@ body {
     flex-grow: 1;
     margin-right: 10px;
 }
+
+/* Add these styles after the .nav-item styles */
+.subjects-dropdown {
+    display: none;
+    position: relative;
+    margin-top: 8px;
+    margin-left: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.subjects-dropdown.show {
+    display: block;
+}
+
+.subject-item {
+    padding: 10px 15px;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.subject-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.subjects-chevron {
+    margin-left: auto;
+    transition: transform 0.3s ease;
+}
+
+.subjects-chevron.rotate {
+    transform: rotate(90deg);
+}

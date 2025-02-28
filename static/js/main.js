@@ -1,3 +1,21 @@
+window.toggleSubjectsMenu = function(event) {
+    event.stopPropagation();
+    const navItem = event.currentTarget;
+    const dropdown = navItem.querySelector('.subjects-dropdown');
+    const chevron = navItem.querySelector('.subjects-chevron');
+
+    // Close all other dropdowns first
+    document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+        if (!menu.closest('.nav-item')) {  // Don't close if it's part of the current nav-item
+            menu.classList.remove('show');
+        }
+    });
+
+    // Toggle current dropdown
+    dropdown.classList.toggle('show');
+    chevron.classList.toggle('rotate');
+};
+
 // Define functions in global scope
 window.toggleDropdown = function(id, event) {
     event.stopPropagation();
@@ -480,6 +498,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 menu.classList.remove('show');
             });
         }
+        if (!event.target.closest('.nav-item')) {
+            document.querySelectorAll('.subjects-dropdown').forEach(dropdown => {
+                dropdown.classList.remove('show');
+                const chevron = dropdown.parentElement.querySelector('.subjects-chevron');
+                if (chevron) {
+                    chevron.classList.remove('rotate');
+                }
+            });
+        }
+    });
+
+    // Close subjects dropdown when sidebar closes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                if (!sidebar.classList.contains('visible')) {
+                    document.querySelectorAll('.subjects-dropdown').forEach(dropdown => {
+                        dropdown.classList.remove('show');
+                        const chevron = dropdown.parentElement.querySelector('.subjects-chevron');
+                        if (chevron) {
+                            chevron.classList.remove('rotate');
+                        }
+                    });
+                }
+            }
+        });
+    });
+
+    observer.observe(sidebar, {
+        attributes: true
     });
 
     // Add handler for new conversation button
