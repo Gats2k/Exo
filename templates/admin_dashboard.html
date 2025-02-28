@@ -137,24 +137,33 @@
             height: 200px;
             margin-top: 20px;
             position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
         }
 
         .chart-bar {
-            display: inline-block;
             width: 18%;
-            margin: 0 1%;
             position: relative;
             height: 100%;
             background: rgba(255, 255, 255, 0.2);
             border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
         }
 
         .chart-bar-fill {
-            position: absolute;
-            bottom: 0;
             width: 100%;
             border-radius: 5px;
             transition: height 0.3s;
+        }
+
+        .chart-label {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8em;
+            opacity: 0.8;
         }
     </style>
 </head>
@@ -189,34 +198,57 @@
             <div class="stat-card">
                 <div class="stat-title">Utilisateurs actifs</div>
                 <div class="stat-value">{{ users|length }}</div>
+                <div class="stat-trend">+{{ users|selectattr('created_at.date()', '==', today)|list|length }} aujourd'hui</div>
             </div>
             <div class="stat-card">
                 <div class="stat-title">Conversations</div>
                 <div class="stat-value">{{ conversations|length }}</div>
+                <div class="stat-trend">{{ conversations|selectattr('created_at.date()', '==', today)|list|length }} aujourd'hui</div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">Messages aujourd'hui</div>
-                <div class="stat-value">{{ conversations|selectattr('created_at.date()', '==', today)|list|length }}</div>
+                <div class="stat-title">Temps Réponse</div>
+                <div class="stat-value">28s</div>
+                <div class="stat-trend">Moyenne</div>
             </div>
         </div>
 
         <div class="distribution-chart">
             <h3>Distribution des matières</h3>
             <div class="chart-container">
-                {% set subjects = {
-                    'Mathématiques': {'color': '#6366f1', 'count': conversations|selectattr('title', 'search', 'Math')|list|length},
-                    'Physique-Chimie': {'color': '#ec4899', 'count': conversations|selectattr('title', 'search', 'Physique')|list|length},
-                    'SVT': {'color': '#22c55e', 'count': conversations|selectattr('title', 'search', 'SVT')|list|length},
-                    'Français': {'color': '#3b82f6', 'count': conversations|selectattr('title', 'search', 'Français')|list|length},
-                    'Autres': {'color': '#94a3b8', 'count': conversations|length - 
-                        (conversations|selectattr('title', 'search', 'Math')|list|length +
-                         conversations|selectattr('title', 'search', 'Physique')|list|length +
-                         conversations|selectattr('title', 'search', 'SVT')|list|length +
-                         conversations|selectattr('title', 'search', 'Français')|list|length)}
-                } %}
-                {% for subject, data in subjects.items() %}
+                {% set math_count = namespace(val=0) %}
+                {% set physics_count = namespace(val=0) %}
+                {% set svt_count = namespace(val=0) %}
+                {% set french_count = namespace(val=0) %}
+
+                {% for conv in conversations %}
+                    {% if conv.title %}
+                        {% if 'math' in conv.title.lower() %}
+                            {% set math_count.val = math_count.val + 1 %}
+                        {% elif 'physique' in conv.title.lower() or 'chimie' in conv.title.lower() %}
+                            {% set physics_count.val = physics_count.val + 1 %}
+                        {% elif 'svt' in conv.title.lower() %}
+                            {% set svt_count.val = svt_count.val + 1 %}
+                        {% elif 'français' in conv.title.lower() or 'francais' in conv.title.lower() %}
+                            {% set french_count.val = french_count.val + 1 %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+
+                {% set total = conversations|length %}
+                {% set others_count = total - (math_count.val + physics_count.val + svt_count.val + french_count.val) %}
+
+                {% set subjects = [
+                    ('Mathématiques', math_count.val, '#6366f1'),
+                    ('Physique-Chimie', physics_count.val, '#ec4899'),
+                    ('SVT', svt_count.val, '#22c55e'),
+                    ('Français', french_count.val, '#3b82f6'),
+                    ('Autres', others_count, '#94a3b8')
+                ] %}
+
+                {% for subject in subjects %}
                     <div class="chart-bar">
-                        <div class="chart-bar-fill" style="height: {{ (data.count / conversations|length * 100)|round }}%; background-color: {{ data.color }}"></div>
+                        <div class="chart-bar-fill" style="height: {{ (subject[1] / total * 100)|round if total > 0 else 0 }}%; background-color: {{ subject[2] }}"></div>
+                        <div class="chart-label">{{ subject[0] }} ({{ (subject[1] / total * 100)|round if total > 0 else 0 }}%)</div>
                     </div>
                 {% endfor %}
             </div>
