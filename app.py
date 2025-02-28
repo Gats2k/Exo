@@ -467,11 +467,7 @@ def forgot_password():
 def admin_dashboard():
     users = User.query.all()
     conversations = Conversation.query.all()
-    today = datetime.now().date()
-    return render_template('admin_dashboard.html', 
-                         users=users, 
-                         conversations=conversations,
-                         today=today)
+    return render_template('admin_dashboard.html', users=users, conversations=conversations)
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup
