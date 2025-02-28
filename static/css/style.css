@@ -1028,3 +1028,54 @@ body {
     flex-grow: 1;
     margin-right: 10px;
 }
+
+/* Add after the .dropdown-menu styles */
+
+/* Subjects dropdown menu */
+.subjects-dropdown {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 200px;
+    margin-left: 10px;
+    z-index: 1004;
+}
+
+.subjects-dropdown.show {
+    display: block;
+}
+
+.subject-item {
+    padding: 10px 20px;
+    color: var(--text-light);
+    cursor: pointer;
+    display: flex;
+    align-items:center;
+    gap: 10px;
+}
+
+.subject-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.subject-item i {
+    font-size: 1.1em;
+    width: 20px;
+    text-align: center;
+}
+
+/* Add styles for the chevron transition */
+.nav-item .bi-chevron-right {
+    transition: transform 0.3s ease;
+}
+
+.nav-item.active .bi-chevron-right {
+    transform: rotate(90deg);
+}

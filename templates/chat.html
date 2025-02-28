@@ -26,10 +26,28 @@
                 <i class="bi bi-globe"></i>
                 <span>Général</span>
             </div>
-            <div class="nav-item">
+            <div class="nav-item" id="subjects-menu" onclick="toggleSubjects(event)">
                 <i class="bi bi-book"></i>
                 <span>Matières</span>
                 <i class="bi bi-chevron-right"></i>
+                <div class="subjects-dropdown" id="subjects-dropdown">
+                    <div class="subject-item">
+                        <i class="bi bi-calculator"></i>
+                        <span>Mathématiques</span>
+                    </div>
+                    <div class="subject-item">
+                        <i class="bi bi-lightning"></i>
+                        <span>Physique</span>
+                    </div>
+                    <div class="subject-item">
+                        <i class="bi bi-flask"></i>
+                        <span>Chimie</span>
+                    </div>
+                    <div class="subject-item">
+                        <i class="bi bi-tree"></i>
+                        <span>SVT</span>
+                    </div>
+                </div>
             </div>
         </div>
         <h6 class="history-section-title">Historique récent</h6>
