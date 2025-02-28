@@ -109,8 +109,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: var(--sidebar-item-spacing, 8px);
-    position: relative; /* Added for dropdown positioning */
-    z-index: 1;          /* Ensure nav is above dropdown */
 }
 
 .nav-item {
@@ -121,7 +119,6 @@ body {
     cursor: pointer;
     border-radius: 8px;
     transition: background-color 0.2s;
-    position: relative; /* Added for dropdown positioning */
 }
 
 .history-title {
@@ -159,8 +156,6 @@ body {
     overflow-y: scroll;
     scrollbar-width: none;  /* Pour Firefox */
     -ms-overflow-style: none;  /* Pour Internet Explorer et Edge */
-    position: relative; /* Added for z-index management */
-    z-index: 0;          /* Ensure recent-history is below dropdown */
 }
 
 .recent-history::-webkit-scrollbar {
@@ -443,7 +438,7 @@ body {
     bottom: 0;
 }
 
-.input-container .input-action,
+.input-container .input-action, 
 .input-container .send-btn {
     align-self: flex-end;
     margin-top: 0px; /* Pour maintenir l'alignement initial */
@@ -588,7 +583,7 @@ body {
         max-width: 90%;
     }
 
-    .message.user,
+    .message.user, 
     .message.assistant {
         padding: 0 5px;
     }
@@ -671,7 +666,7 @@ body {
         max-width: max(50%, 150px);
     }
 
-    .input-container .input-action,
+    .input-container .input-action, 
     .input-container .send-btn {
         margin-top: 0px;
         margin-right: 1px; /* Ajout du padding à droite */
@@ -1032,70 +1027,4 @@ body {
 .history-content {
     flex-grow: 1;
     margin-right: 10px;
-}
-
-/* Add after the .dropdown-menu styles */
-
-/* Subjects dropdown menu */
-.subjects-dropdown {
-    display: none;
-    position: relative;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255,0.1);
-    border-radius: 8px;
-    padding: 8px 0;
-    margin: 8px 0;
-    width: 100%;
-    z-index: 1004;
-}
-
-.subjects-dropdown.show {
-    display: block;
-}
-
-.subject-item {
-    padding: 10px 20px;
-    color: var(--text-light);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: background-color 0.2s ease;
-}
-
-.subject-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.subject-item i {
-    font-size: 1.1em;
-    width: 20px;
-    text-align: center;
-}
-
-/* Add styles for the chevron transition */
-.nav-item .bi-chevron-right {
-    transition: transform 0.3s ease;
-}
-
-.nav-item.active .bi-chevron-right {
-    transform: rotate(90deg);
-}
-
-/* Update sidebar nav styles to handle dropdown */
-.sidebar-nav {
-    position: relative;
-    z-index: 1;
-}
-
-.nav-item {
-    position: relative;
-}
-
-/* Ensure history section stays below dropdown */
-.recent-history {
-    position: relative;
-    z-index: 0;
 }
