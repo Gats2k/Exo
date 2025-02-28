@@ -161,17 +161,17 @@
             width: auto;
             display: inline-block;
         }
-        .login-link {
+        .login-link, .forgot-link {
             text-align: center;
             margin-top: 15px;
             color: white;
             text-decoration: none;
         }
-        .login-link a {
+        .login-link a, .forgot-link a {
             color: #FFD700;
             text-decoration: none;
         }
-        .login-link a:hover {
+        .login-link a:hover, .forgot-link a:hover {
             text-decoration: underline;
         }
         @keyframes pulseScale {
@@ -179,7 +179,6 @@
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
-        /* À AJOUTER */
         @media (max-width: 768px) {
             :root {
                 --container-width: 90%;
@@ -219,8 +218,6 @@
                 margin-bottom: 10px;
             }
         }
-
-        /* À AJOUTER */
         @media (max-width: 480px) {
             body {
                 padding: 15px;
@@ -379,6 +376,9 @@
             <p class="footer-text">Ta réussite est à un clic de distance</p>
 
             <button type="submit">COMMENCER MAINTENANT</button>
+            <p class="forgot-link">
+                <a href="{{ url_for('forgot_password') }}">Mot de passe oublié ?</a>
+            </p>
             <p class="login-link">
                 Vous avez déjà un compte ? <a href="{{ url_for('login') }}">Connectez-vous</a>
             </p>
