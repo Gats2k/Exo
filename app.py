@@ -9,6 +9,7 @@ import uuid
 from werkzeug.utils import secure_filename
 import base64
 from io import BytesIO
+from flask import url_for, request
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import exc
@@ -138,51 +139,52 @@ def chat():
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Get current conversation or create a new one if this is the first message
+        # Obtention de la conversation ou création d'une nouvelle
         thread_id = session.get('thread_id')
         conversation = None
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
 
         if not conversation:
-            # Create new conversation for first message
+            # Création d'une nouvelle conversation pour le premier message
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Rest of the message handling code 
+        # Préparation du contenu du message pour OpenAI
         message_content = []
 
-        # Handle image if present
+        # Si une image est présente
         if 'image' in data and data['image']:
-            # Save the base64 image
-            filename = save_base64_image(data['image'])
-            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+            try:
+                # Sauvegarde de l'image et génération d'URL
+                header, base64_image = data['image'].split(',', 1)
+                filename = save_base64_image(data['image'])
+                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
 
-            # Create file for assistant
-            base64_image = data['image'].split(',')[1]
-            image_file = client.files.create(
-                file=base64_image,
-                purpose="assistants"
-            )
+                # Stockage dans la base de données locale
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role='user',
+                    content=data.get('message', ''),
+                    image_url=image_url
+                )
+                db.session.add(user_message)
 
-            # Store user message with image
-            user_message = Message(
-                conversation_id=conversation.id,
-                role='user',
-                content=data.get('message', ''),
-                image_url=image_url
-            )
-            db.session.add(user_message)
+                # Ajout de l'image au contenu du message pour OpenAI
+                message_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image_url
+                    }
+                })
 
-            # Create message for OpenAI with file attachment
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', ''),
-                file_ids=[image_file.id]
-            )
+                logger.debug(f"Image URL ajoutée au message: {image_url}")
+
+            except Exception as e:
+                logger.error(f"Erreur lors du traitement de l'image: {str(e)}", exc_info=True)
+                raise ValueError(f"Erreur lors du traitement de l'image: {str(e)}")
         else:
-            # Store text-only message
+            # Message texte uniquement
             user_message = Message(
                 conversation_id=conversation.id,
                 role='user',
@@ -190,20 +192,35 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            # Send message to OpenAI
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', '')
-            )
+        # Ajout du texte au contenu du message pour OpenAI (que ce soit avec ou sans image)
+        if data.get('message', '').strip():
+            message_content.append({
+                "type": "text",
+                "text": data.get('message', '')
+            })
 
-        # Create and run assistant
+        # Si aucun contenu n'a été ajouté, ajoutez au moins un texte vide
+        if not message_content:
+            message_content.append({
+                "type": "text",
+                "text": ""
+            })
+
+        # Création du message dans le thread
+        logger.debug(f"Envoi du message à OpenAI: {message_content}")
+        client.beta.threads.messages.create(
+            thread_id=conversation.thread_id,
+            role="user",
+            content=message_content
+        )
+
+        # Exécution de l'assistant
         run = client.beta.threads.runs.create(
             thread_id=conversation.thread_id,
             assistant_id=ASSISTANT_ID
         )
 
-        # Wait for response with timeout
+        # Attente de la réponse avec timeout
         timeout = 30
         start_time = time.time()
 
@@ -225,11 +242,11 @@ def handle_message(data):
 
             eventlet.sleep(1)
 
-        # Retrieve and store assistant's response
+        # Récupération et enregistrement de la réponse
         messages = client.beta.threads.messages.list(thread_id=conversation.thread_id)
         assistant_message = messages.data[0].content[0].text.value
 
-        # Store assistant response in database
+        # Enregistrement dans la base de données
         db_message = Message(
             conversation_id=conversation.id,
             role='assistant',
@@ -237,7 +254,7 @@ def handle_message(data):
         )
         db.session.add(db_message)
 
-        # Generate and set conversation title if this is the first message
+        # Génération du titre si nécessaire
         if not conversation.title:
             first_user_message = Message.query.filter_by(
                 conversation_id=conversation.id,
@@ -245,12 +262,10 @@ def handle_message(data):
             ).order_by(Message.created_at).first()
 
             if first_user_message:
-                # Use the first 30 characters of the message as the title
                 title = first_user_message.content[:30] + "..." if len(first_user_message.content) > 30 else first_user_message.content
                 conversation.title = title
                 db.session.commit()
 
-                # Emit the new conversation to all clients for real-time history update
                 emit('new_conversation', {
                     'id': conversation.id,
                     'title': conversation.title,
@@ -260,11 +275,12 @@ def handle_message(data):
 
         db.session.commit()
 
-        # Send response to client
+        # Envoi de la réponse au client
         emit('receive_message', {'message': assistant_message})
 
     except Exception as e:
         error_message = str(e)
+        logging.error(f"Error in handle_message: {error_message}")
         if "file" in error_message.lower():
             emit('receive_message', {'message': 'Error processing image. Please try a different image or format.'})
         else:
@@ -335,22 +351,37 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Dans paste-2.txt (Python côté serveur)
 def save_base64_image(base64_string):
     # Extract image type and data
     header, encoded = base64_string.split(",", 1)
 
-    # Generate a unique filename
-    filename = f"{uuid.uuid4()}.jpg"
+    # Déterminer l'extension appropriée basée sur le content-type
+    extension = 'jpg'  # Par défaut
+    if 'png' in header:
+        extension = 'png'
+    elif 'gif' in header:
+        extension = 'gif'
+    elif 'webp' in header:
+        extension = 'webp'
 
-    # Decode the image
-    img_data = base64.b64decode(encoded)
+    # Generate a unique filename with the correct extension
+    filename = f"{uuid.uuid4()}.{extension}"
 
-    # Save the image
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    with open(filepath, "wb") as f:
-        f.write(img_data)
+    try:
+        # Decode the image
+        img_data = base64.b64decode(encoded)
 
-    return filename
+        # Save the image
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        with open(filepath, "wb") as f:
+            f.write(img_data)
+
+        logger.debug(f"Image sauvegardée avec succès: {filename}, taille={len(img_data)/(1024*1024):.2f}MB")
+        return filename
+    except Exception as e:
+        logger.error(f"Erreur lors de la sauvegarde de l'image: {str(e)}")
+        raise
 
 def cleanup_uploads():
     """Cleans up the uploads folder of old images and checks the total size"""
