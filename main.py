@@ -20,7 +20,7 @@ def start_telegram_bot():
     except Exception as e:
         logger.error(f"Error in Telegram bot thread: {str(e)}", exc_info=True)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Start Telegram bot in a separate thread
     telegram_thread = threading.Thread(target=start_telegram_bot)
     telegram_thread.daemon = True  # This ensures the thread will exit when the main program exits

@@ -149,40 +149,38 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
+        # Rest of the message handling code 
+        message_content = []
+
         # Handle image if present
         if 'image' in data and data['image']:
-            try:
-                # Save the base64 image
-                filename = save_base64_image(data['image'])
-                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+            # Save the base64 image
+            filename = save_base64_image(data['image'])
+            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
 
-                # Save the base64 image to a file
-                filename = save_base64_image(data['image'])
-                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+            # Create file for assistant
+            base64_image = data['image'].split(',')[1]
+            image_file = client.files.create(
+                file=base64_image,
+                purpose="assistants"
+            )
 
-                # Store user message with image in database
-                user_message = Message(
-                    conversation_id=conversation.id,
-                    role='user',
-                    content=data.get('message', ''),
-                    image_url=image_url
-                )
-                db.session.add(user_message)
+            # Store user message with image
+            user_message = Message(
+                conversation_id=conversation.id,
+                role='user',
+                content=data.get('message', ''),
+                image_url=image_url
+            )
+            db.session.add(user_message)
 
-                # L'URL doit être accessible publiquement pour que OpenAI puisse y accéder
-                client.beta.threads.messages.create(
-                    thread_id=conversation.thread_id,
-                    role="user",
-                    content=[
-                        {"type": "text", "text": data.get('message', '')},
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                    ]
-                )
-            except Exception as e:
-                logger.error(f"Error processing image: {str(e)}")
-                emit('receive_message', {'message': f'Error processing image: {str(e)}'})
-                return
-
+            # Create message for OpenAI with file attachment
+            client.beta.threads.messages.create(
+                thread_id=conversation.thread_id,
+                role="user",
+                content=data.get('message', ''),
+                file_ids=[image_file.id]
+            )
         else:
             # Store text-only message
             user_message = Message(
@@ -296,6 +294,7 @@ def handle_delete(data):
     except Exception as e:
         emit('conversation_deleted', {'success': False, 'error': str(e)})
 
+
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
     try:
@@ -337,39 +336,21 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def save_base64_image(base64_string):
-    try:
-        # Extract image type and data
-        if ',' not in base64_string:
-            raise ValueError("Invalid base64 image format")
+    # Extract image type and data
+    header, encoded = base64_string.split(",", 1)
 
-        header, encoded = base64_string.split(",", 1)
+    # Generate a unique filename
+    filename = f"{uuid.uuid4()}.jpg"
 
-        # Validate image format
-        if not any(fmt in header.lower() for fmt in ['jpeg', 'jpg', 'png', 'gif']):
-            raise ValueError("Unsupported image format. Please use JPEG, PNG or GIF")
+    # Decode the image
+    img_data = base64.b64decode(encoded)
 
-        # Generate a unique filename
-        filename = f"{uuid.uuid4()}.jpg"
+    # Save the image
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    with open(filepath, "wb") as f:
+        f.write(img_data)
 
-        try:
-            # Decode the image
-            img_data = base64.b64decode(encoded)
-
-            # Save the image
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(filepath, "wb") as f:
-                f.write(img_data)
-
-            logger.debug(f"Successfully saved image: {filename}")
-            return filename
-
-        except Exception as e:
-            logger.error(f"Error saving image: {str(e)}")
-            raise ValueError("Failed to save image. Please try again.")
-
-    except Exception as e:
-        logger.error(f"Error processing base64 image: {str(e)}")
-        raise ValueError("Invalid image format or corrupted data")
+    return filename
 
 def cleanup_uploads():
     """Cleans up the uploads folder of old images and checks the total size"""
@@ -533,6 +514,8 @@ def admin_platform_data(platform):
         }
 
     return jsonify(data)
+
+
 
 if __name__ == '__main__':
     # Configure scheduler for cleanup

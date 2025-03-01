@@ -419,7 +419,7 @@
                     </thead>
                     <tbody>
                         {% for conv in conversations %}
-                        <tr class="conversation-row">
+                        <tr>
                             <td>{{ conv.title or "Sans titre" }}</td>
                             <td>{{ conv.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                             <td>{{ conv.updated_at.strftime('%d/%m/%Y %H:%M') }}</td>
@@ -455,16 +455,6 @@ function selectPlatform(platform) {
     // Hide dropdown
     dropdown.classList.remove('show');
 
-    // Clear tables if platform is telegram
-    if (platform === 'telegram') {
-        const userTableBody = document.querySelector('.data-table tbody');
-        const conversationTableBody = document.querySelectorAll('.data-table tbody')[1];
-
-        // Clear the tables
-        userTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Chargement des données Telegram...</td></tr>';
-        conversationTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Chargement des données Telegram...</td></tr>';
-    }
-
     // Fetch data for selected platform
     fetchPlatformData(platform);
 }
@@ -479,28 +469,12 @@ function fetchPlatformData(platform) {
             return response.json();
         })
         .then(data => {
-            // Update the dashboard statistics
+            // Update the dashboard statistics with the new data
             updateDashboardStats(data);
-
-            // Update tables based on platform
-            if (platform === 'telegram') {
-                const userTableBody = document.querySelector('.data-table tbody');
-                const conversationTableBody = document.querySelectorAll('.data-table tbody')[1];
-
-                // Keep "Loading..." message for Telegram data
-                userTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">En attente de la base de données Telegram...</td></tr>';
-                conversationTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">En attente de la base de données Telegram...</td></tr>';
-            }
         })
         .catch(error => {
             console.error('Error fetching platform data:', error);
-            // Show error message in tables
-            const userTableBody = document.querySelector('.data-table tbody');
-            const conversationTableBody = document.querySelectorAll('.data-table tbody')[1];
-
-            const errorMessage = 'Erreur lors du chargement des données...';
-            userTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ff6b6b;">${errorMessage}</td></tr>`;
-            conversationTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ff6b6b;">${errorMessage}</td></tr>`;
+            // Handle error gracefully - could show an error message to user
         });
 }
 
