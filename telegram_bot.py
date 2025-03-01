@@ -1,11 +1,8 @@
 import os
 import logging
 import asyncio
-from telegram import Update, constants, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ContextTypes, filters,
-    ConversationHandler, CallbackContext
-)
+from telegram import Update, constants
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
 from collections import defaultdict
 import aiohttp
@@ -14,11 +11,6 @@ import uuid
 from datetime import datetime
 import base64
 import requests
-from models import User
-from database import db
-
-# Add states for registration flow
-FIRST_NAME, LAST_NAME, AGE, PHONE_NUMBER, STUDY_LEVEL = range(5)
 
 # Set up logging
 logging.basicConfig(
@@ -41,155 +33,22 @@ except Exception as e:
 user_threads = defaultdict(lambda: None)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start the registration process for new users."""
+    """Send a message when the command /start is issued."""
     user_id = update.effective_user.id
-
-    # Check if user already exists
-    user = User.query.filter_by(phone_number=str(user_id)).first()
-    if user:
+    try:
+        # Create a new thread for the user
         thread = openai_client.beta.threads.create()
-        thread_id = f"telegram_{thread.id}"  # Add telegram prefix
-        user_threads[user_id] = thread_id
-        await update.message.reply_text(
-            'Welcome back! How can I help you today?'
-        )
-        return ConversationHandler.END
-
-    await update.message.reply_text(
-        'Welcome! To get started, I need some information from you.\n'
-        'What is your first name?'
-    )
-    return FIRST_NAME
-
-async def first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['first_name'] = update.message.text
-    await update.message.reply_text('Great! Now, what is your last name?')
-    return LAST_NAME
-
-async def last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['last_name'] = update.message.text
-    await update.message.reply_text('What is your age?')
-    return AGE
-
-async def age(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        age = int(update.message.text)
-        if age < 10 or age > 100:
-            await update.message.reply_text('Please enter a valid age between 10 and 100.')
-            return AGE
-        context.user_data['age'] = age
-        await update.message.reply_text('Please share your phone number:')
-        return PHONE_NUMBER
-    except ValueError:
-        await update.message.reply_text('Please enter a valid number for your age.')
-        return AGE
-
-async def phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    phone = update.message.text
-    if not phone.replace('+', '').isdigit():
-        await update.message.reply_text('Please enter a valid phone number.')
-        return PHONE_NUMBER
-
-    context.user_data['phone_number'] = phone
-
-    reply_keyboard = [['Terminal A', 'Terminal C', 'Terminal D']]
-    await update.message.reply_text(
-        'What is your study level?',
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True
-        )
-    )
-    return STUDY_LEVEL
-
-async def study_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    study_level = update.message.text
-    if study_level not in ['Terminal A', 'Terminal C', 'Terminal D']:
-        await update.message.reply_text('Please select a valid study level.')
-        return STUDY_LEVEL
-
-    context.user_data['study_level'] = study_level
-
-    # Save user to database
-    try:
-        new_user = User(
-            first_name=context.user_data['first_name'],
-            last_name=context.user_data['last_name'],
-            age=context.user_data['age'],
-            phone_number=context.user_data['phone_number'],
-            study_level=context.user_data['study_level'],
-            grade_goals='average'  # Default value
-        )
-        new_user.set_password(str(update.effective_user.id))  # Use Telegram ID as password
-
-        db.session.add(new_user)
-        db.session.commit()
-
-        # Create OpenAI thread for the user with telegram prefix
-        thread = openai_client.beta.threads.create()
-        thread_id = f"telegram_{thread.id}"
-        user_threads[update.effective_user.id] = thread_id
+        user_threads[user_id] = thread.id
+        logger.info(f"Created new thread {thread.id} for user {user_id}")
 
         await update.message.reply_text(
-            'Thank you for registering! You can now start chatting with me.',
-            reply_markup=ReplyKeyboardRemove()
+            'Hello! I am your AI assistant. How can I help you today?'
         )
-        return ConversationHandler.END
-
     except Exception as e:
-        logger.error(f"Error saving user: {str(e)}")
+        logger.error(f"Error in start command: {str(e)}", exc_info=True)
         await update.message.reply_text(
-            'Sorry, there was an error during registration. Please try again.',
-            reply_markup=ReplyKeyboardRemove()
+            "I'm having trouble setting up our conversation. Please try again in a moment."
         )
-        return ConversationHandler.END
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Cancels and ends the conversation."""
-    await update.message.reply_text(
-        'Registration cancelled.',
-        reply_markup=ReplyKeyboardRemove()
-    )
-    return ConversationHandler.END
-
-def setup_telegram_bot():
-    """Initialize and setup the Telegram bot."""
-    try:
-        logger.info("Starting Telegram bot setup...")
-
-        # Create the Application
-        application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
-
-        # Add registration conversation handler
-        conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("start", start)],
-            states={
-                FIRST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, first_name)],
-                LAST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, last_name)],
-                AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, age)],
-                PHONE_NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, phone_number)],
-                STUDY_LEVEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, study_level)],
-            },
-            fallbacks=[CommandHandler("cancel", cancel)],
-        )
-        application.add_handler(conv_handler)
-
-        # Add other handlers
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-        application.add_handler(MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            handle_message
-        ))
-
-        # Add error handler
-        application.add_error_handler(error_handler)
-
-        logger.info("Telegram bot setup completed successfully")
-        return application
-
-    except Exception as e:
-        logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
-        raise
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
@@ -204,14 +63,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     try:
-        # Check if user is registered
-        user = User.query.filter_by(phone_number=str(user_id)).first()
-        if not user:
-            await update.message.reply_text(
-                "Please register first by using the /start command."
-            )
-            return
-
         # Get or create thread ID for this user
         thread_id = user_threads[user_id]
         if not thread_id:
@@ -376,6 +227,34 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log Errors caused by Updates."""
     logger.error(f'Update "{update}" caused error "{context.error}"', exc_info=True)
+
+def setup_telegram_bot():
+    """Initialize and setup the Telegram bot."""
+    try:
+        logger.info("Starting Telegram bot setup...")
+
+        # Create the Application
+        application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+
+        logger.info("Setting up Telegram bot handlers...")
+        logger.info(f"Available filters: {dir(filters)}")
+
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        logger.info("Handlers added successfully")
+
+        # Add error handler
+        application.add_error_handler(error_handler)
+        logger.info("Error handler added")
+
+        logger.info("Telegram bot setup completed successfully")
+        return application
+    except Exception as e:
+        logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
+        raise
 
 def run_telegram_bot():
     """Run the Telegram bot."""
