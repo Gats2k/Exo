@@ -33,9 +33,9 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
-# Define conversation states
+# Update state definitions to separate login phone and password states
 CHOOSING_AUTH, REGISTERING_FIRST_NAME, REGISTERING_LAST_NAME, REGISTERING_AGE, \
-REGISTERING_PHONE, REGISTERING_PASSWORD, LOGIN_PASSWORD = range(7)
+REGISTERING_PHONE, REGISTERING_PASSWORD, LOGIN_PHONE, LOGIN_PASSWORD = range(8)
 
 # User registration data storage
 user_data = {}
@@ -48,11 +48,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data[user_id] = {}
 
     reply_text = (
-        "Welcome to Môjo! 👋\n\n"
-        "Are you a new user or do you already have an account?\n\n"
-        "Please type:\n"
-        "1️⃣ for new registration\n"
-        "2️⃣ if you already have an account"
+        "Bienvenue sur Môjo ! 👋\n\n"
+        "Êtes-vous un nouvel utilisateur ou avez-vous déjà un compte ?\n\n"
+        "Veuillez taper :\n"
+        "1️⃣ pour une nouvelle inscription\n"
+        "2️⃣ si vous avez déjà un compte"
     )
 
     await update.message.reply_text(reply_text)
@@ -60,17 +60,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_auth_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle user's choice between registration and login"""
-    user_id = update.effective_user.id
     text = update.message.text
 
     if text == "1":
-        await update.message.reply_text("Please enter your first name:")
+        await update.message.reply_text("Veuillez entrer votre prénom :")
         return REGISTERING_FIRST_NAME
     elif text == "2":
-        await update.message.reply_text("Please enter your phone number to login:")
-        return LOGIN_PASSWORD
+        await update.message.reply_text("Veuillez entrer votre numéro de téléphone pour vous connecter :")
+        return LOGIN_PHONE
     else:
-        await update.message.reply_text("Please type 1 for registration or 2 for login.")
+        await update.message.reply_text("Veuillez taper 1 pour l'inscription ou 2 pour la connexion.")
         return CHOOSING_AUTH
 
 async def register_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -78,7 +77,7 @@ async def register_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     user_data[user_id]['first_name'] = update.message.text
 
-    await update.message.reply_text("Great! Now please enter your last name:")
+    await update.message.reply_text("Super ! Maintenant, veuillez entrer votre nom de famille :")
     return REGISTERING_LAST_NAME
 
 async def register_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -86,7 +85,7 @@ async def register_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     user_data[user_id]['last_name'] = update.message.text
 
-    await update.message.reply_text("Please enter your age:")
+    await update.message.reply_text("Veuillez entrer votre âge :")
     return REGISTERING_AGE
 
 async def register_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,16 +93,16 @@ async def register_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         age = int(update.message.text)
         if age < 13 or age > 100:
-            await update.message.reply_text("Please enter a valid age between 13 and 100:")
+            await update.message.reply_text("Veuillez entrer un âge valide entre 13 et 100 ans :")
             return REGISTERING_AGE
 
         user_id = update.effective_user.id
         user_data[user_id]['age'] = age
 
-        await update.message.reply_text("Please enter your phone number:")
+        await update.message.reply_text("Veuillez entrer votre numéro de téléphone :")
         return REGISTERING_PHONE
     except ValueError:
-        await update.message.reply_text("Please enter a valid number for your age:")
+        await update.message.reply_text("Veuillez entrer un nombre valide pour votre âge :")
         return REGISTERING_AGE
 
 async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,13 +114,13 @@ async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     existing_user = User.query.filter_by(phone_number=phone).first()
     if existing_user:
         await update.message.reply_text(
-            "This phone number is already registered. Please use a different number:"
+            "Ce numéro de téléphone est déjà enregistré. Veuillez utiliser un autre numéro :"
         )
         return REGISTERING_PHONE
 
     user_data[user_id]['phone_number'] = phone
     await update.message.reply_text(
-        "Finally, please create a password for your account:"
+        "Enfin, veuillez créer un mot de passe pour votre compte :"
     )
     return REGISTERING_PASSWORD
 
@@ -151,8 +150,8 @@ async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_threads[user_id] = thread.id
 
         await update.message.reply_text(
-            "Registration successful! 🎉\n\n"
-            "You can now start chatting with me! How can I help you today?"
+            "Inscription réussie ! 🎉\n\n"
+            "Vous pouvez maintenant commencer à discuter avec moi ! Comment puis-je vous aider aujourd'hui ?"
         )
 
         # Clear registration data
@@ -163,12 +162,12 @@ async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error during registration: {str(e)}", exc_info=True)
         await update.message.reply_text(
-            "There was an error during registration. Please try again later."
+            "Une erreur s'est produite lors de l'inscription. Veuillez réessayer plus tard."
         )
         return ConversationHandler.END
 
-async def login_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle login process"""
+async def login_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle login phone number input"""
     user_id = update.effective_user.id
     phone = update.message.text
 
@@ -176,12 +175,12 @@ async def login_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = User.query.filter_by(phone_number=phone).first()
     if not user:
         await update.message.reply_text(
-            "Phone number not found. Please enter a valid phone number:"
+            "Numéro de téléphone non trouvé. Veuillez entrer un numéro valide :"
         )
-        return LOGIN_PASSWORD
+        return LOGIN_PHONE
 
     user_data[user_id] = {'user': user}
-    await update.message.reply_text("Please enter your password:")
+    await update.message.reply_text("Veuillez entrer votre mot de passe :")
     return LOGIN_PASSWORD
 
 async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -201,8 +200,8 @@ async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_threads[user_id] = thread.id
 
         await update.message.reply_text(
-            "Login successful! 🎉\n\n"
-            "You can now start chatting with me! How can I help you today?"
+            "Connexion réussie ! 🎉\n\n"
+            "Vous pouvez maintenant commencer à discuter avec moi ! Comment puis-je vous aider aujourd'hui ?"
         )
 
         # Clear login data
@@ -211,7 +210,7 @@ async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         await update.message.reply_text(
-            "Incorrect password. Please try again:"
+            "Mot de passe incorrect. Veuillez réessayer :"
         )
         return LOGIN_PASSWORD
 
@@ -222,14 +221,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del user_data[user_id]
 
     await update.message.reply_text(
-        "Operation cancelled. Type /start to begin again."
+        "Opération annulée. Tapez /start pour recommencer."
     )
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
     await update.message.reply_text(
-        'You can send me any message and I will respond using AI!'
+        'Vous pouvez m\'envoyer n\'importe quel message et je répondrai en utilisant l\'IA !'
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -297,12 +296,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except OpenAIError as openai_error:
         logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
         await update.message.reply_text(
-            "I'm having trouble connecting to my AI brain. Please try again in a moment."
+            "J'ai des difficultés à me connecter à mon cerveau IA. Veuillez réessayer dans un instant."
         )
     except Exception as e:
         logger.error(f"Error handling message: {str(e)}", exc_info=True)
         await update.message.reply_text(
-            "I apologize, but I encountered an error processing your message. Please try again."
+            "Je m'excuse, mais j'ai rencontré une erreur lors du traitement de votre message. Veuillez réessayer."
         )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -397,7 +396,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error handling photo: {str(e)}", exc_info=True)
         await update.message.reply_text(
-            "I apologize, but I encountered an error processing your image. Please try again."
+            "Je m'excuse, mais j'ai rencontré une erreur lors du traitement de votre image. Veuillez réessayer."
         )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -412,7 +411,7 @@ def setup_telegram_bot():
         # Create the Application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
 
-        # Create conversation handler
+        # Create conversation handler with updated states
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler('start', start)],
             states={
@@ -422,17 +421,17 @@ def setup_telegram_bot():
                 REGISTERING_AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_age)],
                 REGISTERING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_phone)],
                 REGISTERING_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
-                LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_password)], #Corrected to verify_password
+                LOGIN_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_phone)],
+                LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_password)],
             },
             fallbacks=[CommandHandler('cancel', cancel)]
         )
 
         # Add handlers
         application.add_handler(conv_handler)
-        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
         # Add error handler
         application.add_error_handler(error_handler)
