@@ -26,6 +26,32 @@
             color: white;
         }
 
+        .top-nav {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 20px;
+            gap: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .web-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+        }
+
+        .notification-bell {
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
         .sidebar-header {
             padding-bottom: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -110,7 +136,6 @@
 
         .main-content {
             margin-left: var(--sidebar-width);
-            padding: 20px 20px 20px 40px;
         }
 
         body {
@@ -249,6 +274,17 @@
     </div>
 
     <div class="main-content">
+        <div class="top-nav">
+            <div class="web-selector">
+                <i class="bi bi-globe"></i>
+                Web
+                <i class="bi bi-chevron-down"></i>
+            </div>
+            <div class="notification-bell">
+                <i class="bi bi-bell"></i>
+            </div>
+        </div>
+
         <div class="container">
             <div class="stats-grid">
                 <div class="stat-card">
