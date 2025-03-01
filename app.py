@@ -472,10 +472,12 @@ def admin_dashboard():
     # Count today's conversations
     today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
 
-    # Static data for now - these would typically come from a more complex analysis
-    active_users = 4782
-    active_users_today = 127
-    satisfaction_rate = 86
+    # Get actual number of users
+    active_users = len(users)
+    # Count users created today
+    active_users_today = sum(1 for user in users if user.created_at.date() == today)
+    # Initialize satisfaction rate to 0
+    satisfaction_rate = 0
 
     return render_template('admin_dashboard.html', 
                          users=users, 
