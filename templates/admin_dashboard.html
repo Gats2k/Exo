@@ -498,11 +498,23 @@ function updateDashboardStats(data) {
             </tr>
         `).join('');
 
-        // Update conversations table
-        const conversationsTableBody = document.querySelector('table:last-of-type tbody');
+        // Update conversations table with improved selector and error handling
+        const conversationsTable = document.querySelector('.section-title + .table-container table.data-table');
+        if (!conversationsTable) {
+            console.error('Conversations table not found');
+            return;
+        }
+
+        const conversationsTableBody = conversationsTable.querySelector('tbody');
+        if (!conversationsTableBody) {
+            console.error('Conversations table body not found');
+            return;
+        }
+
+        console.log('Updating conversations with data:', data.conversations);
         conversationsTableBody.innerHTML = data.conversations.map(conv => `
             <tr>
-                <td>${conv.title}</td>
+                <td>${conv.title || "Sans titre"}</td>
                 <td>${conv.created_at}</td>
                 <td>${conv.updated_at}</td>
                 <td>${conv.messages_count}</td>
