@@ -104,6 +104,12 @@ def get_or_create_conversation(thread_id=None):
         return conversation
 
 @app.route('/')
+def index():
+    # Redirect to register page by default
+    return redirect(url_for('register'))
+
+@app.route('/chat')
+@login_required
 def chat():
     try:
         with db_retry_session() as db_session:
