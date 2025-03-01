@@ -525,7 +525,7 @@ def admin_platform_data(platform):
             'today_conversations': 0,
             'satisfaction_rate': 0,
             'users': [],  # Will be populated with telegram users
-            'conversations': []  # Will be populated with telegram conversations when integrated
+            'conversations': []  # Will be populated with telegram conversations
         }
 
     return jsonify(data)
