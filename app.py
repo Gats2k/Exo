@@ -504,12 +504,21 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'telegram':
-        # For telegram, we'll need to query telegram-specific data
-        # This is where you'll integrate with your telegram bot's data
+        # Count Telegram users (identified by numeric phone numbers)
+        telegram_users = User.query.filter(
+            User.phone_number.regexp_match(r'^\+?\d+$')  # Match numeric phone numbers
+        ).all()
+
+        today_telegram_conversations = Conversation.query.filter(
+            Conversation.created_at >= today
+        ).filter(
+            Conversation.thread_id.like('telegram_%')
+        ).count()
+
         data = {
-            'active_users': 0,  # Replace with actual telegram users count
-            'active_users_today': 0,  # Replace with new telegram users today
-            'today_conversations': 0,  # Replace with telegram conversations today
+            'active_users': len(telegram_users),
+            'active_users_today': sum(1 for user in telegram_users if user.created_at.date() == today),
+            'today_conversations': today_telegram_conversations,
             'satisfaction_rate': 0
         }
 
