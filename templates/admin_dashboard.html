@@ -7,41 +7,53 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            --sidebar-width: 250px;
+            --sidebar-width: 200px;
         }
 
         .top-nav {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             align-items: center;
-            padding: 20px;
-            gap: 20px;
+            padding: 15px 20px;
             position: fixed;
             right: 0;
             top: 0;
-            left: var(--sidebar-width);
-            height: 72px; /* Match height of sidebar header */
-            z-index: 100;
+            left: 0;
+            height: 56px;
+            z-index: 101;
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        .nav-left {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         .web-selector {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
+            padding: 6px 10px;
+            border-radius: 5px;
             background: rgba(0, 0, 0, 0.3);
             cursor: pointer;
+            font-size: 0.9em;
         }
 
         .notification-bell {
             color: white;
-            font-size: 1.2em;
+            font-size: 1.1em;
             cursor: pointer;
         }
 
@@ -52,38 +64,17 @@
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border-right: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 20px;
+            padding: 15px;
             position: fixed;
             left: 0;
-            top: 0;
+            top: 56px;
             display: flex;
             flex-direction: column;
             color: white;
-            z-index: 101;
-        }
-
-        .sidebar-header {
-            padding-bottom: 20px;
-            height: 72px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .sidebar-title {
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .sidebar-subtitle {
-            font-size: 0.9em;
-            color: rgba(255, 255, 255, 0.7);
         }
 
         .sidebar-section {
-            padding: 20px 0;
+            padding: 15px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
@@ -95,13 +86,14 @@
         .nav-item {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
+            gap: 8px;
+            padding: 8px 10px;
             color: white;
             text-decoration: none;
-            border-radius: 8px;
-            margin-bottom: 8px;
+            border-radius: 6px;
+            margin-bottom: 6px;
             transition: background-color 0.2s;
+            font-size: 0.9em;
         }
 
         .nav-item:hover {
@@ -113,25 +105,26 @@
         }
 
         .nav-item i {
-            font-size: 1.2em;
+            font-size: 1.1em;
         }
 
         .admin-profile {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
+            gap: 8px;
+            padding: 8px;
         }
 
         .admin-avatar {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             background: #4A55A2;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
+            font-size: 0.9em;
         }
 
         .admin-info {
@@ -141,17 +134,18 @@
 
         .admin-name {
             font-weight: bold;
+            font-size: 0.9em;
         }
 
         .admin-email {
-            font-size: 0.8em;
+            font-size: 0.75em;
             color: rgba(255, 255, 255, 0.7);
         }
 
         .main-content {
             margin-left: var(--sidebar-width);
-            padding: 20px 20px 20px 40px;
-            padding-top: 92px; /* top-nav height (72px) + 20px */
+            margin-top: 56px;
+            padding: 30px;
         }
 
         body {
@@ -165,7 +159,6 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
         }
 
         .stats-grid {
@@ -249,12 +242,21 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-title">Môjo Admin</div>
-            <div class="sidebar-subtitle">Tableau de bord</div>
+    <div class="top-nav">
+        <div class="nav-left">Môjo Admin</div>
+        <div class="nav-right">
+            <div class="web-selector">
+                <i class="bi bi-globe"></i>
+                Web
+                <i class="bi bi-chevron-down"></i>
+            </div>
+            <div class="notification-bell">
+                <i class="bi bi-bell"></i>
+            </div>
         </div>
+    </div>
 
+    <div class="sidebar">
         <div class="sidebar-section">
             <a href="#dashboard" class="nav-item active">
                 <i class="bi bi-speedometer2"></i>
@@ -290,17 +292,6 @@
     </div>
 
     <div class="main-content">
-        <div class="top-nav">
-            <div class="web-selector">
-                <i class="bi bi-globe"></i>
-                Web
-                <i class="bi bi-chevron-down"></i>
-            </div>
-            <div class="notification-bell">
-                <i class="bi bi-bell"></i>
-            </div>
-        </div>
-
         <div class="container">
             <div class="stats-grid">
                 <div class="stat-card">
