@@ -406,7 +406,7 @@
                 </table>
             </div>
 
-            <div class="section-title">Conversations récentes</div>
+            <h2 class="section-title">Conversations récentes</h2>
             <div class="table-container">
                 <table class="data-table">
                     <thead>
@@ -480,48 +480,17 @@ function fetchPlatformData(platform) {
 
 function updateDashboardStats(data) {
     try {
-        // Update stats cards
+        // Update active users
         document.querySelector('.stat-value').textContent = data.active_users;
         document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
+
+        // Update conversations
         document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+
+        // Update satisfaction
         document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-
-        // Update users table
-        const usersTableBody = document.querySelector('table:first-of-type tbody');
-        usersTableBody.innerHTML = data.users.map(user => `
-            <tr>
-                <td>${user.last_name}</td>
-                <td>${user.first_name}</td>
-                <td>${user.phone_number}</td>
-                <td>${user.study_level}</td>
-                <td>${user.created_at}</td>
-            </tr>
-        `).join('');
-
-        // Update conversations table with improved selector and error handling
-        const conversationsTable = document.querySelector('.section-title + .table-container table.data-table');
-        if (!conversationsTable) {
-            console.error('Conversations table not found');
-            return;
-        }
-
-        const conversationsTableBody = conversationsTable.querySelector('tbody');
-        if (!conversationsTableBody) {
-            console.error('Conversations table body not found');
-            return;
-        }
-
-        console.log('Updating conversations with data:', data.conversations);
-        conversationsTableBody.innerHTML = data.conversations.map(conv => `
-            <tr>
-                <td>${conv.title || "Sans titre"}</td>
-                <td>${conv.created_at}</td>
-                <td>${conv.updated_at}</td>
-                <td>${conv.messages_count}</td>
-            </tr>
-        `).join('');
     } catch (error) {
-        console.error('Error updating dashboard content:', error);
+        console.error('Error updating dashboard stats:', error);
     }
 }
 
