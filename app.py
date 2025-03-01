@@ -104,11 +104,6 @@ def get_or_create_conversation(thread_id=None):
         return conversation
 
 @app.route('/')
-def index():
-    # Redirect to register page by default
-    return redirect(url_for('register'))
-
-@app.route('/chat')
 @login_required
 def chat():
     try:
@@ -130,16 +125,16 @@ def chat():
                 session.pop('thread_id')
 
             return render_template('chat.html', 
-                                history=[], 
-                                conversation_history=conversation_history, 
-                                credits=42)
+                               history=[], 
+                               conversation_history=conversation_history, 
+                               credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
         return render_template('chat.html', 
-                             history=[], 
-                             conversation_history=[], 
-                             credits=42,
-                             error="Une erreur est survenue. Veuillez réessayer.")
+                          history=[], 
+                          conversation_history=[], 
+                          credits=42,
+                          error="Une erreur est survenue. Veuillez réessayer.")
 
 @socketio.on('send_message')
 def handle_message(data):
@@ -533,6 +528,13 @@ def admin_platform_data(platform):
         }
 
     return jsonify(data)
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Redirect unauthorized users to Login page."""
+    flash('Please log in to access this page.')
+    return redirect(url_for('register'))
 
 
 if __name__ == '__main__':
