@@ -176,8 +176,10 @@ def handle_message(data):
                 client.beta.threads.messages.create(
                     thread_id=conversation.thread_id,
                     role="user",
-                    content=data.get('message', ''),
-                    file_ids=[image_file.id]
+                    content=[
+                        {"type": "text", "text": data.get('message', '')},
+                        {"type": "image_file", "image_file": {"file_id": image_file.id}}
+                    ]
                 )
             except Exception as e:
                 logger.error(f"Error processing image: {str(e)}")
