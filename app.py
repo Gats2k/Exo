@@ -487,6 +487,36 @@ def admin_dashboard():
                          today_conversations=today_conversations,
                          satisfaction_rate=satisfaction_rate)
 
+@app.route('/admin/data/<platform>')
+def admin_platform_data(platform):
+    today = datetime.today().date()
+
+    if platform == 'web':
+        # Get web platform statistics
+        users = User.query.all()
+        conversations = Conversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0  # Initialize to 0 as requested
+        }
+
+    elif platform == 'telegram':
+        # For telegram, we'll need to query telegram-specific data
+        # This is where you'll integrate with your telegram bot's data
+        data = {
+            'active_users': 0,  # Replace with actual telegram users count
+            'active_users_today': 0,  # Replace with new telegram users today
+            'today_conversations': 0,  # Replace with telegram conversations today
+            'satisfaction_rate': 0
+        }
+
+    return jsonify(data)
+
+
+
 if __name__ == '__main__':
     # Configure scheduler for cleanup
     scheduler = BackgroundScheduler()

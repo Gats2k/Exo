@@ -246,6 +246,45 @@
             color: #FFD700;
             font-size: 1.5em;
         }
+        .web-selector-container {
+            position: relative;
+        }
+
+        .web-selector-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            margin-top: 5px;
+            z-index: 1000;
+        }
+
+        .web-selector-dropdown.show {
+            display: block;
+        }
+
+        .web-selector-option {
+            padding: 8px 12px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .web-selector-option:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .web-selector-option.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -291,10 +330,22 @@
 
     <div class="main-content">
         <div class="top-nav">
-            <div class="web-selector">
-                <i class="bi bi-globe"></i>
-                Web
-                <i class="bi bi-chevron-down"></i>
+            <div class="web-selector-container">
+                <div class="web-selector" onclick="toggleDropdown()">
+                    <i class="bi bi-globe" id="platform-icon"></i>
+                    <span id="selected-platform">Web</span>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+                <div class="web-selector-dropdown" id="platformDropdown">
+                    <div class="web-selector-option active" onclick="selectPlatform('web')">
+                        <i class="bi bi-globe"></i>
+                        Web
+                    </div>
+                    <div class="web-selector-option" onclick="selectPlatform('telegram')">
+                        <i class="bi bi-telegram"></i>
+                        Telegram
+                    </div>
+                </div>
             </div>
             <div class="notification-bell">
                 <i class="bi bi-bell"></i>
@@ -380,5 +431,78 @@
             </div>
         </div>
     </div>
+<script>
+function toggleDropdown() {
+    const dropdown = document.getElementById('platformDropdown');
+    dropdown.classList.toggle('show');
+}
+
+function selectPlatform(platform) {
+    const selectedText = document.getElementById('selected-platform');
+    const platformIcon = document.getElementById('platform-icon');
+    const dropdown = document.getElementById('platformDropdown');
+    const options = dropdown.getElementsByClassName('web-selector-option');
+
+    // Update selected text and icon
+    selectedText.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+    platformIcon.className = platform === 'web' ? 'bi bi-globe' : 'bi bi-telegram';
+
+    // Update active state
+    Array.from(options).forEach(option => {
+        option.classList.toggle('active', option.textContent.trim().toLowerCase() === platform);
+    });
+
+    // Hide dropdown
+    dropdown.classList.remove('show');
+
+    // Fetch data for selected platform
+    fetchPlatformData(platform);
+}
+
+function fetchPlatformData(platform) {
+    // Make an AJAX request to get platform-specific data
+    fetch(`/admin/data/${platform}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update the dashboard statistics with the new data
+            updateDashboardStats(data);
+        })
+        .catch(error => {
+            console.error('Error fetching platform data:', error);
+            // Handle error gracefully - could show an error message to user
+        });
+}
+
+function updateDashboardStats(data) {
+    try {
+        // Update active users
+        document.querySelector('.stat-value').textContent = data.active_users;
+        document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
+
+        // Update conversations
+        document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+
+        // Update satisfaction
+        document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+    } catch (error) {
+        console.error('Error updating dashboard stats:', error);
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('platformDropdown');
+    const webSelector = document.querySelector('.web-selector');
+
+    if (!webSelector.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+</script>
 </body>
 </html>
