@@ -175,6 +175,7 @@ def handle_message(data):
                     "type": "image_url",
                     "image_url": {
                         "url": image_url
+                        "detail": "auto"
                     }
                 })
 
