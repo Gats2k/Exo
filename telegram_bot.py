@@ -48,7 +48,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = User.query.filter_by(phone_number=str(user_id)).first()
     if user:
         thread = openai_client.beta.threads.create()
-        user_threads[user_id] = thread.id
+        thread_id = f"telegram_{thread.id}"  # Add telegram prefix
+        user_threads[user_id] = thread_id
         await update.message.reply_text(
             'Welcome back! How can I help you today?'
         )
@@ -123,9 +124,10 @@ async def study_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.session.add(new_user)
         db.session.commit()
 
-        # Create OpenAI thread for the user
+        # Create OpenAI thread for the user with telegram prefix
         thread = openai_client.beta.threads.create()
-        user_threads[update.effective_user.id] = thread.id
+        thread_id = f"telegram_{thread.id}"
+        user_threads[update.effective_user.id] = thread_id
 
         await update.message.reply_text(
             'Thank you for registering! You can now start chatting with me.',
@@ -175,7 +177,7 @@ def setup_telegram_bot():
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         application.add_handler(MessageHandler(
-            filters.TEXT & ~filters.COMMAND & ~conv_handler.filters, 
+            filters.TEXT & ~filters.COMMAND,
             handle_message
         ))
 
@@ -202,6 +204,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     try:
+        # Check if user is registered
+        user = User.query.filter_by(phone_number=str(user_id)).first()
+        if not user:
+            await update.message.reply_text(
+                "Please register first by using the /start command."
+            )
+            return
+
         # Get or create thread ID for this user
         thread_id = user_threads[user_id]
         if not thread_id:
