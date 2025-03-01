@@ -15,6 +15,7 @@ class User(UserMixin, db.Model):
     grade_goals = db.Column(db.String(50), nullable=False)  # Different grade ranges
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    telegram_id = db.Column(db.String(100), unique=True, nullable=True)  # Added telegram_id field
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -35,6 +36,8 @@ class Conversation(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     messages = db.relationship('Message', backref='conversation', lazy=True, cascade='all, delete-orphan')
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Added user_id field
+    platform = db.Column(db.String(20), default='web')  # Added platform field
 
 class Message(db.Model):
     __tablename__ = 'message'

@@ -2,15 +2,16 @@ import os
 import logging
 import asyncio
 from telegram import Update, constants
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, ContextTypes, 
+    filters, ConversationHandler, CallbackContext
+)
 from openai import OpenAI, OpenAIError
 from collections import defaultdict
 import aiohttp
-from pathlib import Path
-import uuid
 from datetime import datetime
-import base64
-import requests
+from models import User, db
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Set up logging
 logging.basicConfig(
@@ -32,23 +33,198 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
+# Define conversation states
+CHOOSING_AUTH, REGISTERING_FIRST_NAME, REGISTERING_LAST_NAME, REGISTERING_AGE, \
+REGISTERING_PHONE, REGISTERING_PASSWORD, LOGIN_PASSWORD = range(7)
+
+# User registration data storage
+user_data = {}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when the command /start is issued."""
+    """Initial conversation starter - ask if user wants to register or login"""
     user_id = update.effective_user.id
+
+    # Clear any existing data
+    user_data[user_id] = {}
+
+    reply_text = (
+        "Welcome to Môjo! 👋\n\n"
+        "Are you a new user or do you already have an account?\n\n"
+        "Please type:\n"
+        "1️⃣ for new registration\n"
+        "2️⃣ if you already have an account"
+    )
+
+    await update.message.reply_text(reply_text)
+    return CHOOSING_AUTH
+
+async def handle_auth_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user's choice between registration and login"""
+    user_id = update.effective_user.id
+    text = update.message.text
+
+    if text == "1":
+        await update.message.reply_text("Please enter your first name:")
+        return REGISTERING_FIRST_NAME
+    elif text == "2":
+        await update.message.reply_text("Please enter your phone number to login:")
+        return LOGIN_PASSWORD
+    else:
+        await update.message.reply_text("Please type 1 for registration or 2 for login.")
+        return CHOOSING_AUTH
+
+async def register_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle first name input"""
+    user_id = update.effective_user.id
+    user_data[user_id]['first_name'] = update.message.text
+
+    await update.message.reply_text("Great! Now please enter your last name:")
+    return REGISTERING_LAST_NAME
+
+async def register_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle last name input"""
+    user_id = update.effective_user.id
+    user_data[user_id]['last_name'] = update.message.text
+
+    await update.message.reply_text("Please enter your age:")
+    return REGISTERING_AGE
+
+async def register_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle age input"""
     try:
+        age = int(update.message.text)
+        if age < 13 or age > 100:
+            await update.message.reply_text("Please enter a valid age between 13 and 100:")
+            return REGISTERING_AGE
+
+        user_id = update.effective_user.id
+        user_data[user_id]['age'] = age
+
+        await update.message.reply_text("Please enter your phone number:")
+        return REGISTERING_PHONE
+    except ValueError:
+        await update.message.reply_text("Please enter a valid number for your age:")
+        return REGISTERING_AGE
+
+async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle phone number input"""
+    user_id = update.effective_user.id
+    phone = update.message.text
+
+    # Check if phone number already exists
+    existing_user = User.query.filter_by(phone_number=phone).first()
+    if existing_user:
+        await update.message.reply_text(
+            "This phone number is already registered. Please use a different number:"
+        )
+        return REGISTERING_PHONE
+
+    user_data[user_id]['phone_number'] = phone
+    await update.message.reply_text(
+        "Finally, please create a password for your account:"
+    )
+    return REGISTERING_PASSWORD
+
+async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle password input and complete registration"""
+    user_id = update.effective_user.id
+    user_data[user_id]['password'] = update.message.text
+
+    try:
+        # Create new user
+        new_user = User(
+            first_name=user_data[user_id]['first_name'],
+            last_name=user_data[user_id]['last_name'],
+            age=user_data[user_id]['age'],
+            phone_number=user_data[user_id]['phone_number'],
+            study_level='Terminal A',  # Default value
+            grade_goals='Above Average',  # Default value
+            telegram_id=str(user_id)
+        )
+        new_user.set_password(user_data[user_id]['password'])
+
+        db.session.add(new_user)
+        db.session.commit()
+
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
         user_threads[user_id] = thread.id
-        logger.info(f"Created new thread {thread.id} for user {user_id}")
 
         await update.message.reply_text(
-            'Hello! I am your AI assistant. How can I help you today?'
+            "Registration successful! 🎉\n\n"
+            "You can now start chatting with me! How can I help you today?"
         )
+
+        # Clear registration data
+        del user_data[user_id]
+
+        return ConversationHandler.END
+
     except Exception as e:
-        logger.error(f"Error in start command: {str(e)}", exc_info=True)
+        logger.error(f"Error during registration: {str(e)}", exc_info=True)
         await update.message.reply_text(
-            "I'm having trouble setting up our conversation. Please try again in a moment."
+            "There was an error during registration. Please try again later."
         )
+        return ConversationHandler.END
+
+async def login_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle login process"""
+    user_id = update.effective_user.id
+    phone = update.message.text
+
+    # Find user by phone number
+    user = User.query.filter_by(phone_number=phone).first()
+    if not user:
+        await update.message.reply_text(
+            "Phone number not found. Please enter a valid phone number:"
+        )
+        return LOGIN_PASSWORD
+
+    user_data[user_id] = {'user': user}
+    await update.message.reply_text("Please enter your password:")
+    return LOGIN_PASSWORD
+
+async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Verify password and complete login"""
+    user_id = update.effective_user.id
+    password = update.message.text
+    user = user_data[user_id]['user']
+
+    if user.check_password(password):
+        # Update telegram_id if not set
+        if not user.telegram_id:
+            user.telegram_id = str(user_id)
+            db.session.commit()
+
+        # Create a new thread for the user
+        thread = openai_client.beta.threads.create()
+        user_threads[user_id] = thread.id
+
+        await update.message.reply_text(
+            "Login successful! 🎉\n\n"
+            "You can now start chatting with me! How can I help you today?"
+        )
+
+        # Clear login data
+        del user_data[user_id]
+
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            "Incorrect password. Please try again:"
+        )
+        return LOGIN_PASSWORD
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancel the conversation"""
+    user_id = update.effective_user.id
+    if user_id in user_data:
+        del user_data[user_id]
+
+    await update.message.reply_text(
+        "Operation cancelled. Type /start to begin again."
+    )
+    return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
@@ -236,22 +412,34 @@ def setup_telegram_bot():
         # Create the Application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
 
-        logger.info("Setting up Telegram bot handlers...")
-        logger.info(f"Available filters: {dir(filters)}")
+        # Create conversation handler
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('start', start)],
+            states={
+                CHOOSING_AUTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_auth_choice)],
+                REGISTERING_FIRST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_first_name)],
+                REGISTERING_LAST_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_last_name)],
+                REGISTERING_AGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_age)],
+                REGISTERING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_phone)],
+                REGISTERING_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, register_password)],
+                LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_password)], #Corrected to verify_password
+            },
+            fallbacks=[CommandHandler('cancel', cancel)]
+        )
 
         # Add handlers
-        application.add_handler(CommandHandler("start", start))
+        application.add_handler(conv_handler)
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-        logger.info("Handlers added successfully")
+
 
         # Add error handler
         application.add_error_handler(error_handler)
-        logger.info("Error handler added")
 
         logger.info("Telegram bot setup completed successfully")
         return application
+
     except Exception as e:
         logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
         raise
