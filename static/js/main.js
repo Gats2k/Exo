@@ -231,7 +231,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Dans paste.txt (JavaScript côté client)
     function handleImageUpload(file) {
         if (file) {
             const reader = new FileReader();
@@ -258,7 +257,6 @@ document.addEventListener('DOMContentLoaded', function() {
         imagePreviewContainer.classList.remove('visible');
     };
 
-    // Dans paste.txt (JavaScript côté client)
     cameraInput.addEventListener('change', function(e) {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
@@ -271,13 +269,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    window.removeImage = function() {
-        currentImage = null;
-        imagePreviewContainer.innerHTML = '';
-        imagePreviewContainer.classList.remove('visible');
-    };
-
-    // Dans paste.txt (JavaScript côté client)
     function sendMessage() {
         const message = input.value.trim();
         if (message || currentImage) {
