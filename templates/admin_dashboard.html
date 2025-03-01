@@ -480,17 +480,36 @@ function fetchPlatformData(platform) {
 
 function updateDashboardStats(data) {
     try {
-        // Update active users
+        // Update stats cards
         document.querySelector('.stat-value').textContent = data.active_users;
         document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
-
-        // Update conversations
         document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
-
-        // Update satisfaction
         document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+
+        // Update users table
+        const usersTableBody = document.querySelector('table:first-of-type tbody');
+        usersTableBody.innerHTML = data.users.map(user => `
+            <tr>
+                <td>${user.last_name}</td>
+                <td>${user.first_name}</td>
+                <td>${user.phone_number}</td>
+                <td>${user.study_level}</td>
+                <td>${user.created_at}</td>
+            </tr>
+        `).join('');
+
+        // Update conversations table
+        const conversationsTableBody = document.querySelector('table:last-of-type tbody');
+        conversationsTableBody.innerHTML = data.conversations.map(conv => `
+            <tr>
+                <td>${conv.title}</td>
+                <td>${conv.created_at}</td>
+                <td>${conv.updated_at}</td>
+                <td>${conv.messages_count}</td>
+            </tr>
+        `).join('');
     } catch (error) {
-        console.error('Error updating dashboard stats:', error);
+        console.error('Error updating dashboard content:', error);
     }
 }
 

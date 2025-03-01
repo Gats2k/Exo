@@ -500,17 +500,32 @@ def admin_platform_data(platform):
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0  # Initialize to 0 as requested
+            'satisfaction_rate': 0,  # Initialize to 0 as requested
+            'users': [{
+                'last_name': user.last_name,
+                'first_name': user.first_name,
+                'phone_number': user.phone_number,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title or "Sans titre",
+                'created_at': conv.created_at.strftime('%d/%m/%Y %H:%M'),
+                'updated_at': conv.updated_at.strftime('%d/%m/%Y %H:%M'),
+                'messages_count': len(conv.messages)
+            } for conv in conversations]
         }
 
     elif platform == 'telegram':
-        # For telegram, we'll need to query telegram-specific data
-        # This is where you'll integrate with your telegram bot's data
+        # For telegram, return empty data for now
+        # This would be replaced with actual telegram bot data
         data = {
-            'active_users': 0,  # Replace with actual telegram users count
-            'active_users_today': 0,  # Replace with new telegram users today
-            'today_conversations': 0,  # Replace with telegram conversations today
-            'satisfaction_rate': 0
+            'active_users': 0,
+            'active_users_today': 0,
+            'today_conversations': 0,
+            'satisfaction_rate': 0,
+            'users': [],  # Will be populated with telegram users
+            'conversations': []  # Will be populated with telegram conversations
         }
 
     return jsonify(data)
