@@ -285,6 +285,12 @@
         .web-selector-option.active {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -381,8 +387,12 @@
             </div>
 
             <h2 class="section-title">Liste des utilisateurs</h2>
-            <div class="table-container">
-                <table class="data-table">
+            <div class="table-container" id="usersTableContainer">
+                <div class="empty-state" style="display: none; text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.6);">
+                    <i class="bi bi-people" style="font-size: 2em; margin-bottom: 15px;"></i>
+                    <p>Aucun utilisateur Telegram disponible pour le moment</p>
+                </div>
+                <table class="data-table" id="usersTable">
                     <thead>
                         <tr>
                             <th>Nom</th>
@@ -407,8 +417,12 @@
             </div>
 
             <h2 class="section-title">Conversations récentes</h2>
-            <div class="table-container">
-                <table class="data-table">
+            <div class="table-container" id="conversationsTableContainer">
+                <div class="empty-state" style="display: none; text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.6);">
+                    <i class="bi bi-chat-dots" style="font-size: 2em; margin-bottom: 15px;"></i>
+                    <p>Aucune conversation Telegram disponible pour le moment</p>
+                </div>
+                <table class="data-table" id="conversationsTable">
                     <thead>
                         <tr>
                             <th>Titre</th>
@@ -459,25 +473,6 @@ function selectPlatform(platform) {
     fetchPlatformData(platform);
 }
 
-function fetchPlatformData(platform) {
-    // Make an AJAX request to get platform-specific data
-    fetch(`/admin/data/${platform}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Update the dashboard statistics with the new data
-            updateDashboardStats(data);
-        })
-        .catch(error => {
-            console.error('Error fetching platform data:', error);
-            // Handle error gracefully - could show an error message to user
-        });
-}
-
 function updateDashboardStats(data) {
     try {
         // Update active users
@@ -489,9 +484,57 @@ function updateDashboardStats(data) {
 
         // Update satisfaction
         document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+
+        // Update tables visibility based on platform
+        const usersTable = document.getElementById('usersTable');
+        const conversationsTable = document.getElementById('conversationsTable');
+        const usersEmptyState = document.querySelector('#usersTableContainer .empty-state');
+        const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
+
+        if (data.platform === 'telegram') {
+            // Show empty states for Telegram
+            usersTable.style.display = 'none';
+            conversationsTable.style.display = 'none';
+            usersEmptyState.style.display = 'block';
+            conversationsEmptyState.style.display = 'block';
+        } else {
+            // Show tables for Web platform
+            usersTable.style.display = 'table';
+            conversationsTable.style.display = 'table';
+            usersEmptyState.style.display = 'none';
+            conversationsEmptyState.style.display = 'none';
+        }
     } catch (error) {
         console.error('Error updating dashboard stats:', error);
     }
+}
+
+function fetchPlatformData(platform) {
+    // Make an AJAX request to get platform-specific data
+    fetch(`/admin/data/${platform}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Add platform info to the data
+            data.platform = platform;
+            // Update the dashboard statistics with the new data
+            updateDashboardStats(data);
+        })
+        .catch(error => {
+            console.error('Error fetching platform data:', error);
+            // Show empty states on error
+            updateDashboardStats({
+                platform: platform,
+                active_users: 0,
+                active_users_today: 0,
+                today_conversations: 0,
+                satisfaction_rate: 0
+            });
+        });
 }
 
 // Close dropdown when clicking outside
