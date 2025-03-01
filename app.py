@@ -64,7 +64,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User
+from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
 
 # Create tables within application context
 with app.app_context():
@@ -518,13 +518,16 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'telegram':
-        # For telegram, we'll need to query telegram-specific data
-        # This is where you'll integrate with your telegram bot's data
+        # For telegram, query telegram-specific data
+        users = TelegramUser.query.all()
+        conversations = TelegramConversation.query.all()
+
         data = {
-            'active_users': 0,  # Replace with actual telegram users count
-            'active_users_today': 0,  # Replace with new telegram users today
-            'today_conversations': 0,  # Replace with telegram conversations today
-            'satisfaction_rate': 0
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0,
+            'platform': 'telegram'  # Add platform info to trigger empty states
         }
 
     return jsonify(data)

@@ -11,11 +11,13 @@ import uuid
 from datetime import datetime
 import base64
 import requests
+from models import TelegramUser, TelegramConversation, TelegramMessage
+from database import db
 
 # Set up logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG  # Changed to DEBUG for more verbose logging
 )
 logger = logging.getLogger(__name__)
 
@@ -32,14 +34,74 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
+async def get_or_create_telegram_user(user_id: int) -> TelegramUser:
+    """Get or create a TelegramUser record."""
+    try:
+        user = TelegramUser.query.get(user_id)
+        if not user:
+            logger.info(f"Creating new TelegramUser for ID: {user_id}")
+            user = TelegramUser(telegram_id=user_id)
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
+        else:
+            logger.info(f"Found existing TelegramUser: {user.telegram_id}")
+        return user
+    except Exception as e:
+        logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
+        db.session.rollback()
+        raise
+
+async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
+    """Create a new TelegramConversation record."""
+    try:
+        logger.info(f"Creating new TelegramConversation for user {user_id} with thread {thread_id}")
+        conversation = TelegramConversation(
+            telegram_user_id=user_id,
+            thread_id=thread_id,
+            title="Nouvelle conversation"
+        )
+        db.session.add(conversation)
+        db.session.commit()
+        logger.info(f"Successfully created TelegramConversation: {conversation.id}")
+        return conversation
+    except Exception as e:
+        logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
+        db.session.rollback()
+        raise
+
+async def add_telegram_message(conversation_id: int, role: str, content: str, image_url: str = None):
+    """Add a new message to a conversation."""
+    try:
+        logger.info(f"Adding new TelegramMessage to conversation {conversation_id}")
+        message = TelegramMessage(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            image_url=image_url
+        )
+        db.session.add(message)
+        db.session.commit()
+        logger.info(f"Successfully added TelegramMessage: {message.id}")
+    except Exception as e:
+        logger.error(f"Error in add_telegram_message: {str(e)}", exc_info=True)
+        db.session.rollback()
+        raise
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     user_id = update.effective_user.id
     try:
+        # Create or get the user in our database
+        await get_or_create_telegram_user(user_id)
+
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
         user_threads[user_id] = thread.id
         logger.info(f"Created new thread {thread.id} for user {user_id}")
+
+        # Create a new conversation in our database
+        await create_telegram_conversation(user_id, thread.id)
 
         await update.message.reply_text(
             'Hello! I am your AI assistant. How can I help you today?'
@@ -70,10 +132,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = thread.id
             user_threads[user_id] = thread_id
             logger.info(f"Created new thread {thread_id} for user {user_id}")
+            # Create a new conversation in our database
+            await create_telegram_conversation(user_id, thread_id)
+
+        # Get the conversation from our database
+        conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
 
         # Add the user's message to the thread
         message_text = update.message.text
         logger.info(f"Received message from user {user_id}: {message_text}")
+
+        # Store the user's message in our database
+        await add_telegram_message(conversation.id, 'user', message_text)
 
         # Start typing indication
         await context.bot.send_chat_action(
@@ -95,7 +165,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Wait for the run to complete while maintaining typing indication
         while True:
-            # Refresh typing indicator every 4.5 seconds (Telegram's limit is 5 seconds)
             await context.bot.send_chat_action(
                 chat_id=update.effective_chat.id,
                 action=constants.ChatAction.TYPING
@@ -109,13 +178,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
             elif run_status.status in ['failed', 'cancelled', 'expired']:
                 raise Exception(f"Assistant run failed with status: {run_status.status}")
-            await asyncio.sleep(4.5)  # Wait before refreshing typing indicator
+            await asyncio.sleep(4.5)
 
         # Get the assistant's response
         messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
         assistant_message = messages.data[0].content[0].text.value
-        logger.info(f"Sending response to user {user_id}: {assistant_message}")
 
+        # Store the assistant's response in our database
+        await add_telegram_message(conversation.id, 'assistant', assistant_message)
+
+        logger.info(f"Sending response to user {user_id}: {assistant_message}")
         await update.message.reply_text(assistant_message)
 
     except OpenAIError as openai_error:
@@ -130,7 +202,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Gère les messages contenant des photos"""
+    """Handle messages containing photos"""
     user_id = update.effective_user.id
     try:
         logger.info(f"Receiving photo from user {user_id}")
@@ -139,13 +211,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error("No photo found in the message")
             return
 
-        logger.info(f"Photo details: {update.message.photo[-1]}")
-
-        # Get file URL directly from Telegram
-        file = await context.bot.get_file(update.message.photo[-1].file_id)
-        file_url = file.file_path  # This is a direct URL to the image on Telegram's servers
-        logger.info(f"Got file URL from Telegram: {file_url}")
-
         # Get or create thread ID for this user
         thread_id = user_threads[user_id]
         if not thread_id:
@@ -153,6 +218,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = thread.id
             user_threads[user_id] = thread_id
             logger.info(f"Created new thread {thread_id} for user {user_id}")
+            # Create a new conversation in our database
+            await create_telegram_conversation(user_id, thread_id)
+
+        # Get the conversation from our database
+        conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+
+        logger.info(f"Photo details: {update.message.photo[-1]}")
+
+        # Get file URL directly from Telegram
+        file = await context.bot.get_file(update.message.photo[-1].file_id)
+        file_url = file.file_path
+        logger.info(f"Got file URL from Telegram: {file_url}")
 
         # Start typing indication
         await context.bot.send_chat_action(
@@ -160,7 +237,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action=constants.ChatAction.TYPING
         )
 
-        # Créer le message avec l'image
+        # Create message content with image
         message_content = [{
             "type": "image_url",
             "image_url": {
@@ -168,15 +245,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
         }]
 
-        # Ajouter le texte de la légende si présent
-        if update.message.caption:
-            logger.info(f"Adding caption: {update.message.caption}")
-            message_content.append({
-                "type": "text",
-                "text": update.message.caption
-            })
+        # Add caption if present
+        caption = update.message.caption or "Image sent"
+        message_content.append({
+            "type": "text",
+            "text": caption
+        })
 
-        # Envoyer à OpenAI
+        # Store the user's message in our database
+        await add_telegram_message(conversation.id, 'user', caption, file_url)
+
+        # Send to OpenAI
         logger.info(f"Sending message to OpenAI thread {thread_id}")
         openai_client.beta.threads.messages.create(
             thread_id=thread_id,
@@ -215,6 +294,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Get and send response
         messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
         assistant_message = messages.data[0].content[0].text.value
+
+        # Store the assistant's response in our database
+        await add_telegram_message(conversation.id, 'assistant', assistant_message)
+
         logger.info(f"Sending response: {assistant_message[:100]}...")
         await update.message.reply_text(assistant_message)
 

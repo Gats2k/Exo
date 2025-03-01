@@ -44,3 +44,32 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     image_url = db.Column(db.String(512))  # Optional, for messages with images
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Telegram-specific models
+class TelegramUser(db.Model):
+    __tablename__ = 'telegram_user'
+    telegram_id = db.Column(db.BigInteger, primary_key=True)  # Telegram user IDs are large numbers
+    first_name = db.Column(db.String(64), default="---")
+    phone_number = db.Column(db.String(20), default="---")
+    study_level = db.Column(db.String(20), default="---")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    conversations = db.relationship('TelegramConversation', backref='user', lazy=True)
+
+class TelegramConversation(db.Model):
+    __tablename__ = 'telegram_conversation'
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_user_id = db.Column(db.BigInteger, db.ForeignKey('telegram_user.telegram_id'), nullable=False)
+    thread_id = db.Column(db.String(255), nullable=False, unique=True)
+    title = db.Column(db.String(255), default="Nouvelle conversation")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    messages = db.relationship('TelegramMessage', backref='conversation', lazy=True, cascade='all, delete-orphan')
+
+class TelegramMessage(db.Model):
+    __tablename__ = 'telegram_message'
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('telegram_conversation.id', ondelete='CASCADE'), nullable=False)
+    role = db.Column(db.String(50), nullable=False)  # 'user' or 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    image_url = db.Column(db.String(512))  # Optional, for messages with images
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
