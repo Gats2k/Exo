@@ -33,7 +33,7 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
-# Update state definitions to separate login phone and password states
+# State definitions remain unchanged
 CHOOSING_AUTH, REGISTERING_FIRST_NAME, REGISTERING_LAST_NAME, REGISTERING_AGE, \
 REGISTERING_PHONE, REGISTERING_PASSWORD, LOGIN_PHONE, LOGIN_PASSWORD = range(8)
 
@@ -61,6 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_auth_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle user's choice between registration and login"""
     text = update.message.text
+    logger.info(f"User chose option: {text}")
 
     if text == "1":
         await update.message.reply_text("Veuillez entrer votre prénom :")
@@ -75,7 +76,8 @@ async def handle_auth_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def register_first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle first name input"""
     user_id = update.effective_user.id
-    user_data[user_id]['first_name'] = update.message.text
+    user_data[user_id] = {'first_name': update.message.text}
+    logger.info(f"Registered first name for user {user_id}: {update.message.text}")
 
     await update.message.reply_text("Super ! Maintenant, veuillez entrer votre nom de famille :")
     return REGISTERING_LAST_NAME
@@ -84,6 +86,7 @@ async def register_last_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Handle last name input"""
     user_id = update.effective_user.id
     user_data[user_id]['last_name'] = update.message.text
+    logger.info(f"Registered last name for user {user_id}: {update.message.text}")
 
     await update.message.reply_text("Veuillez entrer votre âge :")
     return REGISTERING_AGE
@@ -98,6 +101,7 @@ async def register_age(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         user_id = update.effective_user.id
         user_data[user_id]['age'] = age
+        logger.info(f"Registered age for user {user_id}: {age}")
 
         await update.message.reply_text("Veuillez entrer votre numéro de téléphone :")
         return REGISTERING_PHONE
@@ -109,6 +113,7 @@ async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle phone number input"""
     user_id = update.effective_user.id
     phone = update.message.text
+    logger.info(f"Processing phone number for user {user_id}: {phone}")
 
     # Check if phone number already exists
     existing_user = User.query.filter_by(phone_number=phone).first()
@@ -119,6 +124,8 @@ async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return REGISTERING_PHONE
 
     user_data[user_id]['phone_number'] = phone
+    logger.info(f"Registered phone number for user {user_id}")
+
     await update.message.reply_text(
         "Enfin, veuillez créer un mot de passe pour votre compte :"
     )
@@ -127,7 +134,8 @@ async def register_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle password input and complete registration"""
     user_id = update.effective_user.id
-    user_data[user_id]['password'] = update.message.text
+    password = update.message.text
+    logger.info(f"Processing password registration for user {user_id}")
 
     try:
         # Create new user
@@ -140,10 +148,11 @@ async def register_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
             grade_goals='Above Average',  # Default value
             telegram_id=str(user_id)
         )
-        new_user.set_password(user_data[user_id]['password'])
+        new_user.set_password(password)
 
         db.session.add(new_user)
         db.session.commit()
+        logger.info(f"Successfully created new user with telegram_id {user_id}")
 
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
@@ -170,6 +179,7 @@ async def login_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle login phone number input"""
     user_id = update.effective_user.id
     phone = update.message.text
+    logger.info(f"Processing login phone number for user {user_id}: {phone}")
 
     # Find user by phone number
     user = User.query.filter_by(phone_number=phone).first()
@@ -179,7 +189,9 @@ async def login_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return LOGIN_PHONE
 
-    user_data[user_id] = {'user': user}
+    # Store user data and request password
+    user_data[user_id] = {'temp_user': user}  # Changed to temp_user to avoid confusion
+    logger.info(f"Found user account for phone number {phone}")
     await update.message.reply_text("Veuillez entrer votre mot de passe :")
     return LOGIN_PASSWORD
 
@@ -187,17 +199,29 @@ async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Verify password and complete login"""
     user_id = update.effective_user.id
     password = update.message.text
-    user = user_data[user_id]['user']
+    logger.info(f"Verifying password for user {user_id}")
+
+    # Get the temporary stored user
+    if 'temp_user' not in user_data[user_id]:
+        logger.error(f"No temporary user found for {user_id}")
+        await update.message.reply_text(
+            "Une erreur s'est produite. Veuillez recommencer la connexion avec /start"
+        )
+        return ConversationHandler.END
+
+    user = user_data[user_id]['temp_user']
 
     if user.check_password(password):
         # Update telegram_id if not set
         if not user.telegram_id:
             user.telegram_id = str(user_id)
             db.session.commit()
+            logger.info(f"Updated telegram_id for user {user_id}")
 
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
         user_threads[user_id] = thread.id
+        logger.info(f"Created new thread {thread.id} for user {user_id}")
 
         await update.message.reply_text(
             "Connexion réussie ! 🎉\n\n"
@@ -206,6 +230,7 @@ async def verify_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Clear login data
         del user_data[user_id]
+        logger.info(f"Cleared login data for user {user_id}")
 
         return ConversationHandler.END
     else:
@@ -335,7 +360,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action=constants.ChatAction.TYPING
         )
 
-        # Créer le message avec l'image
+        # Create message with image
         message_content = [{
             "type": "image_url",
             "image_url": {
@@ -343,7 +368,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
         }]
 
-        # Ajouter le texte de la légende si présent
+        # Add caption text if present
         if update.message.caption:
             logger.info(f"Adding caption: {update.message.caption}")
             message_content.append({
@@ -351,7 +376,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "text": update.message.caption
             })
 
-        # Envoyer à OpenAI
+        # Send to OpenAI
         logger.info(f"Sending message to OpenAI thread {thread_id}")
         openai_client.beta.threads.messages.create(
             thread_id=thread_id,
@@ -411,7 +436,7 @@ def setup_telegram_bot():
         # Create the Application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
 
-        # Create conversation handler with updated states
+        # Create conversation handler with the updated states
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler('start', start)],
             states={
@@ -424,7 +449,9 @@ def setup_telegram_bot():
                 LOGIN_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_phone)],
                 LOGIN_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, verify_password)],
             },
-            fallbacks=[CommandHandler('cancel', cancel)]
+            fallbacks=[CommandHandler('cancel', cancel)],
+            allow_reentry=True,
+            name="registration_conversation"  # Added name for better logging
         )
 
         # Add handlers
