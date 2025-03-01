@@ -149,38 +149,50 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Rest of the message handling code 
-        message_content = []
-
         # Handle image if present
         if 'image' in data and data['image']:
-            # Save the base64 image
-            filename = save_base64_image(data['image'])
-            image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+            try:
+                # Save the base64 image
+                filename = save_base64_image(data['image'])
+                # Create a public URL for the image
+                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
 
-            # Create file for assistant
-            base64_image = data['image'].split(',')[1]
-            image_file = client.files.create(
-                file=base64_image,
-                purpose="assistants"
-            )
+                # Store user message with image
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role='user',
+                    content=data.get('message', ''),
+                    image_url=image_url
+                )
+                db.session.add(user_message)
 
-            # Store user message with image
-            user_message = Message(
-                conversation_id=conversation.id,
-                role='user',
-                content=data.get('message', ''),
-                image_url=image_url
-            )
-            db.session.add(user_message)
+                # Create message for OpenAI with image
+                openai_message_content = []
 
-            # Create message for OpenAI with file attachment
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', ''),
-                file_ids=[image_file.id]
-            )
+                # Add image content
+                openai_message_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image_url
+                    }
+                })
+
+                # Add text content if present
+                if data.get('message'):
+                    openai_message_content.append({
+                        "type": "text",
+                        "text": data['message']
+                    })
+
+                # Send message to OpenAI with image URL
+                client.beta.threads.messages.create(
+                    thread_id=conversation.thread_id,
+                    role="user",
+                    content=openai_message_content
+                )
+            except Exception as img_error:
+                logger.error(f"Image processing error: {str(img_error)}")
+                raise Exception("Failed to process image. Please make sure it's a valid image file.")
         else:
             # Store text-only message
             user_message = Message(
@@ -264,11 +276,12 @@ def handle_message(data):
         emit('receive_message', {'message': assistant_message})
 
     except Exception as e:
+        logger.error(f"Error in handle_message: {str(e)}")
         error_message = str(e)
-        if "file" in error_message.lower():
-            emit('receive_message', {'message': 'Error processing image. Please try a different image or format.'})
+        if "image" in error_message.lower():
+            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.'})
         else:
-            emit('receive_message', {'message': f'Error: {error_message}'})
+            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.'})
 
 @socketio.on('rename_conversation')
 def handle_rename(data):
@@ -514,7 +527,6 @@ def admin_platform_data(platform):
         }
 
     return jsonify(data)
-
 
 
 if __name__ == '__main__':
