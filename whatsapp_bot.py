@@ -36,6 +36,7 @@ class WhatsAppMessage(db.Model):
 def get_or_create_thread(phone_number):
     """Get existing thread or create new one for a phone number"""
     try:
+        # Fix the query to use proper SQLAlchemy syntax
         message = WhatsAppMessage.query.filter(
             WhatsAppMessage.from_number == phone_number,
             WhatsAppMessage.thread_id.isnot(None)
@@ -45,14 +46,17 @@ def get_or_create_thread(phone_number):
             logger.info(f"Found existing thread {message.thread_id} for {phone_number}")
             return message.thread_id
 
+        # Create new thread if none exists
         thread = client.beta.threads.create()
         logger.info(f"Created new thread {thread.id} for {phone_number}")
         return thread.id
     except Exception as e:
         logger.error(f"Error in get_or_create_thread: {str(e)}")
+        # Create new thread as fallback
         thread = client.beta.threads.create()
         return thread.id
 
+# Ajoute cette fonction pour télécharger l'image
 def download_whatsapp_image(image_id):
     """Download image from WhatsApp servers"""
     phone_id = os.environ.get('WHATSAPP_PHONE_ID')
@@ -69,6 +73,7 @@ def download_whatsapp_image(image_id):
     }
 
     try:
+        # Première requête pour obtenir l'URL de l'image
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -77,16 +82,20 @@ def download_whatsapp_image(image_id):
             logger.error(f"No URL in image data: {data}")
             return None
 
+        # Deuxième requête pour télécharger l'image réelle
         image_response = requests.get(data['url'], headers=headers)
         image_response.raise_for_status()
 
+        # Générer un nom de fichier unique
         filename = f"{image_id}_{int(time.time())}.jpg"
         filepath = os.path.join('static/uploads', filename)
 
+        # Sauvegarder l'image
         os.makedirs('static/uploads', exist_ok=True)
         with open(filepath, 'wb') as f:
             f.write(image_response.content)
 
+        # Retourner l'URL locale de l'image
         return request.url_root.rstrip('/') + f"/static/uploads/{filename}"
 
     except Exception as e:
@@ -98,7 +107,9 @@ def generate_ai_response(message_body, thread_id, image_url=None):
     try:
         logger.info(f"Generating AI response for thread {thread_id}")
 
+        # Prépare le contenu du message
         if image_url:
+            # Message avec image + texte optionnel
             content = [
                 {
                     "type": "image_url",
@@ -106,29 +117,34 @@ def generate_ai_response(message_body, thread_id, image_url=None):
                 }
             ]
 
+            # Ajoute le texte si présent
             if message_body:
                 content.append({
                     "type": "text",
                     "text": message_body
                 })
 
+            # Ajoute le message au thread
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
                 content=content
             )
         else:
+            # Message texte uniquement
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
                 content=message_body
             )
 
+        # Run the assistant
         run = client.beta.threads.runs.create(
             thread_id=thread_id,
             assistant_id=ASSISTANT_ID
         )
 
+        # Wait for response with timeout
         timeout = 30
         start_time = time.time()
 
@@ -152,9 +168,10 @@ def generate_ai_response(message_body, thread_id, image_url=None):
 
             time.sleep(1)
 
+        # Get the assistant's response
         messages = client.beta.threads.messages.list(thread_id=thread_id)
         response = messages.data[0].content[0].text.value
-        logger.info(f"Generated response: {response[:100]}...")
+        logger.info(f"Generated response: {response[:100]}...")  # Log first 100 chars
         return response
 
     except Exception as e:
@@ -254,16 +271,6 @@ def verify_webhook():
     logger.warning("Invalid verification request")
     return 'Invalid request', 400
 
-#Added for the socketio
-from app import socketio, app
-
-def get_platform_data(platform):
-    # Replace this with your actual data retrieval logic
-    if platform == 'whatsapp':
-        return {'platform': 'whatsapp', 'messages': 10, 'users': 5}
-    else:
-        return {}
-
 @whatsapp.route('/webhook', methods=['POST'])
 def receive_webhook():
     """Handle incoming webhook events from WhatsApp"""
@@ -300,7 +307,7 @@ def receive_webhook():
                         # Get or create thread for this user
                         thread_id = get_or_create_thread(sender)
 
-                        # Process message based on type
+                        # Traiter différemment selon le type de message
                         message_body = None
                         image_url = None
 
@@ -309,15 +316,20 @@ def receive_webhook():
                             logger.info(f"Text message: {message_body[:100]}...")
 
                         elif message_type == 'image':
+                            # Récupérer l'ID de l'image
                             image_id = message.get('image', {}).get('id')
                             if image_id:
+                                # Télécharger l'image
                                 image_url = download_whatsapp_image(image_id)
                                 logger.info(f"Downloaded image to: {image_url}")
+                                # Récupérer la légende si présente
                                 message_body = message.get('image', {}).get('caption', '')
                                 logger.info(f"Image caption: {message_body}")
 
                         else:
+                            # Type de message non supporté
                             logger.info(f"Unsupported message type: {message_type}")
+                            # Envoyer un message d'information à l'utilisateur
                             send_whatsapp_message(
                                 sender, 
                                 f"Désolé, les messages de type '{message_type}' ne sont pas encore pris en charge."
@@ -355,15 +367,11 @@ def receive_webhook():
                             db.session.add(outbound_msg)
                             db.session.commit()
                             logger.info(f"Sent response to {sender}: {response_text[:100]}...")
-
-                        # Emit real-time update for admin dashboard
-                        with app.app_context():
-                            socketio.emit('stats_update', get_platform_data('whatsapp'), room='stats_room')
-
                     except Exception as e:
                         logger.error(f"Error processing message: {str(e)}")
                         db.session.rollback()
 
+                        # Tenter d'envoyer un message d'erreur à l'utilisateur
                         try:
                             send_whatsapp_message(
                                 sender, 
@@ -386,11 +394,6 @@ def receive_webhook():
                             message.status = status_value
                             db.session.commit()
                             logger.info(f"Updated status for message {message_id} to {status_value}")
-
-                            # Emit real-time update for admin dashboard after status change
-                            with app.app_context():
-                                socketio.emit('stats_update', get_platform_data('whatsapp'), room='stats_room')
-
                     except Exception as e:
                         logger.error(f"Error processing status update: {str(e)}")
                         db.session.rollback()
@@ -402,6 +405,7 @@ def receive_webhook():
         logger.error(f"Error processing webhook: {str(e)}")
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
+
 
 def calculate_test_signature(payload):
     """Helper function to calculate webhook signature for testing"""

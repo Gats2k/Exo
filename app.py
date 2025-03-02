@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
-from flask_socketio import SocketIO, emit, join_room, leave_room # Added imports
+from flask_socketio import SocketIO, emit
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 import base64
@@ -524,111 +524,14 @@ def admin_dashboard():
 
 @app.route('/admin/data/<platform>')
 def admin_platform_data(platform):
-    return jsonify(get_platform_data(platform)) # Updated route
-
-
-@socketio.on('join_stats_room')
-def on_join_stats_room():
-    """Handle client joining the stats room"""
-    join_room('stats_room')
-    logger.debug(f"Client {request.sid} joined stats room")
-
-@socketio.on('platform_changed')
-def on_platform_change(data):
-    """Handle platform change events"""
-    platform = data.get('platform')
-    if platform:
-        fresh_data = get_platform_data(platform)
-        emit('stats_update', fresh_data, room='stats_room')
-
-def emit_stats_update(platform):
-    """Helper function to emit updated statistics"""
-    with app.app_context():
-        data = get_platform_data(platform)
-        socketio.emit('stats_update', data, room='stats_room')
-
-def get_platform_data(platform):
-    """Get platform specific data"""
     today = datetime.today().date()
 
-    if platform == 'whatsapp':
-        try:
-            messages = WhatsAppMessage.query.all()
-            unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
-
-            today_messages = [msg for msg in messages if msg.timestamp.date() == today]
-            today_users = db.session.query(WhatsAppMessage.from_number)\
-                .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
-                .distinct().all()
-
-            conversations = db.session.query(
-                WhatsAppMessage.thread_id,
-                db.func.min(WhatsAppMessage.timestamp).label('created_at'),
-                db.func.count().label('message_count')
-            ).group_by(WhatsAppMessage.thread_id).all()
-
-            return {
-                'active_users': len(unique_users),
-                'active_users_today': len(today_users),
-                'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
-                'satisfaction_rate': 0,
-                'platform': 'whatsapp',
-                'users': [{
-                    'name': f'WhatsApp User {user[0]}',
-                    'phone': user[0],
-                    'study_level': 'N/A',
-                    'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
-                        .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
-                } for user in unique_users],
-                'conversations': [{
-                    'title': f'Conversation {conv.thread_id}',
-                    'date': conv.created_at.strftime('%d/%m/%Y'),
-                    'time': conv.created_at.strftime('%H:%M'),
-                    'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
-                        .order_by(WhatsAppMessage.timestamp.desc()).first().content
-                } for conv in conversations]
-            }
-        except Exception as e:
-            logger.error(f"Error getting WhatsApp platform data: {str(e)}")
-            return {
-                'active_users': 0,
-                'active_users_today': 0,
-                'today_conversations': 0,
-                'satisfaction_rate': 0,
-                'platform': 'whatsapp',
-                'users': [],
-                'conversations': []
-            }
-
-    elif platform == 'telegram':
-        users = TelegramUser.query.all()
-        conversations = TelegramConversation.query.all()
-
-        return {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0,
-            'platform': 'telegram',
-            'users': [{
-                'name': f'Telegram User {user.telegram_id}',
-                'phone': user.phone_number,
-                'study_level': user.study_level,
-                'created_at': user.created_at.strftime('%d/%m/%Y')
-            } for user in users],
-            'conversations': [{
-                'title': conv.title,
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
-            } for conv in conversations]
-        }
-
-    elif platform == 'web':
+    if platform == 'web':
+        # Get web platform statistics
         users = User.query.all()
         conversations = Conversation.query.all()
 
-        return {
+        data = {
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
@@ -649,6 +552,74 @@ def get_platform_data(platform):
                 'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
             } for conv in conversations]
         }
+
+    elif platform == 'telegram':
+        # For telegram, query telegram-specific data
+        users = TelegramUser.query.all()
+        conversations = TelegramConversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0,
+            'platform': 'telegram',
+            'users': [{
+                'name': f'Telegram User {user.telegram_id}',
+                'phone': user.phone_number,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title,
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+            } for conv in conversations]
+        }
+
+    elif platform == 'whatsapp':
+        # Get WhatsApp statistics
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
+        data = {
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate': 0,
+            'platform': 'whatsapp',
+            'users': [{
+                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'phone': user[0],
+                'study_level': 'N/A',
+                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
+                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
+            } for user in unique_users],
+            'conversations': [{
+                'title': f'Conversation {conv.thread_id}',
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
+                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+            } for conv in conversations]
+        }
+
+    return jsonify(data)
+
 
 @login_manager.unauthorized_handler
 def unauthorized():

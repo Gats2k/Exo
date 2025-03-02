@@ -33,10 +33,7 @@ function selectPlatform(platform) {
     // Hide dropdown
     dropdown.classList.remove('show');
 
-    // Emit platform change event
-    emitPlatformChange(platform);
-
-    // Fetch initial data for the platform
+    // Fetch data for selected platform
     fetchPlatformData(platform);
 }
 
@@ -221,31 +218,7 @@ document.addEventListener('click', function(event) {
   }
 });
 
-// Initialize socket connection
-const socket = io();
-
-// Listen for real-time updates
-socket.on('stats_update', function(data) {
-    console.log('Received stats update:', data);
-    updateDashboardStats(data);
-});
-
-socket.on('connect', function() {
-    console.log('Connected to server');
-});
-
-socket.on('disconnect', function() {
-    console.log('Disconnected from server');
-});
-
 // Initialize the dashboard with web data by default
 document.addEventListener('DOMContentLoaded', function() {
-    fetchPlatformData('web');
-
-    // Join the stats update room
-    socket.emit('join_stats_room');
+  fetchPlatformData('web');
 });
-
-function emitPlatformChange(platform) {
-    socket.emit('platform_changed', { platform: platform });
-}
