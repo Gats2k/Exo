@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room # Added imports
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 import base64
@@ -524,14 +524,40 @@ def admin_dashboard():
 
 @app.route('/admin/data/<platform>')
 def admin_platform_data(platform):
+    return jsonify(get_platform_data(platform)) # Updated route
+
+
+@socketio.on('join_stats_room')
+def on_join_stats_room():
+    """Handle client joining the stats room"""
+    join_room('stats_room')
+    logger.debug(f"Client {request.sid} joined stats room")
+
+@socketio.on('platform_changed')
+def on_platform_change(data):
+    """Handle platform change events"""
+    platform = data.get('platform')
+    if platform:
+        # Get fresh data for the selected platform
+        with app.app_context():
+            fresh_data = get_platform_data(platform)
+            emit('stats_update', fresh_data, room='stats_room')
+
+def emit_stats_update(platform):
+    """Helper function to emit updated statistics"""
+    with app.app_context():
+        data = get_platform_data(platform)
+        socketio.emit('stats_update', data, room='stats_room')
+
+def get_platform_data(platform):
+    """Get platform specific data"""
     today = datetime.today().date()
 
     if platform == 'web':
-        # Get web platform statistics
         users = User.query.all()
         conversations = Conversation.query.all()
 
-        data = {
+        return {
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
@@ -554,11 +580,10 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'telegram':
-        # For telegram, query telegram-specific data
         users = TelegramUser.query.all()
         conversations = TelegramConversation.query.all()
 
-        data = {
+        return {
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
@@ -579,31 +604,28 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'whatsapp':
-        # Get WhatsApp statistics
         messages = WhatsAppMessage.query.all()
         unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
 
-        # Calculate today's statistics
         today_messages = [msg for msg in messages if msg.timestamp.date() == today]
         today_users = db.session.query(WhatsAppMessage.from_number)\
             .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
             .distinct().all()
 
-        # Get conversations grouped by thread_id
         conversations = db.session.query(
             WhatsAppMessage.thread_id,
             db.func.min(WhatsAppMessage.timestamp).label('created_at'),
             db.func.count().label('message_count')
         ).group_by(WhatsAppMessage.thread_id).all()
 
-        data = {
+        return {
             'active_users': len(unique_users),
             'active_users_today': len(today_users),
             'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
             'satisfaction_rate': 0,
             'platform': 'whatsapp',
             'users': [{
-                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'name': f'WhatsApp User {user[0]}',
                 'phone': user[0],
                 'study_level': 'N/A',
                 'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
@@ -617,9 +639,6 @@ def admin_platform_data(platform):
                     .order_by(WhatsAppMessage.timestamp.desc()).first().content
             } for conv in conversations]
         }
-
-    return jsonify(data)
-
 
 @login_manager.unauthorized_handler
 def unauthorized():
