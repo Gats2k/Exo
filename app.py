@@ -414,7 +414,10 @@ def login():
         password = request.form.get('password')
 
         # Check for admin credentials
-        if User.is_admin_credentials(phone_number, password):
+        if phone_number == os.environ.get('ADMIN_PHONE') and \
+           password == os.environ.get('ADMIN_PASSWORD'):
+            # Create admin session
+            session['is_admin'] = True
             return redirect(url_for('admin_dashboard'))
 
         user = User.query.filter_by(phone_number=phone_number).first()
@@ -488,9 +491,13 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 @app.route('/admin')
-@login_required #Added login_required decorator for security
 def admin_dashboard():
     """Admin dashboard route that displays platform statistics"""
+    # Check if user is admin
+    if not session.get('is_admin'):
+        flash('Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.', 'error')
+        return redirect(url_for('login'))
+
     today = datetime.today().date()
 
     # Get web platform data
