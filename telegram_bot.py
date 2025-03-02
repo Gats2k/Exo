@@ -20,7 +20,7 @@ from contextlib import contextmanager
 # Set up logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG  # Changed to DEBUG for more verbose logging
+    level=logging.DEBUG  
 )
 logger = logging.getLogger(__name__)
 
@@ -378,6 +378,11 @@ def setup_telegram_bot():
 def run_telegram_bot():
     """Run the Telegram bot."""
     try:
+        # Only run if explicitly enabled
+        if not os.environ.get('RUN_TELEGRAM_BOT'):
+            logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
+            return
+
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -388,3 +393,6 @@ def run_telegram_bot():
     except Exception as e:
         logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
         raise
+
+if __name__ == '__main__':
+    run_telegram_bot()

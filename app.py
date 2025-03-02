@@ -518,7 +518,22 @@ def admin_platform_data(platform):
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0  # Initialize to 0 as requested
+            'satisfaction_rate': 0,  # Initialize to 0 as requested
+            'platform': 'web',
+            'users': [{
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number,
+                'age': user.age,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title or "Sans titre",
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+            } for conv in conversations]
         }
 
     elif platform == 'telegram':
@@ -572,6 +587,7 @@ if __name__ == '__main__':
     scheduler.start()
 
     try:
+        # Only run Flask server, Telegram bot should be run separately
         socketio.run(app, host='0.0.0.0', port=5000, debug=True)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()

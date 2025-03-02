@@ -399,16 +399,31 @@
                             <th>Téléphone</th>
                             <th>Niveau d'étude</th>
                             <th>Date d'inscription</th>
+                            {% if platform == 'web' %}
+                            <th>Prénom</th>
+                            <th>Âge</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
+                        {% if platform == 'web' %}
+                        <tr>
+                            <td>{{ user.last_name }}</td>
+                            <td>{{ user.first_name }}</td>
+                            <td>{{ user.phone_number }}</td>
+                            <td>{{ user.age }}</td>
+                            <td>{{ user.study_level }}</td>
+                            <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
+                        </tr>
+                        {% else %}
                         <tr>
                             <td>{{ user.name }}</td>
                             <td>{{ user.phone_number }}</td>
                             <td>{{ user.study_level }}</td>
                             <td>{{ user.created_at }}</td>
                         </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -506,6 +521,43 @@ function updateTableWithTelegramData(data) {
     }
 }
 
+function updateTableWithWebData(data) {
+    const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
+    const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
+
+    // Clear existing table data
+    usersTable.innerHTML = '';
+    conversationsTable.innerHTML = '';
+
+    // Update users table
+    if (data.users && data.users.length > 0) {
+        data.users.forEach(user => {
+            const row = usersTable.insertRow();
+            row.innerHTML = `
+                <td>${user.last_name}</td>
+                <td>${user.first_name}</td>
+                <td>${user.phone_number}</td>
+                <td>${user.age}</td>
+                <td>${user.study_level}</td>
+                <td>${user.created_at}</td>
+            `;
+        });
+    }
+
+    // Update conversations table
+    if (data.conversations && data.conversations.length > 0) {
+        data.conversations.forEach(conv => {
+            const row = conversationsTable.insertRow();
+            row.innerHTML = `
+                <td>${conv.title}</td>
+                <td>${conv.date}</td>
+                <td>${conv.time}</td>
+                <td>${conv.last_message}</td>
+            `;
+        });
+    }
+}
+
 function updateDashboardStats(data) {
     try {
         // Update active users
@@ -533,20 +585,13 @@ function updateDashboardStats(data) {
                 usersTable.style.display = 'none';
                 usersEmptyState.style.display = 'block';
             }
-
-            if (data.conversations && data.conversations.length > 0) {
-                conversationsTable.style.display = 'table';
-                conversationsEmptyState.style.display = 'none';
-            } else {
-                conversationsTable.style.display = 'none';
-                conversationsEmptyState.style.display = 'block';
-            }
         } else {
-            // Show web platform tables
+            // Web platform
             usersTable.style.display = 'table';
             conversationsTable.style.display = 'table';
             usersEmptyState.style.display = 'none';
             conversationsEmptyState.style.display = 'none';
+            updateTableWithWebData(data);
         }
     } catch (error) {
         console.error('Error updating dashboard stats:', error);
