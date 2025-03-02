@@ -521,8 +521,10 @@ def admin_platform_data(platform):
             'satisfaction_rate': 0,  # Initialize to 0 as requested
             'platform': 'web',
             'users': [{
+                'first_name': user.first_name,
                 'last_name': user.last_name,
                 'phone_number': user.phone_number,
+                'age': user.age,
                 'study_level': user.study_level,
                 'created_at': user.created_at.strftime('%d/%m/%Y')
             } for user in users],
