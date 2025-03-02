@@ -397,7 +397,6 @@
                         <tr>
                             <th>Nom</th>
                             <th>Téléphone</th>
-                            <th>Age</th>
                             <th>Niveau d'étude</th>
                             <th>Date d'inscription</th>
                         </tr>
@@ -405,9 +404,8 @@
                     <tbody>
                         {% for user in users %}
                         <tr>
-                            <td>{{ user.name }}</td>
+                            <td>{{ user.last_name }}</td>
                             <td>{{ user.phone_number }}</td>
-                            <td>{{ user.age }}</td>
                             <td>{{ user.study_level }}</td>
                             <td>{{ user.created_at }}</td>
                         </tr>
