@@ -8,6 +8,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: white;
+  overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 .top-nav {
@@ -20,7 +21,7 @@ body {
   right: 0;
   top: 0;
   left: var(--sidebar-width);
-  height: 72px; /* Match height of sidebar header */
+  height: 72px;
   z-index: 100;
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
@@ -47,7 +48,7 @@ body {
 
 .sidebar {
   width: var(--sidebar-width);
-  min-height: 100vh;
+  height: 100vh;
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -60,6 +61,7 @@ body {
   flex-direction: column;
   color: white;
   z-index: 101;
+  overflow-y: auto; /* Allow sidebar content to scroll if needed */
 }
 
 .sidebar-header {
@@ -150,8 +152,11 @@ body {
 
 .main-content {
   margin-left: var(--sidebar-width);
-  padding: 20px 20px 20px 40px;
-  padding-top: 92px; /* top-nav height (72px) + 20px */
+  padding: 92px 20px 20px 40px; /* Increased top padding to account for fixed header */
+  min-height: 100vh;
+  width: calc(100% - var(--sidebar-width));
+  position: relative;
+  overflow-y: auto; /* Enable vertical scrolling */
 }
 
 .container {
@@ -288,4 +293,29 @@ body {
 .empty-state i {
   font-size: 2em;
   margin-bottom: 15px;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 92px 10px 20px;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  .top-nav {
+    left: 0;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
