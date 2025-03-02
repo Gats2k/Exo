@@ -8,7 +8,6 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
 from openai import OpenAI
-from flask_socketio import SocketIO # Added import for SocketIO
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -355,47 +354,19 @@ def receive_webhook():
                         # Send response via WhatsApp
                         response = send_whatsapp_message(sender, response_text)
 
-                        # Store outbound message and emit SocketIO event
-                        try:
-                            if response and 'messages' in response:
-                                outbound_msg = WhatsAppMessage(
-                                    message_id=response['messages'][0]['id'],
-                                    to_number=sender,
-                                    content=response_text,
-                                    direction='outbound',
-                                    status='sent',
-                                    thread_id=thread_id
-                                )
-                                db.session.add(outbound_msg)
-                                db.session.commit()
-                                logger.info(f"Sent response to {sender}: {response_text[:100]}...")
-
-                                # Emit real-time update for dashboard
-                                with app.app_context(): #Assumes app is the flask app instance
-                                    today = datetime.today().date()
-                                    unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
-                                    today_users = db.session.query(WhatsAppMessage.from_number)\
-                                        .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
-                                        .distinct().all()
-
-                                    # Get conversations grouped by thread_id
-                                    conversations = db.session.query(
-                                        WhatsAppMessage.thread_id,
-                                        db.func.min(WhatsAppMessage.timestamp).label('created_at'),
-                                        db.func.count().label('message_count')
-                                    ).group_by(WhatsAppMessage.thread_id).all()
-
-                                    socketio.emit('whatsapp_stats_update', { #Assumes socketio is the SocketIO instance
-                                        'active_users': len(unique_users),
-                                        'active_users_today': len(today_users),
-                                        'today_conversations': len([c for c in conversations if c.created_at.date() == today])
-                                    })
-
-                        except Exception as e:
-                            logger.error(f"Error emitting SocketIO event or storing outbound message: {str(e)}")
-                            db.session.rollback()
-
-
+                        # Store outbound message
+                        if response and 'messages' in response:
+                            outbound_msg = WhatsAppMessage(
+                                message_id=response['messages'][0]['id'],
+                                to_number=sender,
+                                content=response_text,
+                                direction='outbound',
+                                status='sent',
+                                thread_id=thread_id
+                            )
+                            db.session.add(outbound_msg)
+                            db.session.commit()
+                            logger.info(f"Sent response to {sender}: {response_text[:100]}...")
                     except Exception as e:
                         logger.error(f"Error processing message: {str(e)}")
                         db.session.rollback()
