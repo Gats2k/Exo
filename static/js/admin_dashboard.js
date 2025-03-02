@@ -218,6 +218,16 @@ document.addEventListener('click', function(event) {
   }
 });
 
+// Add socket listener for WhatsApp stats updates
+socket.on('whatsapp_stats_update', function(data) {
+    if (document.getElementById('selected-platform').textContent.toLowerCase() === 'whatsapp') {
+        // Update statistics only if WhatsApp platform is currently selected
+        document.querySelector('.stat-value').textContent = data.active_users;
+        document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
+        document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+    }
+});
+
 // Initialize the dashboard with web data by default
 document.addEventListener('DOMContentLoaded', function() {
   fetchPlatformData('web');
