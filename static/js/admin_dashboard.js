@@ -4,27 +4,25 @@ function toggleDropdown() {
 }
 
 function selectPlatform(platform) {
-    const selectedText = document.getElementById('selected-platform');
-    const platformIcon = document.getElementById('platform-icon');
-    const dropdown = document.getElementById('platformDropdown');
-    const options = dropdown.getElementsByClassName('web-selector-option');
+  const selectedText = document.getElementById('selected-platform');
+  const platformIcon = document.getElementById('platform-icon');
+  const dropdown = document.getElementById('platformDropdown');
+  const options = dropdown.getElementsByClassName('web-selector-option');
 
-    // Update selected text and icon
-    selectedText.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-    platformIcon.className = platform === 'web' ? 'bi bi-globe' : 
-                           platform === 'telegram' ? 'bi bi-telegram' : 
-                           'bi bi-whatsapp';
+  // Update selected text and icon
+  selectedText.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+  platformIcon.className = platform === 'web' ? 'bi bi-globe' : 'bi bi-telegram';
 
-    // Update active state
-    Array.from(options).forEach(option => {
-        option.classList.toggle('active', option.textContent.trim().toLowerCase() === platform);
-    });
+  // Update active state
+  Array.from(options).forEach(option => {
+      option.classList.toggle('active', option.textContent.trim().toLowerCase() === platform);
+  });
 
-    // Hide dropdown
-    dropdown.classList.remove('show');
+  // Hide dropdown
+  dropdown.classList.remove('show');
 
-    // Fetch data for selected platform
-    fetchPlatformData(platform);
+  // Fetch data for selected platform
+  fetchPlatformData(platform);
 }
 
 function updateTableWithWebData(data) {
@@ -109,92 +107,45 @@ function updateTableWithTelegramData(data) {
   }
 }
 
-function updateTableWithWhatsAppData(data) {
-    const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
-    const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
-
-    // Clear existing table data
-    usersTable.innerHTML = '';
-    conversationsTable.innerHTML = '';
-
-    // Update users table
-    if (data.users && data.users.length > 0) {
-        data.users.forEach(user => {
-            const row = usersTable.insertRow();
-            row.innerHTML = `
-                <td>${user.name || ''}</td>
-                <td>--</td>
-                <td>--</td>
-                <td>${user.phone || ''}</td>
-                <td>${user.study_level || ''}</td>
-                <td>${user.created_at || ''}</td>
-            `;
-        });
-    }
-
-    // Update conversations table
-    if (data.conversations && data.conversations.length > 0) {
-        data.conversations.forEach(conv => {
-            const row = conversationsTable.insertRow();
-            row.innerHTML = `
-                <td>${conv.title || 'Sans titre'}</td>
-                <td>${conv.date || ''}</td>
-                <td>${conv.time || ''}</td>
-                <td>${conv.last_message || ''}</td>
-            `;
-        });
-    }
-}
-
 function updateDashboardStats(data) {
-    try {
-        // Update active users
-        document.querySelector('.stat-value').textContent = data.active_users;
-        document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
+  try {
+      // Update active users
+      document.querySelector('.stat-value').textContent = data.active_users;
+      document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
 
-        // Update conversations
-        document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+      // Update conversations
+      document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
 
-        // Update satisfaction
-        document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+      // Update satisfaction
+      document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
 
-        // Get table and empty state elements
-        const usersTable = document.getElementById('usersTable');
-        const conversationsTable = document.getElementById('conversationsTable');
-        const usersEmptyState = document.querySelector('#usersTableContainer .empty-state');
-        const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
+      // Get table and empty state elements
+      const usersTable = document.getElementById('usersTable');
+      const conversationsTable = document.getElementById('conversationsTable');
+      const usersEmptyState = document.querySelector('#usersTableContainer .empty-state');
+      const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
 
-        if (data.platform === 'telegram') {
-            // Handle Telegram data
-            if (data.users && data.users.length > 0) {
-                usersTable.style.display = 'table';
-                usersEmptyState.style.display = 'none';
-                updateTableWithTelegramData(data);
-            } else {
-                usersTable.style.display = 'none';
-                usersEmptyState.style.display = 'block';
-            }
-        } else if (data.platform === 'whatsapp') {
-            // Handle WhatsApp data
-            if (data.users && data.users.length > 0) {
-                usersTable.style.display = 'table';
-                usersEmptyState.style.display = 'none';
-                updateTableWithWhatsAppData(data);
-            } else {
-                usersTable.style.display = 'none';
-                usersEmptyState.style.display = 'block';
-            }
-        } else {
-            // Handle Web data
-            usersTable.style.display = 'table';
-            conversationsTable.style.display = 'table';
-            usersEmptyState.style.display = 'none';
-            conversationsEmptyState.style.display = 'none';
-            updateTableWithWebData(data);
-        }
-    } catch (error) {
-        console.error('Error updating dashboard stats:', error);
-    }
+      if (data.platform === 'telegram') {
+          // Handle Telegram data
+          if (data.users && data.users.length > 0) {
+              usersTable.style.display = 'table';
+              usersEmptyState.style.display = 'none';
+              updateTableWithTelegramData(data);
+          } else {
+              usersTable.style.display = 'none';
+              usersEmptyState.style.display = 'block';
+          }
+      } else {
+          // Handle Web data
+          usersTable.style.display = 'table';
+          conversationsTable.style.display = 'table';
+          usersEmptyState.style.display = 'none';
+          conversationsEmptyState.style.display = 'none';
+          updateTableWithWebData(data);
+      }
+  } catch (error) {
+      console.error('Error updating dashboard stats:', error);
+  }
 }
 
 function fetchPlatformData(platform) {

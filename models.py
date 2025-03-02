@@ -73,31 +73,3 @@ class TelegramMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     image_url = db.Column(db.String(512))  # Optional, for messages with images
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-# WhatsApp-specific models
-class WhatsAppUser(db.Model):
-    __tablename__ = 'whatsapp_user'
-    phone_number = db.Column(db.String(20), primary_key=True)  # WhatsApp users are identified by phone numbers
-    name = db.Column(db.String(64), default="---")
-    study_level = db.Column(db.String(20), default="---")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    conversations = db.relationship('WhatsAppConversation', backref='user', lazy=True)
-
-class WhatsAppConversation(db.Model):
-    __tablename__ = 'whatsapp_conversation'
-    id = db.Column(db.Integer, primary_key=True)
-    whatsapp_user_phone = db.Column(db.String(20), db.ForeignKey('whatsapp_user.phone_number'), nullable=False)
-    thread_id = db.Column(db.String(255), nullable=False, unique=True)
-    title = db.Column(db.String(255), default="Nouvelle conversation")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    messages = db.relationship('WhatsAppMessage', backref='conversation', lazy=True, cascade='all, delete-orphan')
-
-class WhatsAppMessage(db.Model):
-    __tablename__ = 'whatsapp_message'
-    id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey('whatsapp_conversation.id', ondelete='CASCADE'), nullable=False)
-    role = db.Column(db.String(50), nullable=False)  # 'user' or 'assistant'
-    content = db.Column(db.Text, nullable=False)
-    image_url = db.Column(db.String(512))  # Optional, for messages with images
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
