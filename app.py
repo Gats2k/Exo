@@ -66,7 +66,7 @@ login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
 from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
-from whatsapp_bot import whatsapp, WhatsAppMessage, WhatsAppUser
+from whatsapp_bot import whatsapp, WhatsAppMessage
 
 # Create tables within application context
 with app.app_context():
@@ -567,45 +567,19 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'whatsapp':
-        today = datetime.today().date()
-
-        # Get WhatsApp platform statistics
-        users = WhatsAppUser.query.all()
-        messages = WhatsAppMessage.query.all()
-
-        # Group messages by thread_id to count conversations
-        conversations = {}
-        for msg in messages:
-            if msg.thread_id:
-                if msg.thread_id not in conversations:
-                    conversations[msg.thread_id] = {
-                        'messages': [],
-                        'created_at': msg.timestamp
-                    }
-                conversations[msg.thread_id]['messages'].append(msg)
-
+        # Return empty WhatsApp data structure
         data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations.values() 
-                                    if conv['created_at'].date() == today),
-            'satisfaction_rate': 0,  # Future enhancement
+            'active_users': 0,
+            'active_users_today': 0,
+            'today_conversations': 0,
+            'satisfaction_rate': 0,
             'platform': 'whatsapp',
-            'users': [{
-                'name': 'Unknown',  # WhatsApp doesn't provide names
-                'phone': user.phone_number,
-                'study_level': 'Unknown',  # Not available from WhatsApp
-                'created_at': user.created_at.strftime('%d/%m/%Y')
-            } for user in users],
-            'conversations': [{
-                'title': f"Chat {thread_id[-8:]}",  # Use last 8 chars of thread_id
-                'date': conv['created_at'].strftime('%d/%m/%Y'),
-                'time': conv['created_at'].strftime('%H:%M'),
-                'last_message': conv['messages'][-1].content if conv['messages'] else "No messages"
-            } for thread_id, conv in conversations.items()]
+            'users': [],
+            'conversations': []
         }
 
-        return jsonify(data)
+    return jsonify(data)
+
 
 @login_manager.unauthorized_handler
 def unauthorized():
