@@ -1,11 +1,14 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables before any other imports
+load_dotenv()
+
 import eventlet
 eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
-import os
-from dotenv import load_dotenv
-import uuid
 from werkzeug.utils import secure_filename
 import base64
 from io import BytesIO
@@ -21,9 +24,6 @@ from flask_login import LoginManager, current_user, login_user, logout_user, log
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
@@ -44,14 +44,14 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,  # Enable connection pool pre-ping
 }
 
+# Create upload folder if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 # Initialize database
 from database import db
 db.init_app(app)
 
-# Create upload folder if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Initialize SocketIO
+# Initialize SocketIO with eventlet
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI client

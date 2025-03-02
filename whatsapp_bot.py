@@ -31,7 +31,11 @@ def send_whatsapp_message(to_number, message):
     phone_id = os.environ.get('WHATSAPP_PHONE_ID')
     token = os.environ.get('WHATSAPP_API_TOKEN')
 
-    url = f"https://graph.facebook.com/v22.0/{phone_id}/messages"
+    if not phone_id or not token:
+        logger.error("Missing WhatsApp credentials")
+        raise ValueError("Missing WhatsApp credentials")
+
+    url = f"https://graph.facebook.com/v17.0/{phone_id}/messages"
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -65,6 +69,7 @@ def verify_webhook_signature(request_data, signature_header):
     app_secret = os.environ.get('WHATSAPP_APP_SECRET')
 
     if not app_secret or not signature_header or not signature_header.startswith('sha256='):
+        logger.warning("Invalid signature check parameters")
         return False
 
     actual_signature = signature_header.replace('sha256=', '')
@@ -86,9 +91,23 @@ def verify_webhook():
 
     verify_token = os.environ.get('WHATSAPP_VERIFY_TOKEN')
 
-    if mode and token and mode == 'subscribe' and token == verify_token:
-        return challenge, 200
-    return 'Forbidden', 403
+    logger.debug(f"Webhook verification attempt - Mode: {mode}, Token: {token}, Challenge: {challenge}")
+
+    if not verify_token:
+        logger.error("WHATSAPP_VERIFY_TOKEN not set")
+        return 'Configuration error', 500
+
+    if mode and token:
+        if mode == 'subscribe' and token == verify_token:
+            if challenge:
+                logger.info("Webhook verified successfully")
+                return challenge, 200
+            return 'No challenge received', 400
+        logger.warning("Invalid verification token")
+        return 'Forbidden', 403
+
+    logger.warning("Invalid verification request")
+    return 'Invalid request', 400
 
 @whatsapp.route('/webhook', methods=['POST'])
 def receive_webhook():
@@ -113,6 +132,8 @@ def receive_webhook():
                         sender = message.get('from')
                         message_body = message.get('text', {}).get('body', '')
                         message_id = message.get('id')
+
+                        logger.info(f"Received message from {sender}: {message_body}")
 
                         # Store incoming message
                         new_message = WhatsAppMessage(
