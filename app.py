@@ -1,11 +1,12 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from dotenv import load_dotenv
 
 # Load environment variables before any other imports
 load_dotenv()
 
-import eventlet
-eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
@@ -20,6 +21,7 @@ import time
 import logging
 from contextlib import contextmanager
 from flask_login import LoginManager, current_user, login_user, logout_user, login_required
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -64,8 +66,8 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
-from whatsapp_bot import whatsapp, WhatsAppMessage
+from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage, WhatsAppUser, WhatsAppConversation, WhatsAppMessage
+from whatsapp_bot import whatsapp
 
 # Create tables within application context
 with app.app_context():
@@ -487,91 +489,141 @@ def forgot_password():
 
 @app.route('/admin')
 def admin_dashboard():
-    today = datetime.today().date()
-    users = User.query.all()
-    conversations = Conversation.query.all()
+    try:
+        with app.app_context():
+            today = datetime.today().date()
+            users = User.query.all()
+            conversations = Conversation.query.all()
 
-    # Count today's conversations
-    today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
+            # Count today's conversations
+            today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
 
-    # Get actual number of users
-    active_users = len(users)
-    # Count users created today
-    active_users_today = sum(1 for user in users if user.created_at.date() == today)
-    # Initialize satisfaction rate to 0
-    satisfaction_rate = 0
+            # Get actual number of users
+            active_users = len(users)
+            # Count users created today
+            active_users_today = sum(1 for user in users if user.created_at.date() == today)
+            # Initialize satisfaction rate to 0
+            satisfaction_rate = 0
 
-    return render_template('admin_dashboard.html', 
-                         users=users, 
-                         conversations=conversations,
-                         active_users=active_users,
-                         active_users_today=active_users_today,
-                         today_conversations=today_conversations,
-                         satisfaction_rate=satisfaction_rate)
+            return render_template('admin_dashboard.html', 
+                               users=users, 
+                               conversations=conversations,
+                               active_users=active_users,
+                               active_users_today=active_users_today,
+                               today_conversations=today_conversations,
+                               satisfaction_rate=satisfaction_rate)
+    except Exception as e:
+        logger.error(f"Error in admin dashboard: {str(e)}")
+        flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
+        return redirect(url_for('login'))
 
 @app.route('/admin/data/<platform>')
 def admin_platform_data(platform):
-    today = datetime.today().date()
+    try:
+        with app.app_context():
+            today = datetime.today().date()
+            data = None
 
-    if platform == 'web':
-        # Get web platform statistics
-        users = User.query.all()
-        conversations = Conversation.query.all()
+            if platform == 'web':
+                # Get web platform statistics
+                users = User.query.all()
+                conversations = Conversation.query.all()
 
-        data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0,  # Initialize to 0 as requested
-            'platform': 'web',
-            'users': [{
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'phone_number': user.phone_number,
-                'age': user.age,
-                'study_level': user.study_level,
-                'created_at': user.created_at.strftime('%d/%m/%Y')
-            } for user in users],
-            'conversations': [{
-                'title': conv.title or "Sans titre",
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
-            } for conv in conversations]
-        }
+                data = {
+                    'active_users': len(users),
+                    'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+                    'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+                    'satisfaction_rate': 0,
+                    'platform': 'web',
+                    'users': [{
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'phone_number': user.phone_number,
+                        'age': user.age,
+                        'study_level': user.study_level,
+                        'created_at': user.created_at.strftime('%d/%m/%Y')
+                    } for user in users],
+                    'conversations': [{
+                        'title': conv.title or "Sans titre",
+                        'date': conv.created_at.strftime('%d/%m/%Y'),
+                        'time': conv.created_at.strftime('%H:%M'),
+                        'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+                    } for conv in conversations]
+                }
 
-    elif platform == 'telegram':
-        # For telegram, query telegram-specific data
-        users = TelegramUser.query.all()
-        conversations = TelegramConversation.query.all()
+            elif platform == 'telegram':
+                users = TelegramUser.query.all()
+                conversations = TelegramConversation.query.all()
 
-        # Process user data
-        user_data = [{
-            'name': f'Telegram User {user.telegram_id}',
-            'phone': user.phone_number,
-            'study_level': user.study_level,
-            'created_at': user.created_at.strftime('%d/%m/%Y')
-        } for user in users]
+                data = {
+                    'active_users': len(users),
+                    'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+                    'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+                    'satisfaction_rate': 0,
+                    'platform': 'telegram',
+                    'users': [{
+                        'name': user.first_name,
+                        'phone': user.phone_number,
+                        'study_level': user.study_level,
+                        'created_at': user.created_at.strftime('%d/%m/%Y')
+                    } for user in users],
+                    'conversations': [{
+                        'title': conv.title,
+                        'date': conv.created_at.strftime('%d/%m/%Y'),
+                        'time': conv.created_at.strftime('%H:%M'),
+                        'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+                    } for conv in conversations]
+                }
 
-        # Process conversation data
-        conversation_data = [{
-            'title': conv.title,
-            'date': conv.created_at.strftime('%d/%m/%Y'),
-            'time': conv.created_at.strftime('%H:%M'),
-            'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
-        } for conv in conversations]
+            elif platform == 'whatsapp':
+                users = WhatsAppUser.query.all()
+                conversations = WhatsAppConversation.query.all()
 
-        data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+                data = {
+                    'active_users': len(users),
+                    'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+                    'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+                    'satisfaction_rate': 0,
+                    'platform': 'whatsapp',
+                    'users': [{
+                        'name': user.name,
+                        'phone': user.phone_number,
+                        'study_level': user.study_level,
+                        'created_at': user.created_at.strftime('%d/%m/%Y')
+                    } for user in users],
+                    'conversations': [{
+                        'title': conv.title,
+                        'date': conv.created_at.strftime('%d/%m/%Y'),
+                        'time': conv.created_at.strftime('%H:%M'),
+                        'last_message': WhatsAppMessage.query.filter_by(conversation_id=conv.id).order_by(WhatsAppMessage.created_at.desc()).first().content if WhatsAppMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+                    } for conv in conversations]
+                }
+
+            if data is None:
+                raise ValueError(f"Invalid platform: {platform}")
+
+            return jsonify(data)
+
+    except Exception as e:
+        logger.error(f"Error in admin platform data: {str(e)}")
+        return jsonify({
+            'error': 'An error occurred while fetching platform data',
+            'platform': platform,
+            'active_users': 0,
+            'active_users_today': 0,
+            'today_conversations': 0,
             'satisfaction_rate': 0,
-            'platform': 'telegram',
-            'users': user_data,
-            'conversations': conversation_data
-        }
+            'users': [],
+            'conversations': []
+        }), 500
 
-    return jsonify(data)
+@app.route('/admin/users')
+def admin_users():
+    pass
+
+@app.route('/admin/conversations')
+def admin_conversations():
+    pass
 
 
 @login_manager.unauthorized_handler
