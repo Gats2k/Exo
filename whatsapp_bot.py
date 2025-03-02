@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
 from openai import OpenAI
+from models import WhatsAppUser, WhatsAppConversation, WhatsAppMessage
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -20,60 +21,6 @@ ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 # Create Blueprint for WhatsApp routes
 whatsapp = Blueprint('whatsapp', __name__)
 
-class WhatsAppMessage(db.Model):
-    __tablename__ = 'whatsapp_messages'
-
-    id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey('whatsapp_conversations.id'))
-    role = db.Column(db.String(20)) # "user" or "assistant"
-    message_id = db.Column(db.String(128), unique=True)
-    content = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-class WhatsAppUser(db.Model):
-    __tablename__ = 'whatsapp_users'
-    id = db.Column(db.Integer, primary_key=True)
-    phone_number = db.Column(db.String(20), unique=True)
-    name = db.Column(db.String(100))
-    age = db.Column(db.Integer)
-    study_level = db.Column(db.String(100))
-    conversations = db.relationship('WhatsAppConversation', backref='whatsapp_user', lazy=True)
-
-
-class WhatsAppConversation(db.Model):
-    __tablename__ = 'whatsapp_conversations'
-    id = db.Column(db.Integer, primary_key=True)
-    whatsapp_user_id = db.Column(db.Integer, db.ForeignKey('whatsapp_users.id'), nullable=False)
-    title = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    messages = db.relationship('WhatsAppMessage', backref='conversation', lazy=True)
-
-
-def get_or_create_thread(phone_number):
-    """Get existing thread or create new one for a phone number"""
-    try:
-        # Fix the query to use proper SQLAlchemy syntax
-        message = WhatsAppMessage.query.filter(
-            WhatsAppMessage.from_number == phone_number,
-            WhatsAppMessage.thread_id.isnot(None)
-        ).order_by(WhatsAppMessage.timestamp.desc()).first()
-
-        if message and message.thread_id:
-            logger.info(f"Found existing thread {message.thread_id} for {phone_number}")
-            return message.thread_id
-
-        # Create new thread if none exists
-        thread = client.beta.threads.create()
-        logger.info(f"Created new thread {thread.id} for {phone_number}")
-        return thread.id
-    except Exception as e:
-        logger.error(f"Error in get_or_create_thread: {str(e)}")
-        # Create new thread as fallback
-        thread = client.beta.threads.create()
-        return thread.id
-
-# Ajoute cette fonction pour télécharger l'image
 def download_whatsapp_image(image_id):
     """Download image from WhatsApp servers"""
     phone_id = os.environ.get('WHATSAPP_PHONE_ID')
@@ -90,7 +37,7 @@ def download_whatsapp_image(image_id):
     }
 
     try:
-        # Première requête pour obtenir l'URL de l'image
+        # First request to get image URL
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -99,20 +46,20 @@ def download_whatsapp_image(image_id):
             logger.error(f"No URL in image data: {data}")
             return None
 
-        # Deuxième requête pour télécharger l'image réelle
+        # Second request to download actual image
         image_response = requests.get(data['url'], headers=headers)
         image_response.raise_for_status()
 
-        # Générer un nom de fichier unique
+        # Generate unique filename
         filename = f"{image_id}_{int(time.time())}.jpg"
         filepath = os.path.join('static/uploads', filename)
 
-        # Sauvegarder l'image
+        # Save image
         os.makedirs('static/uploads', exist_ok=True)
         with open(filepath, 'wb') as f:
             f.write(image_response.content)
 
-        # Retourner l'URL locale de l'image
+        # Return local image URL
         return request.url_root.rstrip('/') + f"/static/uploads/{filename}"
 
     except Exception as e:
@@ -124,9 +71,9 @@ def generate_ai_response(message_body, thread_id, image_url=None):
     try:
         logger.info(f"Generating AI response for thread {thread_id}")
 
-        # Prépare le contenu du message
+        # Prepare message content
         if image_url:
-            # Message avec image + texte optionnel
+            # Message with image + optional text
             content = [
                 {
                     "type": "image_url",
@@ -134,21 +81,21 @@ def generate_ai_response(message_body, thread_id, image_url=None):
                 }
             ]
 
-            # Ajoute le texte si présent
+            # Add text if present
             if message_body:
                 content.append({
                     "type": "text",
                     "text": message_body
                 })
 
-            # Ajoute le message au thread
+            # Add message to thread
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
                 content=content
             )
         else:
-            # Message texte uniquement
+            # Text-only message
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
