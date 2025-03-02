@@ -396,6 +396,8 @@
                     <thead>
                         <tr>
                             <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Âge</th>
                             <th>Téléphone</th>
                             <th>Niveau d'étude</th>
                             <th>Date d'inscription</th>
@@ -405,6 +407,8 @@
                         {% for user in users %}
                         <tr>
                             <td>{{ user.last_name }}</td>
+                            <td>{{ user.first_name }}</td>
+                            <td>{{ user.age }}</td>
                             <td>{{ user.phone_number }}</td>
                             <td>{{ user.study_level }}</td>
                             <td>{{ user.created_at }}</td>
