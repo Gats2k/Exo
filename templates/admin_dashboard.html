@@ -396,7 +396,6 @@
                     <thead>
                         <tr>
                             <th>Nom</th>
-                            <th>Prénom</th>
                             <th>Téléphone</th>
                             <th>Niveau d'étude</th>
                             <th>Date d'inscription</th>
@@ -405,11 +404,10 @@
                     <tbody>
                         {% for user in users %}
                         <tr>
-                            <td>{{ user.last_name }}</td>
-                            <td>{{ user.first_name }}</td>
+                            <td>{{ user.name }}</td>
                             <td>{{ user.phone_number }}</td>
                             <td>{{ user.study_level }}</td>
-                            <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ user.created_at }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -426,18 +424,18 @@
                     <thead>
                         <tr>
                             <th>Titre</th>
-                            <th>Date de création</th>
-                            <th>Dernière mise à jour</th>
-                            <th>Messages</th>
+                            <th>Date</th>
+                            <th>Heure</th>
+                            <th>Dernier message</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for conv in conversations %}
                         <tr>
-                            <td>{{ conv.title or "Sans titre" }}</td>
-                            <td>{{ conv.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                            <td>{{ conv.updated_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                            <td>{{ conv.messages|length }}</td>
+                            <td>{{ conv.title }}</td>
+                            <td>{{ conv.date }}</td>
+                            <td>{{ conv.time }}</td>
+                            <td>{{ conv.last_message }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -473,6 +471,41 @@ function selectPlatform(platform) {
     fetchPlatformData(platform);
 }
 
+function updateTableWithTelegramData(data) {
+    const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
+    const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
+
+    // Clear existing table data
+    usersTable.innerHTML = '';
+    conversationsTable.innerHTML = '';
+
+    // Update users table
+    if (data.users && data.users.length > 0) {
+        data.users.forEach(user => {
+            const row = usersTable.insertRow();
+            row.innerHTML = `
+                <td>${user.name}</td>
+                <td>${user.phone}</td>
+                <td>${user.study_level}</td>
+                <td>${user.created_at}</td>
+            `;
+        });
+    }
+
+    // Update conversations table
+    if (data.conversations && data.conversations.length > 0) {
+        data.conversations.forEach(conv => {
+            const row = conversationsTable.insertRow();
+            row.innerHTML = `
+                <td>${conv.title}</td>
+                <td>${conv.date}</td>
+                <td>${conv.time}</td>
+                <td>${conv.last_message}</td>
+            `;
+        });
+    }
+}
+
 function updateDashboardStats(data) {
     try {
         // Update active users
@@ -492,13 +525,24 @@ function updateDashboardStats(data) {
         const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
 
         if (data.platform === 'telegram') {
-            // Show empty states for Telegram
-            usersTable.style.display = 'none';
-            conversationsTable.style.display = 'none';
-            usersEmptyState.style.display = 'block';
-            conversationsEmptyState.style.display = 'block';
+            if (data.users && data.users.length > 0) {
+                usersTable.style.display = 'table';
+                usersEmptyState.style.display = 'none';
+                updateTableWithTelegramData(data);
+            } else {
+                usersTable.style.display = 'none';
+                usersEmptyState.style.display = 'block';
+            }
+
+            if (data.conversations && data.conversations.length > 0) {
+                conversationsTable.style.display = 'table';
+                conversationsEmptyState.style.display = 'none';
+            } else {
+                conversationsTable.style.display = 'none';
+                conversationsEmptyState.style.display = 'block';
+            }
         } else {
-            // Show tables for Web platform
+            // Show web platform tables
             usersTable.style.display = 'table';
             conversationsTable.style.display = 'table';
             usersEmptyState.style.display = 'none';

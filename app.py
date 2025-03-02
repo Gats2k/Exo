@@ -89,6 +89,10 @@ def db_retry_session(max_retries=3, retry_delay=1):
         except Exception as e:
             raise
 
+def get_db_context():
+    """Get the Flask application context for database operations."""
+    return app.app_context()
+
 def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
@@ -522,12 +526,30 @@ def admin_platform_data(platform):
         users = TelegramUser.query.all()
         conversations = TelegramConversation.query.all()
 
+        # Process user data
+        user_data = [{
+            'name': f'Telegram User {user.telegram_id}',
+            'phone': user.phone_number,
+            'study_level': user.study_level,
+            'created_at': user.created_at.strftime('%d/%m/%Y')
+        } for user in users]
+
+        # Process conversation data
+        conversation_data = [{
+            'title': conv.title,
+            'date': conv.created_at.strftime('%d/%m/%Y'),
+            'time': conv.created_at.strftime('%H:%M'),
+            'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+        } for conv in conversations]
+
         data = {
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
             'satisfaction_rate': 0,
-            'platform': 'telegram'  # Add platform info to trigger empty states
+            'platform': 'telegram',
+            'users': user_data,
+            'conversations': conversation_data
         }
 
     return jsonify(data)

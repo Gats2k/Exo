@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import time
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
@@ -13,6 +14,8 @@ import base64
 import requests
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
+from app import get_db_context
+from contextlib import contextmanager
 
 # Set up logging
 logging.basicConfig(
@@ -34,58 +37,74 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
+@contextmanager
+def db_retry_session(max_retries=3, retry_delay=1):
+    """Context manager for database operations with retry logic"""
+    for attempt in range(max_retries):
+        try:
+            with get_db_context():
+                yield db.session
+                break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"Database error after {max_retries} attempts: {str(e)}", exc_info=True)
+                raise
+            logger.warning(f"Database operation failed, retrying... (attempt {attempt + 1}/{max_retries})")
+            time.sleep(retry_delay)
+
 async def get_or_create_telegram_user(user_id: int) -> TelegramUser:
     """Get or create a TelegramUser record."""
     try:
-        user = TelegramUser.query.get(user_id)
-        if not user:
-            logger.info(f"Creating new TelegramUser for ID: {user_id}")
-            user = TelegramUser(telegram_id=user_id)
-            db.session.add(user)
-            db.session.commit()
-            logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
-        else:
-            logger.info(f"Found existing TelegramUser: {user.telegram_id}")
-        return user
+        with db_retry_session() as session:
+            logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
+            user = TelegramUser.query.get(user_id)
+            if not user:
+                logger.info(f"Creating new TelegramUser for ID: {user_id}")
+                user = TelegramUser(telegram_id=user_id)
+                session.add(user)
+                session.commit()
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
+            else:
+                logger.info(f"Found existing TelegramUser: {user.telegram_id}")
+            return user
     except Exception as e:
         logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
-        db.session.rollback()
         raise
 
 async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
     """Create a new TelegramConversation record."""
     try:
-        logger.info(f"Creating new TelegramConversation for user {user_id} with thread {thread_id}")
-        conversation = TelegramConversation(
-            telegram_user_id=user_id,
-            thread_id=thread_id,
-            title="Nouvelle conversation"
-        )
-        db.session.add(conversation)
-        db.session.commit()
-        logger.info(f"Successfully created TelegramConversation: {conversation.id}")
-        return conversation
+        with db_retry_session() as session:
+            logger.info(f"Creating new TelegramConversation for user {user_id} with thread {thread_id}")
+            conversation = TelegramConversation(
+                telegram_user_id=user_id,
+                thread_id=thread_id,
+                title="Nouvelle conversation"
+            )
+            session.add(conversation)
+            session.commit()
+            logger.info(f"Successfully created TelegramConversation: {conversation.id}")
+            return conversation
     except Exception as e:
         logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
-        db.session.rollback()
         raise
 
 async def add_telegram_message(conversation_id: int, role: str, content: str, image_url: str = None):
     """Add a new message to a conversation."""
     try:
-        logger.info(f"Adding new TelegramMessage to conversation {conversation_id}")
-        message = TelegramMessage(
-            conversation_id=conversation_id,
-            role=role,
-            content=content,
-            image_url=image_url
-        )
-        db.session.add(message)
-        db.session.commit()
-        logger.info(f"Successfully added TelegramMessage: {message.id}")
+        with db_retry_session() as session:
+            logger.info(f"Adding new TelegramMessage to conversation {conversation_id}")
+            message = TelegramMessage(
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+                image_url=image_url
+            )
+            session.add(message)
+            session.commit()
+            logger.info(f"Successfully added TelegramMessage: {message.id}")
     except Exception as e:
         logger.error(f"Error in add_telegram_message: {str(e)}", exc_info=True)
-        db.session.rollback()
         raise
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,71 +143,83 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
+    logger.info(f"Processing message from user {user_id}")
+
     try:
-        # Get or create thread ID for this user
-        thread_id = user_threads[user_id]
-        if not thread_id:
-            thread = openai_client.beta.threads.create()
-            thread_id = thread.id
-            user_threads[user_id] = thread_id
-            logger.info(f"Created new thread {thread_id} for user {user_id}")
-            # Create a new conversation in our database
-            await create_telegram_conversation(user_id, thread_id)
+        # Get or create user first
+        user = await get_or_create_telegram_user(user_id)
+        logger.info(f"User {user_id} retrieved/created successfully")
 
-        # Get the conversation from our database
-        conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+        with db_retry_session() as session:
+            # Get or create thread ID for this user
+            thread_id = user_threads[user_id]
+            if not thread_id:
+                thread = openai_client.beta.threads.create()
+                thread_id = thread.id
+                user_threads[user_id] = thread_id
+                logger.info(f"Created new thread {thread_id} for user {user_id}")
+                # Create a new conversation in our database
+                conversation = await create_telegram_conversation(user_id, thread_id)
+            else:
+                # Get existing conversation
+                conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+                if not conversation:
+                    logger.error(f"No conversation found for thread_id {thread_id}")
+                    conversation = await create_telegram_conversation(user_id, thread_id)
 
-        # Add the user's message to the thread
-        message_text = update.message.text
-        logger.info(f"Received message from user {user_id}: {message_text}")
+            # Add the user's message to the thread
+            message_text = update.message.text
+            logger.info(f"Received message from user {user_id}: {message_text}")
 
-        # Store the user's message in our database
-        await add_telegram_message(conversation.id, 'user', message_text)
+            # Store the user's message in our database
+            await add_telegram_message(conversation.id, 'user', message_text)
 
-        # Start typing indication
-        await context.bot.send_chat_action(
-            chat_id=update.effective_chat.id,
-            action=constants.ChatAction.TYPING
-        )
-
-        openai_client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=message_text
-        )
-
-        # Run the assistant
-        run = openai_client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=ASSISTANT_ID
-        )
-
-        # Wait for the run to complete while maintaining typing indication
-        while True:
+            # Start typing indication
             await context.bot.send_chat_action(
                 chat_id=update.effective_chat.id,
                 action=constants.ChatAction.TYPING
             )
 
-            run_status = openai_client.beta.threads.runs.retrieve(
+            openai_client.beta.threads.messages.create(
                 thread_id=thread_id,
-                run_id=run.id
+                role="user",
+                content=message_text
             )
-            if run_status.status == 'completed':
-                break
-            elif run_status.status in ['failed', 'cancelled', 'expired']:
-                raise Exception(f"Assistant run failed with status: {run_status.status}")
-            await asyncio.sleep(4.5)
 
-        # Get the assistant's response
-        messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-        assistant_message = messages.data[0].content[0].text.value
+            # Run the assistant
+            run = openai_client.beta.threads.runs.create(
+                thread_id=thread_id,
+                assistant_id=ASSISTANT_ID
+            )
 
-        # Store the assistant's response in our database
-        await add_telegram_message(conversation.id, 'assistant', assistant_message)
+            # Wait for the run to complete while maintaining typing indication
+            while True:
+                await context.bot.send_chat_action(
+                    chat_id=update.effective_chat.id,
+                    action=constants.ChatAction.TYPING
+                )
 
-        logger.info(f"Sending response to user {user_id}: {assistant_message}")
-        await update.message.reply_text(assistant_message)
+                run_status = openai_client.beta.threads.runs.retrieve(
+                    thread_id=thread_id,
+                    run_id=run.id
+                )
+                if run_status.status == 'completed':
+                    break
+                elif run_status.status in ['failed', 'cancelled', 'expired']:
+                    error_msg = f"Assistant run failed with status: {run_status.status}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+                await asyncio.sleep(4.5)
+
+            # Get the assistant's response
+            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+            assistant_message = messages.data[0].content[0].text.value
+
+            # Store the assistant's response in our database
+            await add_telegram_message(conversation.id, 'assistant', assistant_message)
+
+            logger.info(f"Sending response to user {user_id}: {assistant_message}")
+            await update.message.reply_text(assistant_message)
 
     except OpenAIError as openai_error:
         logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
@@ -205,101 +236,109 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""
     user_id = update.effective_user.id
     try:
-        logger.info(f"Receiving photo from user {user_id}")
+        # Get or create user first
+        user = await get_or_create_telegram_user(user_id)
+        logger.info(f"User {user_id} retrieved/created successfully")
 
-        if not update.message or not update.message.photo:
-            logger.error("No photo found in the message")
-            return
+        with db_retry_session() as session:
+            logger.info(f"Receiving photo from user {user_id}")
 
-        # Get or create thread ID for this user
-        thread_id = user_threads[user_id]
-        if not thread_id:
-            thread = openai_client.beta.threads.create()
-            thread_id = thread.id
-            user_threads[user_id] = thread_id
-            logger.info(f"Created new thread {thread_id} for user {user_id}")
-            # Create a new conversation in our database
-            await create_telegram_conversation(user_id, thread_id)
+            if not update.message or not update.message.photo:
+                logger.error("No photo found in the message")
+                return
 
-        # Get the conversation from our database
-        conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+            # Get or create thread ID for this user
+            thread_id = user_threads[user_id]
+            if not thread_id:
+                thread = openai_client.beta.threads.create()
+                thread_id = thread.id
+                user_threads[user_id] = thread_id
+                logger.info(f"Created new thread {thread_id} for user {user_id}")
+                # Create a new conversation in our database
+                conversation = await create_telegram_conversation(user_id, thread_id)
+            else:
+                # Get existing conversation
+                conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+                if not conversation:
+                    logger.error(f"No conversation found for thread_id {thread_id}")
+                    conversation = await create_telegram_conversation(user_id, thread_id)
 
-        logger.info(f"Photo details: {update.message.photo[-1]}")
+            logger.info(f"Photo details: {update.message.photo[-1]}")
 
-        # Get file URL directly from Telegram
-        file = await context.bot.get_file(update.message.photo[-1].file_id)
-        file_url = file.file_path
-        logger.info(f"Got file URL from Telegram: {file_url}")
+            # Get file URL directly from Telegram
+            file = await context.bot.get_file(update.message.photo[-1].file_id)
+            file_url = file.file_path
+            logger.info(f"Got file URL from Telegram: {file_url}")
 
-        # Start typing indication
-        await context.bot.send_chat_action(
-            chat_id=update.effective_chat.id,
-            action=constants.ChatAction.TYPING
-        )
-
-        # Create message content with image
-        message_content = [{
-            "type": "image_url",
-            "image_url": {
-                "url": file_url
-            }
-        }]
-
-        # Add caption if present
-        caption = update.message.caption or "Image sent"
-        message_content.append({
-            "type": "text",
-            "text": caption
-        })
-
-        # Store the user's message in our database
-        await add_telegram_message(conversation.id, 'user', caption, file_url)
-
-        # Send to OpenAI
-        logger.info(f"Sending message to OpenAI thread {thread_id}")
-        openai_client.beta.threads.messages.create(
-            thread_id=thread_id,
-            role="user",
-            content=message_content
-        )
-        logger.info("Message sent to OpenAI")
-
-        # Run the assistant
-        run = openai_client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=ASSISTANT_ID
-        )
-        logger.info("Assistant run created")
-
-        # Wait for completion
-        while True:
+            # Start typing indication
             await context.bot.send_chat_action(
                 chat_id=update.effective_chat.id,
                 action=constants.ChatAction.TYPING
             )
 
-            run_status = openai_client.beta.threads.runs.retrieve(
+            # Create message content with image
+            message_content = [{
+                "type": "image_url",
+                "image_url": {
+                    "url": file_url
+                }
+            }]
+
+            # Add caption if present
+            caption = update.message.caption or "Image sent"
+            message_content.append({
+                "type": "text",
+                "text": caption
+            })
+
+            # Store the user's message in our database
+            await add_telegram_message(conversation.id, 'user', caption, file_url)
+
+            # Send to OpenAI
+            logger.info(f"Sending message to OpenAI thread {thread_id}")
+            openai_client.beta.threads.messages.create(
                 thread_id=thread_id,
-                run_id=run.id
+                role="user",
+                content=message_content
             )
-            if run_status.status == 'completed':
-                logger.info("Assistant run completed")
-                break
-            elif run_status.status in ['failed', 'cancelled', 'expired']:
-                error_msg = f"Assistant run failed with status: {run_status.status}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
-            await asyncio.sleep(4.5)
+            logger.info("Message sent to OpenAI")
 
-        # Get and send response
-        messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-        assistant_message = messages.data[0].content[0].text.value
+            # Run the assistant
+            run = openai_client.beta.threads.runs.create(
+                thread_id=thread_id,
+                assistant_id=ASSISTANT_ID
+            )
+            logger.info("Assistant run created")
 
-        # Store the assistant's response in our database
-        await add_telegram_message(conversation.id, 'assistant', assistant_message)
+            # Wait for completion
+            while True:
+                await context.bot.send_chat_action(
+                    chat_id=update.effective_chat.id,
+                    action=constants.ChatAction.TYPING
+                )
 
-        logger.info(f"Sending response: {assistant_message[:100]}...")
-        await update.message.reply_text(assistant_message)
+                run_status = openai_client.beta.threads.runs.retrieve(
+                    thread_id=thread_id,
+                    run_id=run.id
+                )
+                if run_status.status == 'completed':
+                    logger.info("Assistant run completed")
+                    break
+                elif run_status.status in ['failed', 'cancelled', 'expired']:
+                    error_msg = f"Assistant run failed with status: {run_status.status}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+                await asyncio.sleep(4.5)
+
+            # Get and send response
+            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+            assistant_message = messages.data[0].content[0].text.value
+
+            # Store the assistant's response in our database
+            await add_telegram_message(conversation.id, 'assistant', assistant_message)
+
+            logger.info(f"Sending response: {assistant_message[:100]}...")
+            await update.message.reply_text(assistant_message)
 
     except Exception as e:
         logger.error(f"Error handling photo: {str(e)}", exc_info=True)
@@ -318,9 +357,6 @@ def setup_telegram_bot():
 
         # Create the Application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
-
-        logger.info("Setting up Telegram bot handlers...")
-        logger.info(f"Available filters: {dir(filters)}")
 
         # Add handlers
         application.add_handler(CommandHandler("start", start))
