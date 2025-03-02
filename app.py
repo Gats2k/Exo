@@ -65,10 +65,14 @@ login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
 from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
+from whatsapp_bot import whatsapp, WhatsAppMessage
 
 # Create tables within application context
 with app.app_context():
     db.create_all()
+
+# Register the WhatsApp blueprint
+app.register_blueprint(whatsapp, url_prefix='/whatsapp')
 
 @login_manager.user_loader
 def load_user(id):
