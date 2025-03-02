@@ -1,0 +1,260 @@
+# Éléments essentiels pour l'API WhatsApp
+
+## Variables d'environnement requises
+```
+WHATSAPP_PHONE_ID=123456789012345
+WHATSAPP_API_TOKEN=EAAxxxxx...
+WHATSAPP_VERIFY_TOKEN=mon_token_personnalise
+WHATSAPP_APP_SECRET=1234567890abcdef...
+OPENAI_API_KEY=sk-xxxxx...  # Si tu utilises OpenAI pour les réponses automatiques
+```
+
+## Fonction d'envoi de messages
+```python
+import requests
+import os
+
+def send_whatsapp_message(to_number, message):
+    phone_id = os.environ.get('WHATSAPP_PHONE_ID')
+    token = os.environ.get('WHATSAPP_API_TOKEN')
+    
+    url = f"https://graph.facebook.com/v22.0/{phone_id}/messages"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    if not to_number.startswith('+'):
+        to_number = '+' + to_number
+        
+    data = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": to_number,
+        "type": "text",
+        "text": {
+            "preview_url": False,
+            "body": message
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code != 200:
+        error = response.json().get('error', {}).get('message', 'Unknown error')
+        raise Exception(f"Failed to send message: {error}")
+        
+    return response.json()
+```
+
+## Gestion du webhook - Vérification initiale
+```python
+from flask import request, Flask
+
+app = Flask(__name__)
+
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    mode = request.args.get('hub.mode')
+    token = request.args.get('hub.verify_token')
+    challenge = request.args.get('hub.challenge')
+    
+    verify_token = os.environ.get('WHATSAPP_VERIFY_TOKEN')
+    
+    if mode and token and mode == 'subscribe' and token == verify_token:
+        return challenge, 200
+    return 'Forbidden', 403
+```
+
+## Vérification de signature webhook
+```python
+import hmac
+import hashlib
+
+def verify_webhook_signature(request_data, signature_header):
+    app_secret = os.environ.get('WHATSAPP_APP_SECRET')
+    
+    if not signature_header or not signature_header.startswith('sha256='):
+        return False
+        
+    actual_signature = signature_header.replace('sha256=', '')
+    
+    expected_signature = hmac.new(
+        app_secret.encode('utf-8'),
+        request_data,
+        hashlib.sha256
+    ).hexdigest()
+    
+    return hmac.compare_digest(actual_signature, expected_signature)
+```
+
+## Traitement des messages entrants
+```python
+@app.route('/webhook', methods=['POST'])
+def receive_webhook():
+    signature = request.headers.get('X-Hub-Signature-256', '')
+    raw_data = request.get_data()
+    
+    if not verify_webhook_signature(raw_data, signature):
+        return 'Invalid signature', 403
+        
+    data = request.get_json()
+    
+    for entry in data.get('entry', []):
+        for change in entry.get('changes', []):
+            value = change.get('value', {})
+            
+            # Traitement des messages
+            for message in value.get('messages', []):
+                if message.get('type') == 'text':
+                    sender = message.get('from')
+                    message_body = message.get('text', {}).get('body', '')
+                    message_id = message.get('id')
+                    
+                    # Stocker le message
+                    store_message(message_id, sender, None, message_body, 'inbound')
+                    
+                    # Générer et envoyer une réponse
+                    response_text = get_response(message_body)
+                    response = send_whatsapp_message(sender, response_text)
+                    
+                    # Stocker la réponse
+                    store_message(
+                        response['messages'][0]['id'], 
+                        None, 
+                        sender, 
+                        response_text, 
+                        'outbound'
+                    )
+            
+            # Traitement des statuts
+            for status in value.get('statuses', []):
+                message_id = status.get('id')
+                status_value = status.get('status')
+                update_message_status(message_id, status_value)
+    
+    return 'OK', 200
+```
+
+## Modèle de données pour stocker les messages
+```python
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+class Message(Base):
+    __tablename__ = 'messages'
+    
+    id = Column(Integer, primary_key=True)
+    message_id = Column(String(128), unique=True)
+    from_number = Column(String(20))
+    to_number = Column(String(20))
+    content = Column(Text)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default='received')
+    direction = Column(String(10))  # 'inbound' ou 'outbound'
+
+# Fonctions pour manipuler les messages
+def store_message(message_id, from_number, to_number, content, direction, status='received'):
+    # Code pour insérer un message dans la base de données
+    pass
+
+def update_message_status(message_id, status):
+    # Code pour mettre à jour le statut d'un message
+    pass
+```
+
+## Intégration OpenAI pour réponses automatiques
+```python
+import openai
+
+def get_response(message_content):
+    openai_client = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+    
+    completion = openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "Tu es un assistant WhatsApp serviable."},
+            {"role": "user", "content": message_content}
+        ]
+    )
+    return completion.choices[0].message.content
+```
+
+## API pour l'interface d'administration
+```python
+@app.route('/api/messages/<phone_number>')
+def get_messages_api(phone_number):
+    # Code pour récupérer les messages d'un numéro spécifique
+    messages = get_messages_for_number(phone_number)
+    return jsonify({'messages': messages})
+
+@app.route('/api/send_message', methods=['POST'])
+def send_message_api():
+    data = request.get_json()
+    to_number = data.get('to_number')
+    message = data.get('message')
+    
+    response = send_whatsapp_message(to_number, message)
+    
+    # Stocker le message envoyé
+    store_message(
+        response['messages'][0]['id'],
+        None,
+        to_number,
+        message,
+        'outbound',
+        'sent'
+    )
+    
+    return jsonify({'status': 'success'})
+```
+
+## JavaScript pour l'interface utilisateur
+```javascript
+// Rafraîchir les messages
+async function refreshMessages() {
+    const phoneNumber = document.getElementById('current_chat').value;
+    const response = await fetch(`/api/messages/${phoneNumber}`);
+    const data = await response.json();
+    
+    // Mettre à jour l'interface
+    updateChatDisplay(data.messages);
+}
+
+// Envoyer un message
+async function sendMessage() {
+    const phoneNumber = document.getElementById('to_number').value;
+    const message = document.getElementById('message').value;
+    
+    const response = await fetch('/api/send_message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_number: phoneNumber, message: message })
+    });
+    
+    document.getElementById('message').value = '';
+    refreshMessages();
+}
+
+// Initialiser le rafraîchissement périodique
+setInterval(refreshMessages, 5000);
+```
+
+## Dépendances Python requises
+```
+Flask==2.3.3
+SQLAlchemy==2.0.21
+requests==2.31.0
+openai==1.3.0
+python-dotenv==1.0.0
+```
+
+## Limitations importantes
+- Les utilisateurs doivent t'avoir contacté en premier
+- Après 24h sans interaction, uniquement des messages de modèle sont autorisés
+- Les tokens expirent, prévoir un système de rafraîchissement
+- Les numéros doivent être au format international

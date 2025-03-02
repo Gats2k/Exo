@@ -84,6 +84,8 @@ function updateTableWithTelegramData(data) {
           const row = usersTable.insertRow();
           row.innerHTML = `
               <td>${user.name || ''}</td>
+              <td>--</td>
+              <td>--</td>
               <td>${user.phone || ''}</td>
               <td>${user.study_level || ''}</td>
               <td>${user.created_at || ''}</td>
