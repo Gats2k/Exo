@@ -8,7 +8,6 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
 from openai import OpenAI
-from models import WhatsAppUser, WhatsAppConversation, WhatsAppMessage
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,6 +20,43 @@ ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 # Create Blueprint for WhatsApp routes
 whatsapp = Blueprint('whatsapp', __name__)
 
+class WhatsAppMessage(db.Model):
+    __tablename__ = 'whatsapp_messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.String(128), unique=True)
+    from_number = db.Column(db.String(20))
+    to_number = db.Column(db.String(20))
+    content = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='received')
+    direction = db.Column(db.String(10))  # 'inbound' or 'outbound'
+    thread_id = db.Column(db.String(128))  # Store OpenAI thread ID for conversation continuity
+
+def get_or_create_thread(phone_number):
+    """Get existing thread or create new one for a phone number"""
+    try:
+        # Fix the query to use proper SQLAlchemy syntax
+        message = WhatsAppMessage.query.filter(
+            WhatsAppMessage.from_number == phone_number,
+            WhatsAppMessage.thread_id.isnot(None)
+        ).order_by(WhatsAppMessage.timestamp.desc()).first()
+
+        if message and message.thread_id:
+            logger.info(f"Found existing thread {message.thread_id} for {phone_number}")
+            return message.thread_id
+
+        # Create new thread if none exists
+        thread = client.beta.threads.create()
+        logger.info(f"Created new thread {thread.id} for {phone_number}")
+        return thread.id
+    except Exception as e:
+        logger.error(f"Error in get_or_create_thread: {str(e)}")
+        # Create new thread as fallback
+        thread = client.beta.threads.create()
+        return thread.id
+
+# Ajoute cette fonction pour télécharger l'image
 def download_whatsapp_image(image_id):
     """Download image from WhatsApp servers"""
     phone_id = os.environ.get('WHATSAPP_PHONE_ID')
@@ -37,7 +73,7 @@ def download_whatsapp_image(image_id):
     }
 
     try:
-        # First request to get image URL
+        # Première requête pour obtenir l'URL de l'image
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -46,20 +82,20 @@ def download_whatsapp_image(image_id):
             logger.error(f"No URL in image data: {data}")
             return None
 
-        # Second request to download actual image
+        # Deuxième requête pour télécharger l'image réelle
         image_response = requests.get(data['url'], headers=headers)
         image_response.raise_for_status()
 
-        # Generate unique filename
+        # Générer un nom de fichier unique
         filename = f"{image_id}_{int(time.time())}.jpg"
         filepath = os.path.join('static/uploads', filename)
 
-        # Save image
+        # Sauvegarder l'image
         os.makedirs('static/uploads', exist_ok=True)
         with open(filepath, 'wb') as f:
             f.write(image_response.content)
 
-        # Return local image URL
+        # Retourner l'URL locale de l'image
         return request.url_root.rstrip('/') + f"/static/uploads/{filename}"
 
     except Exception as e:
@@ -71,9 +107,9 @@ def generate_ai_response(message_body, thread_id, image_url=None):
     try:
         logger.info(f"Generating AI response for thread {thread_id}")
 
-        # Prepare message content
+        # Prépare le contenu du message
         if image_url:
-            # Message with image + optional text
+            # Message avec image + texte optionnel
             content = [
                 {
                     "type": "image_url",
@@ -81,21 +117,21 @@ def generate_ai_response(message_body, thread_id, image_url=None):
                 }
             ]
 
-            # Add text if present
+            # Ajoute le texte si présent
             if message_body:
                 content.append({
                     "type": "text",
                     "text": message_body
                 })
 
-            # Add message to thread
+            # Ajoute le message au thread
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
                 content=content
             )
         else:
-            # Text-only message
+            # Message texte uniquement
             client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
@@ -268,37 +304,10 @@ def receive_webhook():
                     logger.info(f"Processing {message_type} message from {sender}")
 
                     try:
-                        # Get or create WhatsApp user
-                        user = WhatsAppUser.query.filter_by(phone_number=sender).first()
-                        if not user:
-                            user = WhatsAppUser(
-                                phone_number=sender,
-                                name="_",
-                                age=0,
-                                study_level="_"
-                            )
-                            db.session.add(user)
-                            db.session.commit()
-                            logger.info(f"Created new WhatsApp user with phone number: {sender}")
+                        # Get or create thread for this user
+                        thread_id = get_or_create_thread(sender)
 
-                        # Get or create conversation
-                        conversation = (WhatsAppConversation.query
-                                     .filter_by(whatsapp_user_id=user.id)
-                                     .order_by(WhatsAppConversation.created_at.desc())
-                                     .first())
-
-                        if not conversation:
-                            # Count existing conversations to create numbered title
-                            conv_count = WhatsAppConversation.query.count() + 1
-                            conversation = WhatsAppConversation(
-                                whatsapp_user_id=user.id,
-                                title=f"WhatsApp {conv_count}"
-                            )
-                            db.session.add(conversation)
-                            db.session.commit()
-                            logger.info(f"Created new WhatsApp conversation: {conversation.title}")
-
-                        # Process message based on type
+                        # Traiter différemment selon le type de message
                         message_body = None
                         image_url = None
 
@@ -307,46 +316,87 @@ def receive_webhook():
                             logger.info(f"Text message: {message_body[:100]}...")
 
                         elif message_type == 'image':
+                            # Récupérer l'ID de l'image
                             image_id = message.get('image', {}).get('id')
                             if image_id:
+                                # Télécharger l'image
                                 image_url = download_whatsapp_image(image_id)
                                 logger.info(f"Downloaded image to: {image_url}")
+                                # Récupérer la légende si présente
                                 message_body = message.get('image', {}).get('caption', '')
                                 logger.info(f"Image caption: {message_body}")
 
-                        # Store message
+                        else:
+                            # Type de message non supporté
+                            logger.info(f"Unsupported message type: {message_type}")
+                            # Envoyer un message d'information à l'utilisateur
+                            send_whatsapp_message(
+                                sender, 
+                                f"Désolé, les messages de type '{message_type}' ne sont pas encore pris en charge."
+                            )
+                            continue
+
+                        # Store incoming message
+                        message_content = message_body if message_body else ("Image reçue" if image_url else "Message non supporté")
                         new_message = WhatsAppMessage(
-                            conversation_id=conversation.id,
-                            role="user",
-                            content=message_body if message_body else ("Image reçue" if image_url else "Message non supporté")
+                            message_id=message_id,
+                            from_number=sender,
+                            content=message_content,
+                            direction='inbound',
+                            thread_id=thread_id
                         )
                         db.session.add(new_message)
                         db.session.commit()
 
-                        # Generate and send AI response
-                        response_text = generate_ai_response(message_body, thread_id=str(conversation.id), image_url=image_url)
-                        send_response = send_whatsapp_message(sender, response_text)
+                        # Generate AI response
+                        response_text = generate_ai_response(message_body, thread_id, image_url)
 
-                        # Store assistant's response
-                        if send_response and 'messages' in send_response:
-                            assistant_message = WhatsAppMessage(
-                                conversation_id=conversation.id,
-                                role="assistant",
-                                content=response_text
+                        # Send response via WhatsApp
+                        response = send_whatsapp_message(sender, response_text)
+
+                        # Store outbound message
+                        if response and 'messages' in response:
+                            outbound_msg = WhatsAppMessage(
+                                message_id=response['messages'][0]['id'],
+                                to_number=sender,
+                                content=response_text,
+                                direction='outbound',
+                                status='sent',
+                                thread_id=thread_id
                             )
-                            db.session.add(assistant_message)
+                            db.session.add(outbound_msg)
                             db.session.commit()
-
+                            logger.info(f"Sent response to {sender}: {response_text[:100]}...")
                     except Exception as e:
                         logger.error(f"Error processing message: {str(e)}")
                         db.session.rollback()
+
+                        # Tenter d'envoyer un message d'erreur à l'utilisateur
                         try:
                             send_whatsapp_message(
-                                sender,
+                                sender, 
                                 "Désolé, une erreur s'est produite lors du traitement de votre message. Veuillez réessayer."
                             )
                         except:
                             logger.error("Failed to send error message to user")
+                        continue
+
+                # Handle message statuses
+                for status in value.get('statuses', []):
+                    try:
+                        message_id = status.get('id')
+                        status_value = status.get('status')
+
+                        logger.debug(f"Processing status update for message {message_id}: {status_value}")
+
+                        message = WhatsAppMessage.query.filter_by(message_id=message_id).first()
+                        if message:
+                            message.status = status_value
+                            db.session.commit()
+                            logger.info(f"Updated status for message {message_id} to {status_value}")
+                    except Exception as e:
+                        logger.error(f"Error processing status update: {str(e)}")
+                        db.session.rollback()
                         continue
 
         return jsonify({"status": "success"}), 200
@@ -355,6 +405,7 @@ def receive_webhook():
         logger.error(f"Error processing webhook: {str(e)}")
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
+
 
 def calculate_test_signature(payload):
     """Helper function to calculate webhook signature for testing"""

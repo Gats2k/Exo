@@ -55,7 +55,7 @@ function updateTableWithWebData(data) {
       });
   }
 
-  // Update conversations table
+  // Update conversations table (unchanged)
   if (data.conversations && data.conversations.length > 0) {
       data.conversations.forEach(conv => {
           const formattedDate = conv.date ? new Date(conv.date).toLocaleDateString('fr-FR') : '';
@@ -96,7 +96,7 @@ function updateTableWithTelegramData(data) {
       });
   }
 
-  // Update conversations table
+  // Update conversations table (unchanged)
   if (data.conversations && data.conversations.length > 0) {
       data.conversations.forEach(conv => {
           const row = conversationsTable.insertRow();
@@ -116,66 +116,33 @@ function updateTableWithWhatsAppData(data) {
   const usersEmptyState = document.querySelector('#usersTableContainer .empty-state');
   const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
 
-  // Clear existing table data
-  usersTable.innerHTML = '';
-  conversationsTable.innerHTML = '';
+  // Show empty states
+  usersTable.style.display = 'none';
+  conversationsTable.style.display = 'none';
+  usersEmptyState.style.display = 'block';
+  conversationsEmptyState.style.display = 'block';
 
-  if (data.users && data.users.length > 0) {
-    // Show table and hide empty state if we have users
-    usersTable.style.display = 'table';
-    usersEmptyState.style.display = 'none';
-
-    data.users.forEach(user => {
-      const row = usersTable.insertRow();
-      row.innerHTML = `
-        <td>${user.phone_number || ''}</td>
-        <td>${user.name || ''}</td>
-        <td>${user.age || ''}</td>
-        <td>${user.study_level || ''}</td>
-        <td>${user.created_at || ''}</td>
-      `;
-    });
-  } else {
-    // Show empty state if no users
-    usersTable.style.display = 'none';
-    usersEmptyState.style.display = 'block';
-    usersEmptyState.innerHTML = `
-      <i class="bi bi-whatsapp"></i>
-      <p>Aucun utilisateur WhatsApp disponible pour le moment</p>
-    `;
-  }
-
-  if (data.conversations && data.conversations.length > 0) {
-    // Show table and hide empty state if we have conversations
-    conversationsTable.style.display = 'table';
-    conversationsEmptyState.style.display = 'none';
-
-    data.conversations.forEach(conv => {
-      const row = conversationsTable.insertRow();
-      row.innerHTML = `
-        <td>${conv.title || 'Sans titre'}</td>
-        <td>${conv.date || ''}</td>
-        <td>${conv.time || ''}</td>
-        <td>${conv.last_message || ''}</td>
-      `;
-    });
-  } else {
-    // Show empty state if no conversations
-    conversationsTable.style.display = 'none';
-    conversationsEmptyState.style.display = 'block';
-    conversationsEmptyState.innerHTML = `
-      <i class="bi bi-chat-dots"></i>
-      <p>Aucune conversation WhatsApp disponible pour le moment</p>
-    `;
-  }
+  // Update empty state messages
+  usersEmptyState.innerHTML = `
+    <i class="bi bi-whatsapp"></i>
+    <p>Aucun utilisateur WhatsApp disponible pour le moment</p>
+  `;
+  conversationsEmptyState.innerHTML = `
+    <i class="bi bi-chat-dots"></i>
+    <p>Aucune conversation WhatsApp disponible pour le moment</p>
+  `;
 }
 
 function updateDashboardStats(data) {
   try {
-    // Always update stats based on actual data
+    // Update active users
     document.querySelector('.stat-value').textContent = data.active_users;
     document.querySelector('.stat-subtitle').textContent = `+${data.active_users_today} aujourd'hui`;
+
+    // Update conversations
     document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+
+    // Update satisfaction
     document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
 
     // Get table and empty state elements
@@ -220,6 +187,10 @@ function fetchPlatformData(platform) {
           return response.json();
       })
       .then(data => {
+          // Debugging logs - place them here after data is available
+          console.log('Platform data received:', data);
+          console.log('Conversations data:', data.conversations);
+
           // Add platform info to the data
           data.platform = platform;
           // Update the dashboard statistics with the new data
@@ -252,9 +223,3 @@ document.addEventListener('click', function(event) {
 document.addEventListener('DOMContentLoaded', function() {
   fetchPlatformData('web');
 });
-
-// Auto-refresh data every 30 seconds
-setInterval(function() {
-  const selectedPlatform = document.getElementById('selected-platform').textContent.toLowerCase();
-  fetchPlatformData(selectedPlatform);
-}, 30000);
