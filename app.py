@@ -1,11 +1,12 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from dotenv import load_dotenv
 
 # Load environment variables before any other imports
 load_dotenv()
 
-import eventlet
-eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
@@ -487,8 +488,12 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 @app.route('/admin')
+@login_required #Added login_required decorator for security
 def admin_dashboard():
+    """Admin dashboard route that displays platform statistics"""
     today = datetime.today().date()
+
+    # Get web platform data
     users = User.query.all()
     conversations = Conversation.query.all()
 
@@ -567,15 +572,43 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'whatsapp':
-        # Return empty WhatsApp data structure
+        # Get WhatsApp statistics
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
         data = {
-            'active_users': 0,
-            'active_users_today': 0,
-            'today_conversations': 0,
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
             'satisfaction_rate': 0,
             'platform': 'whatsapp',
-            'users': [],
-            'conversations': []
+            'users': [{
+                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'phone': user[0],
+                'study_level': 'N/A',
+                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
+                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
+            } for user in unique_users],
+            'conversations': [{
+                'title': f'Conversation {conv.thread_id}',
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
+                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+            } for conv in conversations]
         }
 
     return jsonify(data)
