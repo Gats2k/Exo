@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
 from openai import OpenAI
+from sqlalchemy import or_
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -20,6 +21,19 @@ ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 # Create Blueprint for WhatsApp routes
 whatsapp = Blueprint('whatsapp', __name__)
 
+# Add WhatsAppUser model after the existing WhatsAppMessage model
+class WhatsAppUser(db.Model):
+    __tablename__ = 'whatsapp_users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone_number = db.Column(db.String(20), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    messages = db.relationship('WhatsAppMessage', backref='user', lazy=True,
+                               primaryjoin="or_(WhatsAppUser.phone_number==WhatsAppMessage.from_number, "
+                                          "WhatsAppUser.phone_number==WhatsAppMessage.to_number)")
+
+# Update WhatsAppMessage model to include user relationship
 class WhatsAppMessage(db.Model):
     __tablename__ = 'whatsapp_messages'
 
@@ -32,6 +46,7 @@ class WhatsAppMessage(db.Model):
     status = db.Column(db.String(20), default='received')
     direction = db.Column(db.String(10))  # 'inbound' or 'outbound'
     thread_id = db.Column(db.String(128))  # Store OpenAI thread ID for conversation continuity
+
 
 def get_or_create_thread(phone_number):
     """Get existing thread or create new one for a phone number"""
@@ -304,10 +319,18 @@ def receive_webhook():
                     logger.info(f"Processing {message_type} message from {sender}")
 
                     try:
+                        # Create or update WhatsApp user
+                        user = WhatsAppUser.query.filter_by(phone_number=sender).first()
+                        if not user:
+                            user = WhatsAppUser(phone_number=sender)
+                            db.session.add(user)
+                        user.last_active = datetime.utcnow()
+                        db.session.commit()
+
                         # Get or create thread for this user
                         thread_id = get_or_create_thread(sender)
 
-                        # Traiter différemment selon le type de message
+                        # Process different message types
                         message_body = None
                         image_url = None
 
@@ -316,20 +339,19 @@ def receive_webhook():
                             logger.info(f"Text message: {message_body[:100]}...")
 
                         elif message_type == 'image':
-                            # Récupérer l'ID de l'image
+                            # Get image ID
                             image_id = message.get('image', {}).get('id')
                             if image_id:
-                                # Télécharger l'image
+                                # Download image
                                 image_url = download_whatsapp_image(image_id)
                                 logger.info(f"Downloaded image to: {image_url}")
-                                # Récupérer la légende si présente
+                                # Get caption if present
                                 message_body = message.get('image', {}).get('caption', '')
                                 logger.info(f"Image caption: {message_body}")
 
                         else:
-                            # Type de message non supporté
+                            # Unsupported message type
                             logger.info(f"Unsupported message type: {message_type}")
-                            # Envoyer un message d'information à l'utilisateur
                             send_whatsapp_message(
                                 sender, 
                                 f"Désolé, les messages de type '{message_type}' ne sont pas encore pris en charge."
@@ -405,7 +427,6 @@ def receive_webhook():
         logger.error(f"Error processing webhook: {str(e)}")
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
-
 
 def calculate_test_signature(payload):
     """Helper function to calculate webhook signature for testing"""
