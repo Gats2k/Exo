@@ -68,19 +68,29 @@ def verify_webhook_signature(request_data, signature_header):
     """Verify the webhook signature from WhatsApp"""
     app_secret = os.environ.get('WHATSAPP_APP_SECRET')
 
-    if not app_secret or not signature_header or not signature_header.startswith('sha256='):
-        logger.warning("Invalid signature check parameters")
+    if not app_secret:
+        logger.error("WHATSAPP_APP_SECRET not set")
         return False
 
-    actual_signature = signature_header.replace('sha256=', '')
+    if not signature_header or not signature_header.startswith('sha256='):
+        logger.warning(f"Invalid signature format: {signature_header}")
+        return False
 
-    expected_signature = hmac.new(
-        app_secret.encode('utf-8'),
-        request_data,
-        hashlib.sha256
-    ).hexdigest()
+    try:
+        actual_signature = signature_header.replace('sha256=', '')
 
-    return hmac.compare_digest(actual_signature, expected_signature)
+        expected_signature = hmac.new(
+            app_secret.encode('utf-8'),
+            request_data,
+            hashlib.sha256
+        ).hexdigest()
+
+        logger.debug(f"Verifying signatures - Expected: {expected_signature[:10]}... Actual: {actual_signature[:10]}...")
+
+        return hmac.compare_digest(actual_signature, expected_signature)
+    except Exception as e:
+        logger.error(f"Error verifying signature: {str(e)}")
+        return False
 
 @whatsapp.route('/webhook', methods=['GET'])
 def verify_webhook():
@@ -112,16 +122,23 @@ def verify_webhook():
 @whatsapp.route('/webhook', methods=['POST'])
 def receive_webhook():
     """Handle incoming webhook events from WhatsApp"""
-    signature = request.headers.get('X-Hub-Signature-256', '')
-    raw_data = request.get_data()
-
-    if not verify_webhook_signature(raw_data, signature):
-        logger.warning("Invalid webhook signature")
-        return 'Invalid signature', 403
-
-    data = request.get_json()
-
     try:
+        signature = request.headers.get('X-Hub-Signature-256', '')
+        raw_data = request.get_data()
+
+        logger.debug(f"Received webhook POST with signature: {signature}")
+
+        if not verify_webhook_signature(raw_data, signature):
+            logger.warning("Invalid webhook signature")
+            return jsonify({"error": "Invalid signature"}), 403
+
+        data = request.get_json()
+        logger.debug(f"Webhook payload: {data}")
+
+        if not data or 'entry' not in data:
+            logger.warning("Invalid webhook payload format")
+            return jsonify({"error": "Invalid payload format"}), 400
+
         for entry in data.get('entry', []):
             for change in entry.get('changes', []):
                 value = change.get('value', {})
@@ -133,47 +150,61 @@ def receive_webhook():
                         message_body = message.get('text', {}).get('body', '')
                         message_id = message.get('id')
 
-                        logger.info(f"Received message from {sender}: {message_body}")
+                        logger.info(f"Processing message from {sender}: {message_body}")
 
-                        # Store incoming message
-                        new_message = WhatsAppMessage(
-                            message_id=message_id,
-                            from_number=sender,
-                            content=message_body,
-                            direction='inbound'
-                        )
-                        db.session.add(new_message)
-                        db.session.commit()
-
-                        # Generate and send response
-                        response_text = f"Received: {message_body}"
-                        response = send_whatsapp_message(sender, response_text)
-
-                        # Store outbound message
-                        if response and 'messages' in response:
-                            outbound_msg = WhatsAppMessage(
-                                message_id=response['messages'][0]['id'],
-                                to_number=sender,
-                                content=response_text,
-                                direction='outbound',
-                                status='sent'
+                        try:
+                            # Store incoming message
+                            new_message = WhatsAppMessage(
+                                message_id=message_id,
+                                from_number=sender,
+                                content=message_body,
+                                direction='inbound'
                             )
-                            db.session.add(outbound_msg)
+                            db.session.add(new_message)
                             db.session.commit()
+
+                            # Generate and send response
+                            response_text = f"Received: {message_body}"
+                            response = send_whatsapp_message(sender, response_text)
+
+                            # Store outbound message
+                            if response and 'messages' in response:
+                                outbound_msg = WhatsAppMessage(
+                                    message_id=response['messages'][0]['id'],
+                                    to_number=sender,
+                                    content=response_text,
+                                    direction='outbound',
+                                    status='sent'
+                                )
+                                db.session.add(outbound_msg)
+                                db.session.commit()
+                                logger.info(f"Sent response to {sender}: {response_text}")
+                        except Exception as e:
+                            logger.error(f"Error processing message: {str(e)}")
+                            db.session.rollback()
+                            continue
 
                 # Handle message statuses
                 for status in value.get('statuses', []):
-                    message_id = status.get('id')
-                    status_value = status.get('status')
+                    try:
+                        message_id = status.get('id')
+                        status_value = status.get('status')
 
-                    message = WhatsAppMessage.query.filter_by(message_id=message_id).first()
-                    if message:
-                        message.status = status_value
-                        db.session.commit()
+                        logger.debug(f"Processing status update for message {message_id}: {status_value}")
+
+                        message = WhatsAppMessage.query.filter_by(message_id=message_id).first()
+                        if message:
+                            message.status = status_value
+                            db.session.commit()
+                            logger.info(f"Updated status for message {message_id} to {status_value}")
+                    except Exception as e:
+                        logger.error(f"Error processing status update: {str(e)}")
+                        db.session.rollback()
+                        continue
+
+        return jsonify({"status": "success"}), 200
 
     except Exception as e:
-        logger.error(f"Error processing webhook: {e}")
+        logger.error(f"Error processing webhook: {str(e)}")
         db.session.rollback()
-        return 'Internal Server Error', 500
-
-    return 'OK', 200
+        return jsonify({"error": "Internal server error"}), 500

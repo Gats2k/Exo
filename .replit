@@ -21,10 +21,6 @@ args = "Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Flask Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Telegram Bot"
 
 [[workflows.workflow]]
@@ -40,21 +36,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
-waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Flask Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python app.py"
 waitForPort = 5000
 
 [[workflows.workflow]]
