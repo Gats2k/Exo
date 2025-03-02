@@ -162,7 +162,18 @@ function updateDashboardStats(data) {
         usersEmptyState.style.display = 'block';
       }
     } else if (data.platform === 'whatsapp') {
-      // Handle WhatsApp data
+      // Handle WhatsApp data (ensure all stats are zero)
+      data.active_users = 0;
+      data.active_users_today = 0;
+      data.today_conversations = 0;
+      data.satisfaction_rate = 0;
+
+      // Update the display with zeros
+      document.querySelector('.stat-value').textContent = '0';
+      document.querySelector('.stat-subtitle').textContent = '+0 aujourd\'hui';
+      document.querySelectorAll('.stat-value')[1].textContent = '0';
+      document.querySelectorAll('.stat-value')[2].textContent = '0%';
+
       updateTableWithWhatsAppData(data);
     } else {
       // Handle Web data
