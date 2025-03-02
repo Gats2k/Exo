@@ -101,15 +101,14 @@
         <div class="table-container" id="usersTableContainer">
             <div class="empty-state" style="display: none;">
                 <i class="bi bi-people"></i>
-                <p>Aucun utilisateur Telegram disponible pour le moment</p>
+                <p>Aucun utilisateur disponible pour le moment</p>
             </div>
             <table class="data-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>Nom</th>
-                        <th>Prénom</th>
-                        <th>Âge</th>
                         <th>Téléphone</th>
+                        <th>Nom</th>
+                        <th>Âge</th>
                         <th>Niveau d'étude</th>
                         <th>Date d'inscription</th>
                     </tr>
@@ -117,10 +116,9 @@
                 <tbody>
                     {% for user in users %}
                     <tr>
-                        <td>{{ user.last_name }}</td>
-                        <td>{{ user.first_name }}</td>
-                        <td>{{ user.age }}</td>
                         <td>{{ user.phone_number }}</td>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.age }}</td>
                         <td>{{ user.study_level }}</td>
                         <td>{{ user.created_at }}</td>
                     </tr>

@@ -46,24 +46,20 @@ function updateTableWithWebData(data) {
       data.users.forEach(user => {
           const row = usersTable.insertRow();
           row.innerHTML = `
-              <td>${user.last_name || ''}</td>
-              <td>${user.first_name || ''}</td>
-              <td>${user.age || ''}</td>
               <td>${user.phone_number || ''}</td>
+              <td>${user.first_name} ${user.last_name}</td>
+              <td>${user.age || ''}</td>
               <td>${user.study_level || ''}</td>
               <td>${user.created_at || ''}</td>
           `;
       });
   }
 
-  // Update conversations table
+  // Update conversations table (unchanged)
   if (data.conversations && data.conversations.length > 0) {
       data.conversations.forEach(conv => {
-          // Formatage de la date si elle existe
           const formattedDate = conv.date ? new Date(conv.date).toLocaleDateString('fr-FR') : '';
-          // Formatage de l'heure si elle existe
           const formattedTime = conv.time ? conv.time : '';
-          // Tronquer le dernier message s'il est trop long
           const truncatedMessage = conv.last_message ? 
               (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
 
@@ -91,17 +87,16 @@ function updateTableWithTelegramData(data) {
       data.users.forEach(user => {
           const row = usersTable.insertRow();
           row.innerHTML = `
+              <td>${user.phone || ''}</td>
               <td>${user.name || ''}</td>
               <td>--</td>
-              <td>--</td>
-              <td>${user.phone || ''}</td>
               <td>${user.study_level || ''}</td>
               <td>${user.created_at || ''}</td>
           `;
       });
   }
 
-  // Update conversations table
+  // Update conversations table (unchanged)
   if (data.conversations && data.conversations.length > 0) {
       data.conversations.forEach(conv => {
           const row = conversationsTable.insertRow();
