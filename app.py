@@ -65,8 +65,12 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
-from whatsapp_bot import whatsapp, WhatsAppMessage
+from models import (
+    Conversation, Message, User, 
+    TelegramUser, TelegramConversation, TelegramMessage,
+    WhatsAppUser, WhatsAppConversation, WhatsAppMessage
+)
+from whatsapp_bot import whatsapp
 
 # Create tables within application context
 with app.app_context():
@@ -515,7 +519,7 @@ def admin_platform_data(platform):
     today = datetime.today().date()
 
     if platform == 'web':
-        # Web platform statistics (existing code remains unchanged)
+        # Web platform statistics 
         users = User.query.all()
         conversations = Conversation.query.all()
 
@@ -542,7 +546,7 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'telegram':
-        # Telegram platform statistics (existing code remains unchanged)
+        # Telegram platform statistics 
         users = TelegramUser.query.all()
         conversations = TelegramConversation.query.all()
 
@@ -571,15 +575,32 @@ def admin_platform_data(platform):
         }
 
     elif platform == 'whatsapp':
-        # WhatsApp platform statistics (empty data as requested)
+        # WhatsApp platform statistics
+        users = WhatsAppUser.query.all()
+        conversations = WhatsAppConversation.query.all()
+
         data = {
-            'active_users': 0,
-            'active_users_today': 0,
-            'today_conversations': 0,
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
             'satisfaction_rate': 0,
             'platform': 'whatsapp',
-            'users': [],
-            'conversations': []
+            'users': [{
+                'phone_number': user.phone_number,
+                'name': user.name,
+                'age': user.age,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title,
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(conversation_id=conv.id)
+                    .order_by(WhatsAppMessage.created_at.desc()).first().content
+                    if WhatsAppMessage.query.filter_by(conversation_id=conv.id).first()
+                    else "No messages"
+            } for conv in conversations]
         }
 
     return jsonify(data)
