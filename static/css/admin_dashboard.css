@@ -6,9 +6,29 @@ body {
   font-family: Arial, sans-serif;
   background: linear-gradient(to bottom right, #312E81, #581C87, #831843);
   margin: 0;
+  padding: 0;
   min-height: 100vh;
   color: white;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  display: flex;
+  overflow-x: hidden;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  z-index: 101;
+  overflow-y: auto;
 }
 
 .top-nav {
@@ -29,6 +49,21 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  width: calc(100% - var(--sidebar-width));
+  padding-top: 92px;
+  overflow-y: auto;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
 .web-selector {
   display: flex;
   align-items: center;
@@ -44,24 +79,6 @@ body {
   color: white;
   font-size: 1.2em;
   cursor: pointer;
-}
-
-.sidebar {
-  width: var(--sidebar-width);
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 20px;
-  position: fixed;
-  left: 0;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  color: white;
-  z-index: 101;
-  overflow-y: auto; /* Allow sidebar content to scroll if needed */
 }
 
 .sidebar-header {
@@ -148,21 +165,6 @@ body {
 .admin-email {
   font-size: 0.8em;
   color: rgba(255, 255, 255, 0.7);
-}
-
-.main-content {
-  margin-left: var(--sidebar-width);
-  padding: 92px 20px 20px 40px; /* Increased top padding to account for fixed header */
-  min-height: 100vh;
-  width: calc(100% - var(--sidebar-width));
-  position: relative;
-  overflow-y: auto; /* Enable vertical scrolling */
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
 }
 
 .stats-grid {
@@ -296,6 +298,10 @@ body {
 }
 
 @media (max-width: 768px) {
+  body {
+    flex-direction: column;
+  }
+
   .main-content {
     margin-left: 0;
     width: 100%;
