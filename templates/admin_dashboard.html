@@ -399,31 +399,16 @@
                             <th>Téléphone</th>
                             <th>Niveau d'étude</th>
                             <th>Date d'inscription</th>
-                            {% if platform == 'web' %}
-                            <th>Prénom</th>
-                            <th>Âge</th>
-                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
-                        {% if platform == 'web' %}
                         <tr>
                             <td>{{ user.last_name }}</td>
-                            <td>{{ user.first_name }}</td>
-                            <td>{{ user.phone_number }}</td>
-                            <td>{{ user.age }}</td>
-                            <td>{{ user.study_level }}</td>
-                            <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td>{{ user.name }}</td>
                             <td>{{ user.phone_number }}</td>
                             <td>{{ user.study_level }}</td>
                             <td>{{ user.created_at }}</td>
                         </tr>
-                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -486,41 +471,6 @@ function selectPlatform(platform) {
     fetchPlatformData(platform);
 }
 
-function updateTableWithTelegramData(data) {
-    const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
-    const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
-
-    // Clear existing table data
-    usersTable.innerHTML = '';
-    conversationsTable.innerHTML = '';
-
-    // Update users table
-    if (data.users && data.users.length > 0) {
-        data.users.forEach(user => {
-            const row = usersTable.insertRow();
-            row.innerHTML = `
-                <td>${user.name}</td>
-                <td>${user.phone}</td>
-                <td>${user.study_level}</td>
-                <td>${user.created_at}</td>
-            `;
-        });
-    }
-
-    // Update conversations table
-    if (data.conversations && data.conversations.length > 0) {
-        data.conversations.forEach(conv => {
-            const row = conversationsTable.insertRow();
-            row.innerHTML = `
-                <td>${conv.title}</td>
-                <td>${conv.date}</td>
-                <td>${conv.time}</td>
-                <td>${conv.last_message}</td>
-            `;
-        });
-    }
-}
-
 function updateTableWithWebData(data) {
     const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
     const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
@@ -534,12 +484,10 @@ function updateTableWithWebData(data) {
         data.users.forEach(user => {
             const row = usersTable.insertRow();
             row.innerHTML = `
-                <td>${user.last_name}</td>
-                <td>${user.first_name}</td>
-                <td>${user.phone_number}</td>
-                <td>${user.age}</td>
-                <td>${user.study_level}</td>
-                <td>${user.created_at}</td>
+                <td>${user.last_name || ''}</td>
+                <td>${user.phone_number || ''}</td>
+                <td>${user.study_level || ''}</td>
+                <td>${user.created_at || ''}</td>
             `;
         });
     }
@@ -549,10 +497,45 @@ function updateTableWithWebData(data) {
         data.conversations.forEach(conv => {
             const row = conversationsTable.insertRow();
             row.innerHTML = `
-                <td>${conv.title}</td>
-                <td>${conv.date}</td>
-                <td>${conv.time}</td>
-                <td>${conv.last_message}</td>
+                <td>${conv.title || 'Sans titre'}</td>
+                <td>${conv.date || ''}</td>
+                <td>${conv.time || ''}</td>
+                <td>${conv.last_message || ''}</td>
+            `;
+        });
+    }
+}
+
+function updateTableWithTelegramData(data) {
+    const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
+    const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
+
+    // Clear existing table data
+    usersTable.innerHTML = '';
+    conversationsTable.innerHTML = '';
+
+    // Update users table
+    if (data.users && data.users.length > 0) {
+        data.users.forEach(user => {
+            const row = usersTable.insertRow();
+            row.innerHTML = `
+                <td>${user.name || ''}</td>
+                <td>${user.phone || ''}</td>
+                <td>${user.study_level || ''}</td>
+                <td>${user.created_at || ''}</td>
+            `;
+        });
+    }
+
+    // Update conversations table
+    if (data.conversations && data.conversations.length > 0) {
+        data.conversations.forEach(conv => {
+            const row = conversationsTable.insertRow();
+            row.innerHTML = `
+                <td>${conv.title || 'Sans titre'}</td>
+                <td>${conv.date || ''}</td>
+                <td>${conv.time || ''}</td>
+                <td>${conv.last_message || ''}</td>
             `;
         });
     }
@@ -570,13 +553,14 @@ function updateDashboardStats(data) {
         // Update satisfaction
         document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
 
-        // Update tables visibility based on platform
+        // Get table and empty state elements
         const usersTable = document.getElementById('usersTable');
         const conversationsTable = document.getElementById('conversationsTable');
         const usersEmptyState = document.querySelector('#usersTableContainer .empty-state');
         const conversationsEmptyState = document.querySelector('#conversationsTableContainer .empty-state');
 
         if (data.platform === 'telegram') {
+            // Handle Telegram data
             if (data.users && data.users.length > 0) {
                 usersTable.style.display = 'table';
                 usersEmptyState.style.display = 'none';
@@ -586,7 +570,7 @@ function updateDashboardStats(data) {
                 usersEmptyState.style.display = 'block';
             }
         } else {
-            // Web platform
+            // Handle Web data
             usersTable.style.display = 'table';
             conversationsTable.style.display = 'table';
             usersEmptyState.style.display = 'none';
