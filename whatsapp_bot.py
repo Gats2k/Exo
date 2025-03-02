@@ -6,10 +6,15 @@ import requests
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
 # Create Blueprint for WhatsApp routes
 whatsapp = Blueprint('whatsapp', __name__)
@@ -25,6 +30,56 @@ class WhatsAppMessage(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='received')
     direction = db.Column(db.String(10))  # 'inbound' or 'outbound'
+    thread_id = db.Column(db.String(128))  # Store OpenAI thread ID for conversation continuity
+
+def get_or_create_thread(phone_number):
+    """Get existing thread or create new one for a phone number"""
+    message = WhatsAppMessage.query.filter_by(
+        from_number=phone_number,
+        thread_id__isnot=None
+    ).order_by(WhatsAppMessage.timestamp.desc()).first()
+
+    if message and message.thread_id:
+        return message.thread_id
+
+    # Create new thread if none exists
+    thread = client.beta.threads.create()
+    return thread.id
+
+def generate_ai_response(message_body, thread_id):
+    """Generate response using OpenAI assistant"""
+    try:
+        # Add the user's message to the thread
+        client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=message_body
+        )
+
+        # Run the assistant
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=ASSISTANT_ID
+        )
+
+        # Wait for response
+        while True:
+            run_status = client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+            if run_status.status == 'completed':
+                break
+            elif run_status.status == 'failed':
+                return "Désolé, je n'ai pas pu générer une réponse. Veuillez réessayer."
+
+        # Get the assistant's response
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+        return messages.data[0].content[0].text.value
+
+    except Exception as e:
+        logger.error(f"Error generating AI response: {str(e)}")
+        return "Désolé, une erreur s'est produite. Veuillez réessayer plus tard."
 
 def send_whatsapp_message(to_number, message):
     """Send a WhatsApp message using the API"""
@@ -153,18 +208,24 @@ def receive_webhook():
                         logger.info(f"Processing message from {sender}: {message_body}")
 
                         try:
+                            # Get or create thread for this user
+                            thread_id = get_or_create_thread(sender)
+
                             # Store incoming message
                             new_message = WhatsAppMessage(
                                 message_id=message_id,
                                 from_number=sender,
                                 content=message_body,
-                                direction='inbound'
+                                direction='inbound',
+                                thread_id=thread_id
                             )
                             db.session.add(new_message)
                             db.session.commit()
 
-                            # Generate and send response
-                            response_text = f"Received: {message_body}"
+                            # Generate AI response
+                            response_text = generate_ai_response(message_body, thread_id)
+
+                            # Send response via WhatsApp
                             response = send_whatsapp_message(sender, response_text)
 
                             # Store outbound message
@@ -174,7 +235,8 @@ def receive_webhook():
                                     to_number=sender,
                                     content=response_text,
                                     direction='outbound',
-                                    status='sent'
+                                    status='sent',
+                                    thread_id=thread_id
                                 )
                                 db.session.add(outbound_msg)
                                 db.session.commit()
