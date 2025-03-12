@@ -1,9 +1,75 @@
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show the selected section
+    document.getElementById(sectionId + '-section').style.display = 'block';
+
+    // Update active state in sidebar
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+}
+
+function initializeNavigation() {
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const section = item.getAttribute('data-section');
+            showSection(section);
+            if (section === 'users') {
+                fetchAllUsers(currentPlatform);
+            }
+        });
+    });
+}
+
+function filterUsers(filter) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+
+    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+    rows.forEach(row => {
+        const status = row.querySelector('.status-badge').textContent.toLowerCase();
+        if (filter === 'all' || status === filter) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+
+    rows.forEach(row => {
+        const text = Array.from(row.cells)
+            .map(cell => cell.textContent.toLowerCase())
+            .join(' ');
+
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+let currentPlatform = 'web';
+
 function toggleDropdown() {
   const dropdown = document.getElementById('platformDropdown');
   dropdown.classList.toggle('show');
 }
 
 function selectPlatform(platform) {
+    currentPlatform = platform;
     const selectedText = document.getElementById('selected-platform');
     const platformIcon = document.getElementById('platform-icon');
     const dropdown = document.getElementById('platformDropdown');
@@ -33,8 +99,13 @@ function selectPlatform(platform) {
     // Hide dropdown
     dropdown.classList.remove('show');
 
-    // Fetch data for selected platform
-    fetchPlatformData(platform);
+    // Update data based on current section
+    const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
+    if (currentSection === 'users') {
+        fetchAllUsers(platform);
+    } else {
+        fetchPlatformData(platform);
+    }
 }
 
 function updateTableWithWebData(data) {
@@ -62,7 +133,7 @@ function updateTableWithWebData(data) {
       });
 
       // Add "See more..." row if there are more than 5 users
-      if (data.users.length > 5) {
+        if (data.users.length >= 3) {
           const moreRow = usersTable.insertRow();
           moreRow.className = 'see-more-row';
           moreRow.innerHTML = `
@@ -79,7 +150,7 @@ function updateTableWithWebData(data) {
           const formattedDate = conv.date ? new Date(conv.date).toLocaleDateString('fr-FR') : '';
           const formattedTime = conv.time ? conv.time : '';
           const truncatedMessage = conv.last_message ? 
-              (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
+            (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
 
           const row = conversationsTable.insertRow();
           row.innerHTML = `
@@ -91,7 +162,7 @@ function updateTableWithWebData(data) {
       });
 
       // Add "See more..." row if there are more than 5 conversations
-      if (data.conversations.length > 5) {
+        if (data.conversations.length >= 3) {
           const moreRow = conversationsTable.insertRow();
           moreRow.className = 'see-more-row';
           moreRow.innerHTML = `
@@ -126,11 +197,11 @@ function updateTableWithPlatformData(data) {
         });
 
         // Add "See more..." row if there are more than 5 users
-        if (data.users.length > 5) {
+        if (data.users.length >= 3) {
             const moreRow = usersTable.insertRow();
             moreRow.className = 'see-more-row';
             moreRow.innerHTML = `
-                <td colspan="6" class="see-more-cell">See more...</td>
+                <td colspan="6" class="see-more-cell">Voir plus...</td>
             `;
         }
     }
@@ -150,11 +221,11 @@ function updateTableWithPlatformData(data) {
         });
 
         // Add "See more..." row if there are more than 5 conversations
-        if (data.conversations.length > 5) {
+        if (data.conversations.length >= 3) {
             const moreRow = conversationsTable.insertRow();
             moreRow.className = 'see-more-row';
             moreRow.innerHTML = `
-                <td colspan="4" class="see-more-cell">See more...</td>
+                <td colspan="4" class="see-more-cell">Voir plus...</td>
             `;
         }
     }
@@ -200,6 +271,8 @@ function updateDashboardStats(data) {
             if (data.conversations && data.conversations.length > 0) {
                 conversationsTable.style.display = 'table';
                 conversationsEmptyState.style.display = 'none';
+                // Cette ligne manquait - elle est nécessaire pour afficher les conversations
+                updateTableWithPlatformData(data);
             } else {
                 conversationsTable.style.display = 'none';
                 conversationsEmptyState.style.display = 'block';
@@ -249,6 +322,68 @@ function fetchPlatformData(platform) {
       });
 }
 
+function fetchAllUsers(platform) {
+    fetch(`/admin/users/${platform}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            updateFullUsersTable(data.users);
+        })
+        .catch(error => {
+            console.error('Error fetching users:', error);
+            showEmptyState('fullUsersTableContainer', platform);
+        });
+}
+
+function updateFullUsersTable(users) {
+    const table = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
+    const container = document.getElementById('fullUsersTableContainer');
+    const emptyState = container.querySelector('.empty-state');
+
+    if (!users || users.length === 0) {
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+
+    table.style.display = 'table';
+    emptyState.style.display = 'none';
+    table.innerHTML = '';
+
+    users.forEach(user => {
+        const row = table.insertRow();
+        row.innerHTML = `
+            <td>${user.last_name || user.name || ''}</td>
+            <td>${user.first_name || ''}</td>
+            <td>${user.age || '--'}</td>
+            <td>${user.phone_number || user.phone || ''}</td>
+            <td>${user.study_level || ''}</td>
+            <td>${user.created_at || ''}</td>
+            <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
+            <td class="action-buttons">
+                <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
+                <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+            </td>
+        `;
+    });
+}
+
+
+function showEmptyState(containerId, platform) {
+    const container = document.getElementById(containerId);
+    const emptyState = container.querySelector('.empty-state');
+    emptyState.style.display = 'block';
+    //Customize empty state message based on platform and container
+    if (containerId === 'fullUsersTableContainer') {
+        emptyState.querySelector('p').textContent = `Aucun utilisateur ${platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1)} disponible pour le moment`;
+    }
+
+}
+
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
   const dropdown = document.getElementById('platformDropdown');
@@ -261,5 +396,14 @@ document.addEventListener('click', function(event) {
 
 // Initialize the dashboard with web data by default
 document.addEventListener('DOMContentLoaded', function() {
+  initializeNavigation();
+  showSection('dashboard'); // Show dashboard by default
   fetchPlatformData('web');
+
+  // Add event listeners for user filtering and search
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
+  });
+
+  document.getElementById('userSearchInput').addEventListener('input', searchUsers);
 });

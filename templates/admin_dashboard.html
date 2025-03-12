@@ -8,23 +8,23 @@
     </div>
 
     <div class="sidebar-section">
-        <a href="#dashboard" class="nav-item active">
+        <a href="#" class="nav-item" data-section="dashboard">
             <i class="bi bi-speedometer2"></i>
             Tableau de bord
         </a>
-        <a href="#users" class="nav-item">
+        <a href="#" class="nav-item" data-section="users">
             <i class="bi bi-people"></i>
             Utilisateurs
         </a>
-        <a href="#conversations" class="nav-item">
+        <a href="#" class="nav-item" data-section="conversations">
             <i class="bi bi-chat-dots"></i>
             Conversations
         </a>
-        <a href="#subscriptions" class="nav-item">
+        <a href="#" class="nav-item" data-section="subscriptions">
             <i class="bi bi-credit-card"></i>
             Abonnements
         </a>
-        <a href="#settings" class="nav-item">
+        <a href="#" class="nav-item" data-section="settings">
             <i class="bi bi-gear"></i>
             Paramètres
         </a>
@@ -70,91 +70,111 @@
     </div>
 
     <div class="container">
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-title">Utilisateurs Actifs</div>
-                    <i class="bi bi-people stat-icon"></i>
+        <!-- Dashboard Section -->
+        <div class="section" id="dashboard-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-title">Utilisateurs Actifs</div>
+                        <i class="bi bi-people stat-icon"></i>
+                    </div>
+                    <div class="stat-value">{{ active_users }}</div>
+                    <div class="stat-subtitle">+{{ active_users_today }} aujourd'hui</div>
                 </div>
-                <div class="stat-value">{{ active_users }}</div>
-                <div class="stat-subtitle">+{{ active_users_today }} aujourd'hui</div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-title">Conversations</div>
+                        <i class="bi bi-chat-dots stat-icon"></i>
+                    </div>
+                    <div class="stat-value">{{ today_conversations }}</div>
+                    <div class="stat-subtitle neutral">Aujourd'hui</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-title">Satisfaction</div>
+                        <i class="bi bi-graph-up stat-icon"></i>
+                    </div>
+                    <div class="stat-value">{{ satisfaction_rate }}%</div>
+                    <div class="stat-subtitle">Positive</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-title">Conversations</div>
-                    <i class="bi bi-chat-dots stat-icon"></i>
+
+            <h2 class="section-title">Liste des utilisateurs</h2>
+            <div class="table-container" id="usersTableContainer">
+                <div class="empty-state" style="display: none;">
+                    <i class="bi bi-people"></i>
+                    <p>Aucun utilisateur disponible pour le moment</p>
                 </div>
-                <div class="stat-value">{{ today_conversations }}</div>
-                <div class="stat-subtitle neutral">Aujourd'hui</div>
+                <table class="data-table" id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Âge</th>
+                            <th>Téléphone</th>
+                            <th>Niveau d'étude</th>
+                            <th>Date d'inscription</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-title">Satisfaction</div>
-                    <i class="bi bi-graph-up stat-icon"></i>
+
+            <h2 class="section-title">Conversations récentes</h2>
+            <div class="table-container" id="conversationsTableContainer">
+                <div class="empty-state" style="display: none;">
+                    <i class="bi bi-chat-dots"></i>
+                    <p>Aucune conversation disponible pour le moment</p>
                 </div>
-                <div class="stat-value">{{ satisfaction_rate }}%</div>
-                <div class="stat-subtitle">Positive</div>
+                <table class="data-table" id="conversationsTable">
+                    <thead>
+                        <tr>
+                            <th>Titre</th>
+                            <th>Date</th>
+                            <th>Heure</th>
+                            <th>Dernier message</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
 
-        <h2 class="section-title">Liste des utilisateurs</h2>
-        <div class="table-container" id="usersTableContainer">
-            <div class="empty-state" style="display: none;">
-                <i class="bi bi-people"></i>
-                <p>Aucun utilisateur Telegram disponible pour le moment</p>
+        <!-- Users Section -->
+        <div class="section" id="users-section" style="display: none;">
+            <h1 class="section-title">Tous les Utilisateurs</h1>
+            <div class="users-filters">
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Rechercher un utilisateur..." id="userSearchInput">
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">Tous</button>
+                    <button class="filter-btn" data-filter="active">Actifs</button>
+                    <button class="filter-btn" data-filter="inactive">Inactifs</button>
+                </div>
             </div>
-            <table class="data-table" id="usersTable">
-                <thead>
-                    <tr>
-                        <th>Nom</th>
-                        <th>Prénom</th>
-                        <th>Âge</th>
-                        <th>Téléphone</th>
-                        <th>Niveau d'étude</th>
-                        <th>Date d'inscription</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td>{{ user.last_name }}</td>
-                        <td>{{ user.first_name }}</td>
-                        <td>{{ user.age }}</td>
-                        <td>{{ user.phone_number }}</td>
-                        <td>{{ user.study_level }}</td>
-                        <td>{{ user.created_at }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <h2 class="section-title">Conversations récentes</h2>
-        <div class="table-container" id="conversationsTableContainer">
-            <div class="empty-state" style="display: none;">
-                <i class="bi bi-chat-dots"></i>
-                <p>Aucune conversation Telegram disponible pour le moment</p>
+            <div class="table-container" id="fullUsersTableContainer">
+                <div class="empty-state" style="display: none;">
+                    <i class="bi bi-people"></i>
+                    <p>Aucun utilisateur disponible pour le moment</p>
+                </div>
+                <table class="data-table" id="fullUsersTable">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Âge</th>
+                            <th>Téléphone</th>
+                            <th>Niveau d'étude</th>
+                            <th>Date d'inscription</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-            <table class="data-table" id="conversationsTable">
-                <thead>
-                    <tr>
-                        <th>Titre</th>
-                        <th>Date</th>
-                        <th>Heure</th>
-                        <th>Dernier message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for conv in conversations %}
-                    <tr>
-                        <td>{{ conv.title }}</td>
-                        <td>{{ conv.date }}</td>
-                        <td>{{ conv.time }}</td>
-                        <td>{{ conv.last_message }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
     </div>
 </div>
