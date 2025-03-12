@@ -1,9 +1,75 @@
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show the selected section
+    document.getElementById(sectionId + '-section').style.display = 'block';
+
+    // Update active state in sidebar
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+}
+
+function initializeNavigation() {
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const section = item.getAttribute('data-section');
+            showSection(section);
+            if (section === 'users') {
+                fetchAllUsers(currentPlatform);
+            }
+        });
+    });
+}
+
+function filterUsers(filter) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+
+    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+    rows.forEach(row => {
+        const status = row.querySelector('.status-badge').textContent.toLowerCase();
+        if (filter === 'all' || status === filter) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function searchUsers() {
+    const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+
+    rows.forEach(row => {
+        const text = Array.from(row.cells)
+            .map(cell => cell.textContent.toLowerCase())
+            .join(' ');
+
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+let currentPlatform = 'web';
+
 function toggleDropdown() {
   const dropdown = document.getElementById('platformDropdown');
   dropdown.classList.toggle('show');
 }
 
 function selectPlatform(platform) {
+    currentPlatform = platform;
     const selectedText = document.getElementById('selected-platform');
     const platformIcon = document.getElementById('platform-icon');
     const dropdown = document.getElementById('platformDropdown');
@@ -33,8 +99,13 @@ function selectPlatform(platform) {
     // Hide dropdown
     dropdown.classList.remove('show');
 
-    // Fetch data for selected platform
-    fetchPlatformData(platform);
+    // Update data based on current section
+    const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
+    if (currentSection === 'users') {
+        fetchAllUsers(platform);
+    } else {
+        fetchPlatformData(platform);
+    }
 }
 
 function updateTableWithWebData(data) {
@@ -79,7 +150,7 @@ function updateTableWithWebData(data) {
           const formattedDate = conv.date ? new Date(conv.date).toLocaleDateString('fr-FR') : '';
           const formattedTime = conv.time ? conv.time : '';
           const truncatedMessage = conv.last_message ? 
-              (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
+            (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
 
           const row = conversationsTable.insertRow();
           row.innerHTML = `
@@ -251,12 +322,8 @@ function fetchPlatformData(platform) {
       });
 }
 
-/* À AJOUTER */
-// Fonction pour charger les données complètes des utilisateurs
-function loadFullUsersData() {
-    const platform = document.getElementById('selected-platform').textContent.toLowerCase();
-
-    fetch(`/admin/data/${platform}`)
+function fetchAllUsers(platform) {
+    fetch(`/admin/users/${platform}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -264,80 +331,58 @@ function loadFullUsersData() {
             return response.json();
         })
         .then(data => {
-            updateFullUsersTable(data);
+            updateFullUsersTable(data.users);
         })
         .catch(error => {
-            console.error('Error fetching users data:', error);
-            const fullUsersTable = document.getElementById('fullUsersTable');
-            const emptyState = document.querySelector('#fullUsersTableContainer .empty-state');
-
-            fullUsersTable.style.display = 'none';
-            emptyState.style.display = 'block';
+            console.error('Error fetching users:', error);
+            showEmptyState('fullUsersTableContainer', platform);
         });
 }
 
-// Fonction pour mettre à jour le tableau complet des utilisateurs
-function updateFullUsersTable(data) {
-    const fullUsersTable = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
-    const emptyState = document.querySelector('#fullUsersTableContainer .empty-state');
+function updateFullUsersTable(users) {
+    const table = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
+    const container = document.getElementById('fullUsersTableContainer');
+    const emptyState = container.querySelector('.empty-state');
 
-    // Vider le tableau existant
-    fullUsersTable.innerHTML = '';
-
-    if (data.users && data.users.length > 0) {
-        data.users.forEach(user => {
-            const row = fullUsersTable.insertRow();
-
-            // Différencier l'affichage selon la plateforme
-            if (data.platform === 'web') {
-                row.innerHTML = `
-                    <td>${user.last_name || ''}</td>
-                    <td>${user.first_name || ''}</td>
-                    <td>${user.age || ''}</td>
-                    <td>${user.phone_number || ''}</td>
-                    <td>${user.study_level || ''}</td>
-                    <td>${user.created_at || ''}</td>
-                    <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
-                    <td>
-                        <button class="action-btn view-btn"><i class="bi bi-eye"></i></button>
-                        <button class="action-btn edit-btn"><i class="bi bi-pencil"></i></button>
-                    </td>
-                `;
-            } else {
-                row.innerHTML = `
-                    <td>${user.name || ''}</td>
-                    <td>--</td>
-                    <td>--</td>
-                    <td>${user.phone || ''}</td>
-                    <td>${user.study_level || ''}</td>
-                    <td>${user.created_at || ''}</td>
-                    <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
-                    <td>
-                        <button class="action-btn view-btn"><i class="bi bi-eye"></i></button>
-                        <button class="action-btn edit-btn"><i class="bi bi-pencil"></i></button>
-                    </td>
-                `;
-            }
-        });
-
-        document.getElementById('fullUsersTable').style.display = 'table';
-        emptyState.style.display = 'none';
-    } else {
-        document.getElementById('fullUsersTable').style.display = 'none';
+    if (!users || users.length === 0) {
+        table.style.display = 'none';
         emptyState.style.display = 'block';
+        return;
     }
+
+    table.style.display = 'table';
+    emptyState.style.display = 'none';
+    table.innerHTML = '';
+
+    users.forEach(user => {
+        const row = table.insertRow();
+        row.innerHTML = `
+            <td>${user.last_name || user.name || ''}</td>
+            <td>${user.first_name || ''}</td>
+            <td>${user.age || '--'}</td>
+            <td>${user.phone_number || user.phone || ''}</td>
+            <td>${user.study_level || ''}</td>
+            <td>${user.created_at || ''}</td>
+            <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
+            <td class="action-buttons">
+                <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
+                <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+            </td>
+        `;
+    });
 }
 
-// Ajouter un écouteur d'événements pour les éléments de navigation
-document.addEventListener('DOMContentLoaded', function() {
-    // Événement pour le lien "Utilisateurs"
-    const usersNavItem = document.querySelector('.nav-item[data-section="users"]');
-    if (usersNavItem) {
-        usersNavItem.addEventListener('click', function() {
-            loadFullUsersData();
-        });
+
+function showEmptyState(containerId, platform) {
+    const container = document.getElementById(containerId);
+    const emptyState = container.querySelector('.empty-state');
+    emptyState.style.display = 'block';
+    //Customize empty state message based on platform and container
+    if (containerId === 'fullUsersTableContainer') {
+        emptyState.querySelector('p').textContent = `Aucun utilisateur ${platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1)} disponible pour le moment`;
     }
-});
+
+}
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
@@ -351,5 +396,14 @@ document.addEventListener('click', function(event) {
 
 // Initialize the dashboard with web data by default
 document.addEventListener('DOMContentLoaded', function() {
+  initializeNavigation();
+  showSection('dashboard'); // Show dashboard by default
   fetchPlatformData('web');
+
+  // Add event listeners for user filtering and search
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
+  });
+
+  document.getElementById('userSearchInput').addEventListener('input', searchUsers);
 });
