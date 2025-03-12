@@ -69,6 +69,7 @@ function toggleDropdown() {
 }
 
 function selectPlatform(platform) {
+    currentPlatform = platform;
     const selectedText = document.getElementById('selected-platform');
     const platformIcon = document.getElementById('platform-icon');
     const dropdown = document.getElementById('platformDropdown');
@@ -97,15 +98,6 @@ function selectPlatform(platform) {
 
     // Hide dropdown
     dropdown.classList.remove('show');
-
-    // Fetch data for selected platform
-    fetchPlatformData(platform);
-
-    // Mettre à jour la section utilisateurs si elle est visible
-    const usersSection = document.getElementById('users-section');
-    if (usersSection.style.display === 'block') {
-        loadFullUsersData();
-    }
 
     // Update data based on current section
     const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
@@ -298,115 +290,6 @@ function updateDashboardStats(data) {
     }
 }
 
-/* À AJOUTER */
-// Fonction pour gérer les clics sur la sidebar
-function handleNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-    const sections = document.querySelectorAll('.section');
-
-    navItems.forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            const targetSection = this.getAttribute('data-section');
-
-            // Masquer toutes les sections
-            sections.forEach(section => {
-                section.style.display = 'none';
-            });
-
-            // Retirer la classe active de tous les items
-            navItems.forEach(navItem => {
-                navItem.classList.remove('active');
-            });
-
-            // Afficher la section ciblée
-            document.getElementById(`${targetSection}-section`).style.display = 'block';
-            this.classList.add('active');
-
-            // Charger les données complètes si on est sur la section utilisateurs
-            if (targetSection === 'users') {
-                loadFullUsersData();
-            }
-        });
-    });
-}
-
-// Fonction pour charger les données complètes des utilisateurs
-function loadFullUsersData() {
-    const platform = document.getElementById('selected-platform').textContent.toLowerCase();
-
-    fetch(`/admin/data/${platform}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            updateFullUsersTable(data);
-        })
-        .catch(error => {
-            console.error('Error fetching users data:', error);
-            const fullUsersTable = document.getElementById('fullUsersTable');
-            const emptyState = document.querySelector('#fullUsersTableContainer .empty-state');
-
-            fullUsersTable.style.display = 'none';
-            emptyState.style.display = 'block';
-        });
-}
-
-// Fonction pour mettre à jour le tableau complet des utilisateurs
-function updateFullUsersTable(data) {
-    const fullUsersTable = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
-    const emptyState = document.querySelector('#fullUsersTableContainer .empty-state');
-
-    // Vider le tableau existant
-    fullUsersTable.innerHTML = '';
-
-    if (data.users && data.users.length > 0) {
-        data.users.forEach(user => {
-            const row = fullUsersTable.insertRow();
-
-            // Différencier l'affichage selon la plateforme
-            if (data.platform === 'web') {
-                row.innerHTML = `
-                    <td>${user.last_name || ''}</td>
-                    <td>${user.first_name || ''}</td>
-                    <td>${user.age || ''}</td>
-                    <td>${user.phone_number || ''}</td>
-                    <td>${user.study_level || ''}</td>
-                    <td>${user.created_at || ''}</td>
-                    <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
-                    <td>
-                        <button class="action-btn view-btn"><i class="bi bi-eye"></i></button>
-                        <button class="action-btn edit-btn"><i class="bi bi-pencil"></i></button>
-                    </td>
-                `;
-            } else {
-                row.innerHTML = `
-                    <td>${user.name || ''}</td>
-                    <td>--</td>
-                    <td>--</td>
-                    <td>${user.phone || ''}</td>
-                    <td>${user.study_level || ''}</td>
-                    <td>${user.created_at || ''}</td>
-                    <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
-                    <td>
-                        <button class="action-btn view-btn"><i class="bi bi-eye"></i></button>
-                        <button class="action-btn edit-btn"><i class="bi bi-pencil"></i></button>
-                    </td>
-                `;
-            }
-        });
-
-        fullUsersTable.style.display = 'table';
-        emptyState.style.display = 'none';
-    } else {
-        fullUsersTable.style.display = 'none';
-        emptyState.style.display = 'block';
-    }
-}
-
 function fetchPlatformData(platform) {
   // Make an AJAX request to get platform-specific data
   fetch(`/admin/data/${platform}`)
@@ -516,7 +399,6 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeNavigation();
   showSection('dashboard'); // Show dashboard by default
   fetchPlatformData('web');
-  handleNavigation();
 
   // Add event listeners for user filtering and search
   document.querySelectorAll('.filter-btn').forEach(btn => {
