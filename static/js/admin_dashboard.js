@@ -47,7 +47,9 @@ function updateTableWithWebData(data) {
 
   // Update users table
   if (data.users && data.users.length > 0) {
-      data.users.forEach(user => {
+      // Display only first 5 rows
+      const displayUsers = data.users.slice(0, 5);
+      displayUsers.forEach(user => {
           const row = usersTable.insertRow();
           row.innerHTML = `
               <td>${user.last_name || ''}</td>
@@ -58,16 +60,24 @@ function updateTableWithWebData(data) {
               <td>${user.created_at || ''}</td>
           `;
       });
+
+      // Add "See more..." row if there are more than 5 users
+      if (data.users.length > 5) {
+          const moreRow = usersTable.insertRow();
+          moreRow.className = 'see-more-row';
+          moreRow.innerHTML = `
+              <td colspan="6" class="see-more-cell">See more...</td>
+          `;
+      }
   }
 
   // Update conversations table
   if (data.conversations && data.conversations.length > 0) {
-      data.conversations.forEach(conv => {
-          // Formatage de la date si elle existe
+      // Display only first 5 rows
+      const displayConversations = data.conversations.slice(0, 5);
+      displayConversations.forEach(conv => {
           const formattedDate = conv.date ? new Date(conv.date).toLocaleDateString('fr-FR') : '';
-          // Formatage de l'heure si elle existe
           const formattedTime = conv.time ? conv.time : '';
-          // Tronquer le dernier message s'il est trop long
           const truncatedMessage = conv.last_message ? 
               (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) : '';
 
@@ -79,6 +89,15 @@ function updateTableWithWebData(data) {
               <td>${truncatedMessage}</td>
           `;
       });
+
+      // Add "See more..." row if there are more than 5 conversations
+      if (data.conversations.length > 5) {
+          const moreRow = conversationsTable.insertRow();
+          moreRow.className = 'see-more-row';
+          moreRow.innerHTML = `
+              <td colspan="4" class="see-more-cell">See more...</td>
+          `;
+      }
   }
 }
 
@@ -92,7 +111,9 @@ function updateTableWithPlatformData(data) {
 
     // Update users table
     if (data.users && data.users.length > 0) {
-        data.users.forEach(user => {
+        // Display only first 5 rows
+        const displayUsers = data.users.slice(0, 5);
+        displayUsers.forEach(user => {
             const row = usersTable.insertRow();
             row.innerHTML = `
                 <td>${user.name || ''}</td>
@@ -103,11 +124,22 @@ function updateTableWithPlatformData(data) {
                 <td>${user.created_at || ''}</td>
             `;
         });
+
+        // Add "See more..." row if there are more than 5 users
+        if (data.users.length > 5) {
+            const moreRow = usersTable.insertRow();
+            moreRow.className = 'see-more-row';
+            moreRow.innerHTML = `
+                <td colspan="6" class="see-more-cell">See more...</td>
+            `;
+        }
     }
 
     // Update conversations table
     if (data.conversations && data.conversations.length > 0) {
-        data.conversations.forEach(conv => {
+        // Display only first 5 rows
+        const displayConversations = data.conversations.slice(0, 5);
+        displayConversations.forEach(conv => {
             const row = conversationsTable.insertRow();
             row.innerHTML = `
                 <td>${conv.title || 'Sans titre'}</td>
@@ -116,6 +148,15 @@ function updateTableWithPlatformData(data) {
                 <td>${conv.last_message || ''}</td>
             `;
         });
+
+        // Add "See more..." row if there are more than 5 conversations
+        if (data.conversations.length > 5) {
+            const moreRow = conversationsTable.insertRow();
+            moreRow.className = 'see-more-row';
+            moreRow.innerHTML = `
+                <td colspan="4" class="see-more-cell">See more...</td>
+            `;
+        }
     }
 }
 

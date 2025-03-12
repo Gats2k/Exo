@@ -374,3 +374,20 @@ body {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
 }
+
+.see-more-row {
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.see-more-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.see-more-cell {
+    text-align: center;
+    padding: 12px;
+    color: #FFD700;
+    font-style: italic;
+}
