@@ -123,7 +123,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await create_telegram_conversation(user_id, thread.id)
 
         await update.message.reply_text(
-            'Hello! I am your AI assistant. How can I help you today?'
+            '🤓'
         )
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}", exc_info=True)
