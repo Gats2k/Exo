@@ -625,17 +625,20 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
+        // Format the date if it exists
+        const formattedDate = conversation.created_at || '';
+
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
-            <td>${conversation.date || ''}</td>
+            <td>${formattedDate}</td>
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
+                <button class="action-btn view" onclick="viewConversation('${platform}-${conversation.id}')">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
+                <button class="action-btn delete" onclick="deleteConversation('${platform}-${conversation.id}')">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
@@ -772,45 +775,73 @@ function confirmDeleteConversation() {
 }
 
 function viewConversation(conversationId) {
-    // Open the modal
     const modal = document.getElementById('viewConversationModal');
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 
-    // Reset the modal content
+    // Extract the platform and ID from the conversation identifier
+    const [platform, ...idParts] = conversationId.split('-');
+    const id = idParts.join('-'); // Reconstruct ID in case it contains hyphens
+
+    // Reset and show loading state
     document.getElementById('conversationTitle').textContent = 'Chargement...';
     document.getElementById('conversationDate').textContent = 'Chargement...';
     document.getElementById('conversationPlatform').textContent = 'Chargement...';
-    document.getElementById('conversationMessages').innerHTML = '';
+    document.getElementById('conversationMessages').innerHTML = '<div class="loading">Chargement des messages...</div>';
 
     // Fetch conversation details
-    fetch(`/admin/conversations/${conversationId}`)
+    fetch(`/admin/conversations/${id}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
             // Update conversation info
-            document.getElementById('conversationTitle').textContent = data.title || 'Sans titre';
-            document.getElementById('conversationDate').textContent = data.created_at || 'Date inconnue';
-            document.getElementById('conversationPlatform').textContent = data.platform || 'Web';
+            document.getElementById('conversationTitle').textContent = data.title;
+            document.getElementById('conversationDate').textContent = data.created_at;
+            document.getElementById('conversationPlatform').textContent = 
+                platform.charAt(0).toUpperCase() + platform.slice(1);
 
             // Render messages
             const messagesContainer = document.getElementById('conversationMessages');
-            data.messages.forEach(message => {
-                const messageElement = document.createElement('div');
-                messageElement.className = `message ${message.role}`;
+            messagesContainer.innerHTML = ''; // Clear loading message
 
-                messageElement.innerHTML = `
-                    <div class="role">${message.role === 'user' ? 'Utilisateur' : 'Assistant'}</div>
-                    <div class="content">${message.content}</div>
-                    <div class="timestamp">${message.timestamp || ''}</div>
-                `;
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `message ${message.role}`;
 
-                messagesContainer.appendChild(messageElement);
-            });
+                    // Escape HTML content for security and handle newlines
+                    const content = message.content
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#039;")
+                        .replace(/\n/g, "<br>");
+
+                    // Add role label based on platform
+                    const roleLabel = message.role === 'user' ? 
+                        (platform === 'web' ? 'Utilisateur' : 
+                         platform === 'telegram' ? 'Utilisateur Telegram' : 
+                         'Utilisateur WhatsApp') : 'Assistant';
+
+                    messageElement.innerHTML = `
+                        <div class="role">${roleLabel}</div>
+                        <div class="content">${content}</div>
+                        <div class="timestamp">${message.timestamp || ''}</div>
+                    `;
+
+                    messagesContainer.appendChild(messageElement);
+                });
+
+                // Scroll to the bottom of the messages
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                messagesContainer.innerHTML = '<div class="empty-message">Aucun message dans cette conversation.</div>';
+            }
         })
         .catch(error => {
             console.error('Error fetching conversation:', error);
@@ -838,17 +869,10 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
     });
 
-    // Écouteurs pour le modal de suppression
-    document.querySelector('.close-modal').addEventListener('click', closeDeleteModal);
-    document.getElementById('cancelDelete').addEventListener('click', closeDeleteModal);
-    document.getElementById('confirmDelete').addEventListener('click', confirmDeleteUser);
-
-    // Fermer le modal si on clique en dehors
-    window.addEventListener('click', function(event) {
-        const modal = document.getElementById('deleteModal');
-        if (event.target === modal) {
-            closeDeleteModal();
-        }
+    document.querySelectorAll('.web-selector-option').forEach(option => {
+        option.addEventListener('click', () => {
+            selectPlatform(option.textContent.trim().toLowerCase());
+        });
     });
 
     document.getElementById('userSearchInput').addEventListener('input', searchUsers);
@@ -860,24 +884,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('conversationSearchInput').addEventListener('input', searchConversations);
 
+    // Add modal handlers
+    document.querySelector('#deleteModal .close-modal').addEventListener('click', closeDeleteModal);
+    document.getElementById('cancelDelete').addEventListener('click', closeDeleteModal);
+    document.getElementById('confirmDelete').addEventListener('click', confirmDeleteUser);
+
     // Conversation deletion modal handlers
     document.querySelector('#deleteConversationModal .close-modal').addEventListener('click', closeDeleteConversationModal);
     document.getElementById('cancelDeleteConversation').addEventListener('click', closeDeleteConversationModal);
     document.getElementById('confirmDeleteConversation').addEventListener('click', confirmDeleteConversation);
 
-    window.addEventListener('click', function(event) {
-        const modal = document.getElementById('deleteConversationModal');
-        if (event.target === modal) {
-            closeDeleteConversationModal();
-        }
-    });
-
     // Add conversation view modal handlers
     document.querySelector('#viewConversationModal .close-modal').addEventListener('click', closeViewConversationModal);
 
+    // Global click handlers for modals
     window.addEventListener('click', function(event) {
-        const modal = document.getElementById('viewConversationModal');
-        if (event.target === modal) {
+        if (event.target === document.getElementById('deleteModal')) {
+            closeDeleteModal();
+        } else if (event.target === document.getElementById('deleteConversationModal')) {
+            closeDeleteConversationModal();
+        } else if (event.target === document.getElementById('viewConversationModal')) {
             closeViewConversationModal();
         }
     });

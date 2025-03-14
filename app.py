@@ -689,8 +689,38 @@ def delete_user(user_id):
 def get_conversation_details(conversation_id):
     """Get details and messages for a specific conversation"""
     try:
-        # First try to find a web conversation
-        conversation = Conversation.query.get(conversation_id)
+        # D'abord vérifier si l'ID est un format temporaire
+        if conversation_id and (
+            conversation_id.startswith('web-conv-') or 
+            conversation_id.startswith('telegram-conv-') or 
+            conversation_id.startswith('whatsapp-conv-')
+        ):
+            # Extraire la plateforme du format "platform-conv-index"
+            platform = conversation_id.split('-')[0]
+            return jsonify({
+                'id': conversation_id,
+                'title': 'Conversation temporaire',
+                'created_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                'platform': platform,
+                'messages': [{
+                    'role': 'assistant',
+                    'content': "Les détails complets de cette conversation ne sont pas disponibles.",
+                    'timestamp': datetime.now().strftime('%H:%M')
+                }]
+            })
+
+        # Pour tous les autres types d'ID, ils doivent être des entiers pour fonctionner avec Conversation.query.get()
+        if not conversation_id.isdigit():
+            # Si ce n'est pas un entier, retourner un message d'erreur
+            return jsonify({
+                'error': 'ID de conversation invalide'
+            }), 400
+
+        # Conversion sécurisée en entier maintenant que nous savons que c'est un nombre
+        conversation_id_int = int(conversation_id)
+
+        # Trouver une conversation web
+        conversation = Conversation.query.get(conversation_id_int)
         if conversation:
             messages = Message.query.filter_by(conversation_id=conversation.id)\
                 .order_by(Message.created_at).all()
@@ -707,8 +737,9 @@ def get_conversation_details(conversation_id):
                 } for msg in messages]
             })
 
-        # Try to find a Telegram conversation
-        telegram_conv = TelegramConversation.query.get(conversation_id)
+        # Si aucune conversation web n'est trouvée, essayer Telegram ou WhatsApp
+        # Note: Ces modèles devraient également utiliser des IDs entiers
+        telegram_conv = TelegramConversation.query.get(conversation_id_int)
         if telegram_conv:
             messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
                 .order_by(TelegramMessage.created_at).all()
