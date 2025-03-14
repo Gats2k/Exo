@@ -3,6 +3,32 @@ from database import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
+class Subscription(db.Model):
+    __tablename__ = 'subscription'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), nullable=False)  # e.g., "Basic", "Premium", "Enterprise"
+    description = db.Column(db.Text)
+    price = db.Column(db.Float, nullable=False)
+    duration_days = db.Column(db.Integer, nullable=False)  # Duration in days
+    features = db.Column(db.Text)  # JSON string of features
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class UserSubscription(db.Model):
+    __tablename__ = 'user_subscription'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    subscription_id = db.Column(db.Integer, db.ForeignKey('subscription.id'), nullable=False)
+    start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='active')  # active, expired, cancelled
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    subscription = db.relationship('Subscription', backref='user_subscriptions')
+    user = db.relationship('User', backref='subscriptions')
+
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -26,6 +52,16 @@ class User(UserMixin, db.Model):
     def is_admin_credentials(phone_number, password):
         return phone_number == "Hokage" and password == "09791308n"
 
+    def get_active_subscription(self):
+        """Get user's active subscription if any"""
+        subscription = UserSubscription.query.filter_by(
+            user_id=self.id, 
+            status='active'
+        ).filter(
+            UserSubscription.end_date > datetime.utcnow()
+        ).first()
+        return subscription
+
 class Conversation(db.Model):
     __tablename__ = 'conversation'
     id = db.Column(db.Integer, primary_key=True)
@@ -45,7 +81,6 @@ class Message(db.Model):
     image_url = db.Column(db.String(512))  # Optional, for messages with images
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Telegram-specific models
 class TelegramUser(db.Model):
     __tablename__ = 'telegram_user'
     telegram_id = db.Column(db.BigInteger, primary_key=True)  # Telegram user IDs are large numbers
