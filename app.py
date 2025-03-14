@@ -646,6 +646,14 @@ def delete_user(user_id):
             # Try to find in Telegram users
             user = TelegramUser.query.filter_by(telegram_id=user_id).first()
             if user:
+                # Delete all messages first
+                for conv in user.conversations:
+                    TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+
+                # Delete all conversations
+                TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+
+                # Finally delete the user
                 session.delete(user)
                 session.commit()
                 return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})

@@ -1,5 +1,3 @@
-let userIdToDelete = null;
-
 function showSection(sectionId) {
     // Hide all sections
     document.querySelectorAll('.section').forEach(section => {
@@ -429,8 +427,20 @@ function updateFullUsersTable(users, platform) {
         const row = tableBody.insertRow();
         const isActive = user.active;
 
-        // S'assurer que l'ID existe, sinon utiliser une alternative
-        const userId = user.id || (user.phone_number || user.phone || user._id || '');
+        // Déterminer l'ID correct selon la plateforme
+        let userId;
+
+        if (platform === 'web') {
+            // Pour le web, utiliser phone_number comme ID
+            userId = user.phone_number || '';
+        } else if (platform === 'telegram') {
+            // Pour Telegram, extraire telegram_id du nom qui est au format "Telegram User {id}"
+            const match = user.name && user.name.match(/Telegram User (\d+)/);
+            userId = match ? match[1] : (user.phone || '');
+        } else {
+            // Pour WhatsApp, utiliser le numéro de téléphone
+            userId = user.phone || '';
+        }
 
         // Ajouter l'ID comme attribut de données à la ligne
         row.setAttribute('data-user-id', userId);
@@ -451,7 +461,7 @@ function updateFullUsersTable(users, platform) {
             `;
         } else {
             const name = platform === 'telegram' ? 
-                (user.name || `Telegram User ${user.id || ''}`) : 
+                (user.name || `Telegram User ${userId || ''}`) : 
                 (user.name || `WhatsApp User ${user.phone || 'None'}`);
 
             row.innerHTML = `
@@ -490,34 +500,35 @@ function showEmptyState(containerId, platform) {
     }
 }
 
+let userIdToDelete = null;
 
-// Function to open the delete modal
+// Fonction pour ouvrir le modal de suppression
 function deleteUser(userId) {
     userIdToDelete = userId;
     const modal = document.getElementById('deleteModal');
     modal.style.display = 'block';
 
-    // Prevent scrolling of the body
+    // Empêcher le défilement du corps de la page
     document.body.style.overflow = 'hidden';
 }
 
-// Function to close the modal
+// Fonction pour fermer le modal
 function closeDeleteModal() {
     const modal = document.getElementById('deleteModal');
     modal.style.display = 'none';
 
-    // Re-enable scrolling
+    // Réactiver le défilement
     document.body.style.overflow = 'auto';
 
-    // Reset the user ID
+    // Réinitialiser l'ID utilisateur
     userIdToDelete = null;
 }
 
-// Function to confirm and perform deletion
+// Fonction pour confirmer et effectuer la suppression
 function confirmDeleteUser() {
     if (userIdToDelete === null) return;
 
-    // Perform the delete request
+    // Effectuer la requête de suppression
     fetch(`/admin/users/${userIdToDelete}`, {
         method: 'DELETE',
         headers: {
@@ -526,20 +537,20 @@ function confirmDeleteUser() {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Error during deletion');
+            throw new Error('Erreur lors de la suppression');
         }
         return response.json();
     })
     .then(data => {
-        // Close the modal
+        // Suppression réussie, fermer le modal
         closeDeleteModal();
 
-        // Refresh the users list
+        // Rafraîchir la liste des utilisateurs
         fetchAllUsers(currentPlatform);
     })
     .catch(error => {
-        console.error('Error:', error);
-        // Handle error (you could display an error message)
+        console.error('Erreur:', error);
+        // Gérer l'erreur (vous pourriez afficher un message d'erreur)
         closeDeleteModal();
     });
 }
