@@ -625,6 +625,14 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
+        // Ensure we have a valid ID, fallback to thread_id if id is not available
+        const conversationId = conversation.id || conversation.thread_id;
+
+        if (!conversationId) {
+            console.error('No valid ID found for conversation:', conversation);
+            return;
+        }
+
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
@@ -632,10 +640,10 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
+                <button class="action-btn view" onclick="viewConversation(${conversationId})">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
+                <button class="action-btn delete" onclick="deleteConversation(${conversationId})">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
@@ -772,6 +780,11 @@ function confirmDeleteConversation() {
 }
 
 function viewConversation(conversationId) {
+    if (!conversationId) {
+        console.error('Invalid conversation ID:', conversationId);
+        return;
+    }
+
     // Open the modal
     const modal = document.getElementById('viewConversationModal');
     modal.style.display = 'block';
@@ -787,11 +800,12 @@ function viewConversation(conversationId) {
     fetch(`/admin/conversations/${conversationId}`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
+            console.log('Conversation data received:', data);
             // Update conversation info
             document.getElementById('conversationTitle').textContent = data.title || 'Sans titre';
             document.getElementById('conversationDate').textContent = data.created_at || 'Date inconnue';
@@ -799,18 +813,22 @@ function viewConversation(conversationId) {
 
             // Render messages
             const messagesContainer = document.getElementById('conversationMessages');
-            data.messages.forEach(message => {
-                const messageElement = document.createElement('div');
-                messageElement.className = `message ${message.role}`;
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `message ${message.role}`;
 
-                messageElement.innerHTML = `
-                    <div class="role">${message.role === 'user' ? 'Utilisateur' : 'Assistant'}</div>
-                    <div class="content">${message.content}</div>
-                    <div class="timestamp">${message.timestamp || ''}</div>
-                `;
+                    messageElement.innerHTML = `
+                        <div class="role">${message.role === 'user' ? 'Utilisateur' : 'Assistant'}</div>
+                        <div class="content">${message.content}</div>
+                        <div class="timestamp">${message.timestamp || ''}</div>
+                    `;
 
-                messagesContainer.appendChild(messageElement);
-            });
+                    messagesContainer.appendChild(messageElement);
+                });
+            } else {
+                messagesContainer.innerHTML = '<div class="empty-message">Aucun message dans cette conversation</div>';
+            }
         })
         .catch(error => {
             console.error('Error fetching conversation:', error);
