@@ -789,7 +789,24 @@ function viewConversation(conversationId) {
     document.getElementById('conversationPlatform').textContent = 'Chargement...';
     document.getElementById('conversationMessages').innerHTML = '<div class="loading">Chargement des messages...</div>';
 
-    // Fetch conversation details
+    // Special handling for temporary conversations
+    if (id.startsWith('temp-')) {
+        // Display temporary conversation info directly
+        document.getElementById('conversationTitle').textContent = 'Conversation temporaire';
+        document.getElementById('conversationDate').textContent = new Date().toLocaleString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        document.getElementById('conversationPlatform').textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+        document.getElementById('conversationMessages').innerHTML = 
+            '<div class="empty-message">Les détails complets de cette conversation ne sont pas disponibles.</div>';
+        return;
+    }
+
+    // Fetch conversation details for non-temporary conversations
     fetch(`/admin/conversations/${id}`)
         .then(response => {
             if (!response.ok) {
@@ -799,8 +816,14 @@ function viewConversation(conversationId) {
         })
         .then(data => {
             // Update conversation info
-            document.getElementById('conversationTitle').textContent = data.title;
-            document.getElementById('conversationDate').textContent = data.created_at;
+            document.getElementById('conversationTitle').textContent = data.title || 'Sans titre';
+            document.getElementById('conversationDate').textContent = data.created_at || new Date().toLocaleString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             document.getElementById('conversationPlatform').textContent = 
                 platform.charAt(0).toUpperCase() + platform.slice(1);
 
@@ -822,7 +845,7 @@ function viewConversation(conversationId) {
                         .replace(/'/g, "&#039;")
                         .replace(/\n/g, "<br>");
 
-                    // Add role label based on platform
+                    // Add appropriate role label based on platform
                     const roleLabel = message.role === 'user' ? 
                         (platform === 'web' ? 'Utilisateur' : 
                          platform === 'telegram' ? 'Utilisateur Telegram' : 
@@ -840,7 +863,7 @@ function viewConversation(conversationId) {
                 // Scroll to the bottom of the messages
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             } else {
-                messagesContainer.innerHTML = '<div class="empty-message">Aucun message dans cette conversation.</div>';
+                messagesContainer.innerHTML = '<div class="empty-message">Les détails complets de cette conversation ne sont pas disponibles.</div>';
             }
         })
         .catch(error => {
@@ -858,7 +881,6 @@ function closeViewConversationModal() {
     document.body.style.overflow = 'auto';
 }
 
-// Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     showSection('dashboard');
@@ -875,11 +897,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    document.getElementById('userSearchInput').addEventListener('input', searchUsers);
+    document.getElementById('userSearchInput').addEventListener('input, searchUsers);
 
     // Add conversation-specific event listeners
     document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => filterConversations(btn.getAttribute('data-filter')));
+        btn.addEventListener('click', () =>filterConversations(btn.getAttribute('data-filter')));
     });
 
     document.getElementById('conversationSearchInput').addEventListener('input', searchConversations);
