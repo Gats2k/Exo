@@ -771,6 +771,62 @@ function confirmDeleteConversation() {
     });
 }
 
+function viewConversation(conversationId) {
+    // Open the modal
+    const modal = document.getElementById('viewConversationModal');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+
+    // Reset the modal content
+    document.getElementById('conversationTitle').textContent = 'Chargement...';
+    document.getElementById('conversationDate').textContent = 'Chargement...';
+    document.getElementById('conversationPlatform').textContent = 'Chargement...';
+    document.getElementById('conversationMessages').innerHTML = '';
+
+    // Fetch conversation details
+    fetch(`/admin/conversations/${conversationId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update conversation info
+            document.getElementById('conversationTitle').textContent = data.title || 'Sans titre';
+            document.getElementById('conversationDate').textContent = data.created_at || 'Date inconnue';
+            document.getElementById('conversationPlatform').textContent = data.platform || 'Web';
+
+            // Render messages
+            const messagesContainer = document.getElementById('conversationMessages');
+            data.messages.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${message.role}`;
+
+                messageElement.innerHTML = `
+                    <div class="role">${message.role === 'user' ? 'Utilisateur' : 'Assistant'}</div>
+                    <div class="content">${message.content}</div>
+                    <div class="timestamp">${message.timestamp || ''}</div>
+                `;
+
+                messagesContainer.appendChild(messageElement);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching conversation:', error);
+            // Show error in modal
+            document.getElementById('conversationMessages').innerHTML = `
+                <div class="error-message">Une erreur est survenue lors du chargement de la conversation.</div>
+            `;
+        });
+}
+
+function closeViewConversationModal() {
+    const modal = document.getElementById('viewConversationModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
 // Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
@@ -813,6 +869,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('deleteConversationModal');
         if (event.target === modal) {
             closeDeleteConversationModal();
+        }
+    });
+
+    // Add conversation view modal handlers
+    document.querySelector('#viewConversationModal .close-modal').addEventListener('click', closeViewConversationModal);
+
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('viewConversationModal');
+        if (event.target === modal) {
+            closeViewConversationModal();
         }
     });
 });

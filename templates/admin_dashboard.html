@@ -247,6 +247,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Add the conversation view modal after the delete conversation modal -->
+        <div id="viewConversationModal" class="modal">
+            <div class="modal-content conversation-modal">
+                <div class="modal-header">
+                    <h2>Détails de la conversation</h2>
+                    <span class="close-modal">&times;</span>
+                </div>
+                <div class="modal-body conversation-body">
+                    <div class="conversation-info">
+                        <div class="info-item">
+                            <span class="label">Titre:</span>
+                            <span id="conversationTitle">Chargement...</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Date:</span>
+                            <span id="conversationDate">Chargement...</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Plateforme:</span>
+                            <span id="conversationPlatform">Chargement...</span>
+                        </div>
+                    </div>
+                    <div class="conversation-messages" id="conversationMessages">
+                        <!-- Messages will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
