@@ -633,21 +633,33 @@ function updateFullConversationsTable(conversations, platform) {
 
         const safeConversationId = conversationId.toString().replace(/['"]/g, '');
 
+        // Create view and delete buttons
+        const viewButton = document.createElement('button');
+        viewButton.className = 'action-btn view';
+        viewButton.innerHTML = '<i class="bi bi-eye"></i>';
+        viewButton.onclick = () => viewConversation(safeConversationId);
+        if (!safeConversationId) viewButton.disabled = true;
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'action-btn delete';
+        deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+        deleteButton.onclick = () => deleteConversation(safeConversationId);
+        if (!safeConversationId) deleteButton.disabled = true;
+
+        // Create the table row content
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
             <td>${conversation.date || ''}</td>
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
-            <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${safeConversationId}')" ${!safeConversationId ? 'disabled' : ''}>
-                    <i class="bi bi-eye"></i>
-                </button>
-                <button class="action-btn delete" onclick="deleteConversation('${safeConversationId}')" ${!safeConversationId ? 'disabled' : ''}>
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
         `;
+
+        // Add the action buttons cell
+        const actionsCell = row.insertCell();
+        actionsCell.className = 'action-buttons';
+        actionsCell.appendChild(viewButton);
+        actionsCell.appendChild(deleteButton);
     });
 
     updateConversationFilterCounts();
@@ -789,7 +801,14 @@ function viewConversation(conversationId) {
         return;
     }
 
+    console.log('Opening message viewer for conversation:', conversationId); // Debug log
+
     // Show modal
+    if (!messageViewerModal) {
+        console.error('Message viewer modal not found in DOM');
+        return;
+    }
+
     messageViewerModal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 
@@ -853,18 +872,50 @@ function viewConversation(conversationId) {
 
 // Close message viewer modal
 function closeMessageViewerModal() {
+    if (!messageViewerModal) {
+        console.error('Message viewer modal not found in DOM');
+        return;
+    }
     messageViewerModal.style.display = 'none';
     document.body.style.overflow = 'auto';
 }
 
-// Update the initialization code to include conversation handlers
+
+// Update the initialization code
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded'); // Debug log
+
+    // Initialize message viewer modal
+    messageViewerModal = document.getElementById('messageViewerModal');
+    if (!messageViewerModal) {
+        console.error('Failed to initialize message viewer modal');
+    }
+
     initializeNavigation();
     showSection('dashboard');
     fetchPlatformData('web');
 
-    // Add event listeners for user filtering and search
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    // Add conversation-specific event listeners
+    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => filterConversations(btn.getAttribute('data-filter')));
+    });
+
+    document.getElementById('conversationSearchInput')?.addEventListener('input', searchConversations);
+
+    // Message viewer modal handlers
+    if (messageViewerModal) {
+        const closeButton = messageViewerModal.querySelector('.close-modal');
+        if (closeButton) {
+            closeButton.addEventListener('click', closeMessageViewerModal);
+        }
+
+        window.addEventListener('click', function(event) {
+            if (event.target === messageViewerModal) {
+                closeMessageViewerModal();
+            }
+        });
+    }
+    // Add event listeners for user filtering and search    document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
     });
 
