@@ -578,7 +578,63 @@ document.addEventListener('click', function(event) {
 });
 
 
-// Add these functions after the existing user-related functions
+// Add these functions at the end of the file, before the DOMContentLoaded event listener
+
+function viewConversation(conversationId) {
+    fetch(`/admin/conversations/${conversationId}/messages`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
+            messagesContainer.innerHTML = '';
+
+            data.messages.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${message.role}`;
+
+                const contentElement = document.createElement('div');
+                contentElement.className = 'message-content';
+
+                // Handle images if present
+                if (message.image_url) {
+                    const img = document.createElement('img');
+                    img.src = message.image_url;
+                    img.style.maxWidth = '200px';
+                    img.style.borderRadius = '4px';
+                    img.style.marginBottom = '8px';
+                    contentElement.appendChild(img);
+                }
+
+                // Add message text
+                contentElement.innerHTML += message.content;
+                messageElement.appendChild(contentElement);
+                messagesContainer.appendChild(messageElement);
+            });
+
+            // Show the modal
+            const modal = document.getElementById('viewConversationModal');
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            // Scroll to the bottom of the messages
+            const viewport = document.querySelector('#viewConversationModal .chat-viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Une erreur est survenue lors du chargement de la conversation');
+        });
+}
+
+function closeViewConversationModal() {
+    const modal = document.getElementById('viewConversationModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
 
 let conversationIdToDelete = null;
 
@@ -813,6 +869,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('deleteConversationModal');
         if (event.target === modal) {
             closeDeleteConversationModal();
+        }
+    });
+
+    // Add conversation view modal handlers
+    document.querySelector('#viewConversationModal .close-modal')
+        .addEventListener('click', closeViewConversationModal);
+
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('viewConversationModal');
+        if (event.target === modal) {
+            closeViewConversationModal();
         }
     });
 });
