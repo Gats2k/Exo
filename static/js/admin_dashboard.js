@@ -1,3 +1,5 @@
+let userIdToDelete = null;
+
 function showSection(sectionId) {
     // Hide all sections
     document.querySelectorAll('.section').forEach(section => {
@@ -34,14 +36,42 @@ function filterUsers(filter) {
     document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
 
     const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+    let visibleCount = 0;
+
     rows.forEach(row => {
         const status = row.querySelector('.status-badge').textContent.toLowerCase();
-        if (filter === 'all' || status === filter) {
+
+        if (filter === 'all' || 
+            (filter === 'active' && status === 'actif') || 
+            (filter === 'inactive' && status === 'inactif')) {
             row.style.display = '';
+            visibleCount++;
         } else {
             row.style.display = 'none';
         }
     });
+
+    // Afficher/masquer le tableau et l'état vide en fonction des résultats
+    const tableElement = document.getElementById('fullUsersTable');
+    const container = document.getElementById('fullUsersTableContainer');
+    const emptyState = container.querySelector('.empty-state');
+
+    if (visibleCount === 0) {
+        tableElement.style.display = 'none';
+        emptyState.style.display = 'flex';
+
+        // Adapter le message selon le filtre
+        if (filter === 'active') {
+            emptyState.querySelector('p').textContent = "Aucun utilisateur actif pour le moment";
+        } else if (filter === 'inactive') {
+            emptyState.querySelector('p').textContent = "Aucun utilisateur inactif pour le moment";
+        } else {
+            emptyState.querySelector('p').textContent = "Aucun utilisateur disponible pour le moment";
+        }
+    } else {
+        tableElement.style.display = 'table';
+        emptyState.style.display = 'none';
+    }
 
     // Update filter button counts
     updateFilterCounts();
@@ -399,6 +429,12 @@ function updateFullUsersTable(users, platform) {
         const row = tableBody.insertRow();
         const isActive = user.active;
 
+        // S'assurer que l'ID existe, sinon utiliser une alternative
+        const userId = user.id || (user.phone_number || user.phone || user._id || '');
+
+        // Ajouter l'ID comme attribut de données à la ligne
+        row.setAttribute('data-user-id', userId);
+
         if (platform === 'web') {
             row.innerHTML = `
                 <td>${user.last_name || ''}</td>
@@ -409,8 +445,8 @@ function updateFullUsersTable(users, platform) {
                 <td>${user.created_at || ''}</td>
                 <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Actif' : 'Inactif'}</span></td>
                 <td class="action-buttons">
-                    <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
-                    <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+                    <button class="action-btn edit" onclick="editUser('${userId}')"><i class="bi bi-pencil"></i></button>
+                    <button class="action-btn delete" onclick="deleteUser('${userId}')"><i class="bi bi-trash"></i></button>
                 </td>
             `;
         } else {
@@ -427,8 +463,8 @@ function updateFullUsersTable(users, platform) {
                 <td>${user.created_at || ''}</td>
                 <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Actif' : 'Inactif'}</span></td>
                 <td class="action-buttons">
-                    <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
-                    <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+                    <button class="action-btn edit" onclick="editUser('${userId}')"><i class="bi bi-pencil"></i></button>
+                    <button class="action-btn delete" onclick="deleteUser('${userId}')"><i class="bi bi-trash"></i></button>
                 </td>
             `;
         }
@@ -454,6 +490,60 @@ function showEmptyState(containerId, platform) {
     }
 }
 
+
+// Function to open the delete modal
+function deleteUser(userId) {
+    userIdToDelete = userId;
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'block';
+
+    // Prevent scrolling of the body
+    document.body.style.overflow = 'hidden';
+}
+
+// Function to close the modal
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    modal.style.display = 'none';
+
+    // Re-enable scrolling
+    document.body.style.overflow = 'auto';
+
+    // Reset the user ID
+    userIdToDelete = null;
+}
+
+// Function to confirm and perform deletion
+function confirmDeleteUser() {
+    if (userIdToDelete === null) return;
+
+    // Perform the delete request
+    fetch(`/admin/users/${userIdToDelete}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error during deletion');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Close the modal
+        closeDeleteModal();
+
+        // Refresh the users list
+        fetchAllUsers(currentPlatform);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Handle error (you could display an error message)
+        closeDeleteModal();
+    });
+}
+
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
     const dropdown = document.getElementById('platformDropdown');
@@ -473,6 +563,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners for user filtering and search
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
+    });
+
+    // Écouteurs pour le modal de suppression
+    document.querySelector('.close-modal').addEventListener('click', closeDeleteModal);
+    document.getElementById('cancelDelete').addEventListener('click', closeDeleteModal);
+    document.getElementById('confirmDelete').addEventListener('click', confirmDeleteUser);
+
+    // Fermer le modal si on clique en dehors
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('deleteModal');
+        if (event.target === modal) {
+            closeDeleteModal();
+        }
     });
 
     document.getElementById('userSearchInput').addEventListener('input', searchUsers);

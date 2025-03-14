@@ -628,6 +628,42 @@ def unauthorized():
     return redirect(url_for('register'))
 
 
+@app.route('/admin/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user and their associated data."""
+    try:
+        with db_retry_session() as session:
+            # Find the user based on the platform data
+            user = None
+
+            # Try to find in web users
+            user = User.query.filter_by(phone_number=user_id).first()
+            if user:
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+            # Try to find in Telegram users
+            user = TelegramUser.query.filter_by(telegram_id=user_id).first()
+            if user:
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+
+            # Check WhatsApp users (using the phone number as ID)
+            messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
+            if messages:
+                for message in messages:
+                    session.delete(message)
+                session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting user'}), 500
+
 if __name__ == '__main__':
     # Configure scheduler for cleanup
     scheduler = BackgroundScheduler()
