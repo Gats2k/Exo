@@ -18,8 +18,6 @@ function showSection(sectionId) {
         fetchAllUsers(currentPlatform);
     } else if (sectionId === 'conversations') {
         fetchAllConversations(currentPlatform);
-    } else if (sectionId === 'subscriptions') {
-        fetchSubscriptionData();
     }
 }
 
@@ -684,7 +682,6 @@ function closeViewConversationModal() {
 }
 
 let conversationIdToDelete = null;
-let conversationTitleToDelete = null;
 
 function fetchAllConversations(platform) {
     console.log('Fetching conversations for platform:', platform);
@@ -881,7 +878,7 @@ function confirmDeleteConversation() {
     });
 }
 
-// À AJOUTER 
+/ À AJOUTER /
 // Map global pour stocker les correspondances entre titres et IDs numériques
 let conversationTitleToIdMap = {};
 let nextConversationId = 1;
@@ -904,7 +901,7 @@ function getNumericIdForConversation(title) {
     return conversationTitleToIdMap[title];
 }
 
-// Fonctionpour récupérer le titre original à partir de l'ID mappé
+// Fonction pour récupérer le titre original à partir de l'ID mappé
 function getTitleFromNumericId(numericId) {
     for (const [title, id] of Object.entries(conversationTitleToIdMap)) {
         if (id === parseInt(numericId)) {
@@ -914,202 +911,7 @@ function getTitleFromNumericId(numericId) {
     return null;
 }
 
-// Add subscription handling to showSection function
-function showSection(sectionId) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(section => {
-        section.style.display = 'none';
-    });
-
-    // Show the selected section
-    document.getElementById(sectionId + '-section').style.display = 'block';
-
-    // Update active state in sidebar
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
-
-    // Fetch appropriate data based on section
-    if (sectionId === 'users') {
-        fetchAllUsers(currentPlatform);
-    } else if (sectionId === 'conversations') {
-        fetchAllConversations(currentPlatform);
-    } else if (sectionId === 'subscriptions') {
-        fetchSubscriptionData();
-    }
-}
-
-// Subscription Management Functions
-function fetchSubscriptionData() {
-    fetch('/admin/subscriptions')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                updateSubscriptionPlans(data.subscriptions);
-                updateSubscribedUsers(data.user_subscriptions);
-            } else {
-                console.error('Error fetching subscription data:', data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showEmptyState('subscribedUsersTableContainer', 'subscriptions');
-        });
-}
-
-function updateSubscriptionPlans(plans) {
-    const plansContainer = document.querySelector('.subscription-cards');
-    plansContainer.innerHTML = '';
-
-    plans.forEach(plan => {
-        const features = JSON.parse(plan.features || '[]');
-        const card = document.createElement('div');
-        card.className = 'subscription-card';
-        card.innerHTML = `
-            <div class="subscription-header">
-                <h3>${plan.name}</h3>
-                <div class="price">${plan.price}€/mois</div>
-            </div>
-            <div class="subscription-features">
-                <ul>
-                    ${features.map(feature => `<li>${feature}</li>`).join('')}
-                </ul>
-            </div>
-            <button class="edit-subscription-btn" onclick="editSubscriptionPlan(${plan.id})">
-                Modifier
-            </button>
-        `;
-        plansContainer.appendChild(card);
-    });
-}
-
-function updateSubscribedUsers(subscriptions) {
-    const tableBody = document.getElementById('subscribedUsersTable').getElementsByTagName('tbody')[0];
-    const tableElement = document.getElementById('subscribedUsersTable');
-    const container = document.getElementById('subscribedUsersTableContainer');
-    const emptyState = container.querySelector('.empty-state');
-
-    if (!subscriptions || subscriptions.length === 0) {
-        tableElement.style.display = 'none';
-        emptyState.style.display = 'flex';
-        return;
-    }
-
-    tableElement.style.display = 'table';
-    emptyState.style.display = 'none';
-    tableBody.innerHTML = '';
-
-    subscriptions.forEach(subscription => {
-        const row = tableBody.insertRow();
-        row.innerHTML = `
-            <td>${subscription.user.name}</td>
-            <td>${subscription.subscription.name}</td>
-            <td>${subscription.start_date}</td>
-            <td>${subscription.end_date}</td>
-            <td><span class="status-badge ${subscription.status}">${subscription.status}</span></td>
-            <td class="action-buttons">
-                <button class="action-btn edit" onclick="editUserSubscription(${subscription.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-            </td>
-        `;
-    });
-}
-
-function filterSubscribedUsers() {
-    const searchTerm = document.getElementById('subscriptionUserSearch').value.toLowerCase();
-    const statusFilter = document.getElementById('subscriptionStatusFilter').value;
-    const planFilter = document.querySelector('.filter-buttons .filter-btn.active').dataset.filter;
-
-    const rows = document.querySelectorAll('#subscribedUsersTable tbody tr');
-    let visibleCount = 0;
-
-    rows.forEach(row => {
-        const userName = row.cells[0].textContent.toLowerCase();
-        const planName = row.cells[1].textContent.toLowerCase();
-        const status = row.querySelector('.status-badge').textContent.toLowerCase();
-
-        const matchesSearch = userName.includes(searchTerm);
-        const matchesStatus = statusFilter === 'all' || status === statusFilter;
-        const matchesPlan = planFilter === 'all' || planName.includes(planFilter);
-
-        if (matchesSearch && matchesStatus && matchesPlan) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
-
-    const tableElement = document.getElementById('subscribedUsersTable');
-    const container = document.getElementById('subscribedUsersTableContainer');
-    const emptyState = container.querySelector('.empty-state');
-
-    if (visibleCount === 0) {
-        tableElement.style.display = 'none';
-        emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = 'Aucun abonnement ne correspond aux critères';
-    } else {
-        tableElement.style.display = 'table';
-        emptyState.style.display = 'none';
-    }
-}
-
-// Subscription Plan Modal Functions
-function showAddSubscriptionModal() {
-    const modal = document.getElementById('addSubscriptionModal');
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-    clearSubscriptionForm();
-}
-
-function closeAddSubscriptionModal() {
-    const modal = document.getElementById('addSubscriptionModal');
-    modal.style.display = 'none';
-    document.body.style.overflow = 'auto';
-    clearSubscriptionForm();
-}
-
-function clearSubscriptionForm() {
-    document.getElementById('subscriptionName').value = '';
-    document.getElementById('subscriptionPrice').value = '';
-    document.getElementById('subscriptionDuration').value = '';
-    document.getElementById('subscriptionDescription').value = '';
-    document.getElementById('featuresList').innerHTML = `
-        <div class="feature-item">
-            <input type="text" class="feature-input" placeholder="Ajouter une fonctionnalité">
-            <button type="button" class="remove-feature-btn">
-                <i class="bi bi-trash"></i>
-            </button>
-        </div>
-    `;
-}
-
-function addFeatureInput() {
-    const featuresList = document.getElementById('featuresList');
-    const featureItem = document.createElement('div');
-    featureItem.className = 'feature-item';
-    featureItem.innerHTML = `
-        <input type="text" class="feature-input" placeholder="Ajouter une fonctionnalité">
-        <button type="button" class="remove-feature-btn" onclick="removeFeature(this)">
-            <i class="bi bi-trash"></i>
-        </button>
-    `;
-    featuresList.appendChild(featureItem);
-}
-
-function removeFeature(button) {
-    const featureItem = button.parentElement;
-    featureItem.remove();
-}
-
-// Add event listeners when the DOM is loaded
+// Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     showSection('dashboard');
@@ -1163,56 +965,5 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target === modal) {
             closeViewConversationModal();
         }
-    });
-
-    // Add subscription related event listeners
-    document.getElementById('addFeatureBtn')?.addEventListener('click', addFeatureInput);
-
-    document.querySelectorAll('.subscription-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.subscription-filters .filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            filterSubscribedUsers();
-        });
-    });
-
-    document.getElementById('subscriptionUserSearch')?.addEventListener('input', filterSubscribedUsers);
-    document.getElementById('subscriptionStatusFilter')?.addEventListener('change', filterSubscribedUsers);
-
-    // Add form submission handler
-    document.getElementById('addSubscriptionForm')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const features = Array.from(document.querySelectorAll('.feature-input'))
-            .map(input => input.value.trim())
-            .filter(value => value);
-
-        const formData = {
-            name: document.getElementById('subscriptionName').value,
-            price: parseFloat(document.getElementById('subscriptionPrice').value),
-            duration_days: parseInt(document.getElementById('subscriptionDuration').value),
-            description: document.getElementById('subscriptionDescription').value,
-            features: JSON.stringify(features)
-        };
-
-        fetch('/admin/subscriptions/plans', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                closeAddSubscriptionModal();
-                fetchSubscriptionData();
-            } else {
-                console.error('Error creating subscription plan:', data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
     });
 });

@@ -66,7 +66,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage, Subscription, UserSubscription
+from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
 from whatsapp_bot import whatsapp, WhatsAppMessage
 
 # Create tables within application context
@@ -464,7 +464,7 @@ def admin_dashboard():
             is_admin=True  # Add this to help template logic
         )
     except Exception as e:
-        logger.error(f"Error in admin dashboard: {str(e)}')
+        logger.error(f"Error in admin dashboard: {str(e)}")
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
 
@@ -685,202 +685,7 @@ def delete_user(user_id):
         logger.error(f"Error deleting user {user_id}: {str(e)}")
         return jsonify({'success': False, 'message': 'Error deleting user'}), 500
 
-# Add these routes after the existing admin routes but before the error handlers
-
-@app.route('/admin/subscriptions')
-def admin_subscriptions():
-    """Handle subscription management in admin dashboard"""
-    if not session.get('is_admin'):
-        flash('Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.', 'error')
-        return redirect(url_for('login'))
-
-    try:
-        # Get all subscription plans
-        subscriptions = Subscription.query.all()
-        today = datetime.today().date()
-
-        # Get all user subscriptions with user info
-        user_subscriptions = db.session.query(
-            UserSubscription,
-            User,
-            Subscription
-        ).join(
-            User,
-            UserSubscription.user_id == User.id
-        ).join(
-            Subscription,
-            UserSubscription.subscription_id == Subscription.id
-        ).all()
-
-        # First, render the template
-        return render_template(
-            'admin_subscriptions.html',
-            subscriptions=subscriptions,
-            user_subscriptions=user_subscriptions,
-            today=today,
-            is_admin=True
-        )
-
-    except Exception as e:
-        logger.error(f"Error in admin subscriptions: {str(e)}")
-        flash('Une erreur est survenue lors du chargement des abonnements.', 'error')
-        return redirect(url_for('login'))
-
-@app.route('/admin/subscriptions/data')
-def get_subscription_data():
-    """Get subscription data for AJAX requests"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        # Get all subscription plans
-        subscriptions = Subscription.query.all()
-
-        # Get all user subscriptions with user info
-        user_subscriptions = db.session.query(
-            UserSubscription,
-            User,
-            Subscription
-        ).join(
-            User,
-            UserSubscription.user_id == User.id
-        ).join(
-            Subscription,
-            UserSubscription.subscription_id == Subscription.id
-        ).all()
-
-        return jsonify({
-            'success': True,
-            'subscriptions': [{
-                'id': sub.id,
-                'name': sub.name,
-                'description': sub.description,
-                'price': sub.price,
-                'duration_days': sub.duration_days,
-                'features': sub.features,
-                'created_at': sub.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            } for sub in subscriptions],
-            'user_subscriptions': [{
-                'id': sub.UserSubscription.id,
-                'user': {
-                    'id': sub.User.id,
-                    'name': f"{sub.User.first_name} {sub.User.last_name}",
-                    'phone_number': sub.User.phone_number
-                },
-                'subscription': {
-                    'id': sub.Subscription.id,
-                    'name': sub.Subscription.name
-                },
-                'start_date': sub.UserSubscription.start_date.strftime('%Y-%m-%d'),
-                'end_date': sub.UserSubscription.end_date.strftime('%Y-%m-%d'),
-                'status': sub.UserSubscription.status
-            } for sub in user_subscriptions]
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting subscription data: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/admin/subscriptions/plans', methods=['POST'])
-def create_subscription_plan():
-    """Create a new subscription plan"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        data = request.get_json()
-        new_plan = Subscription(
-            name=data['name'],
-            description=data['description'],
-            price=float(data['price']),
-            duration_days=int(data['duration_days']),
-            features=data['features']
-        )
-
-        db.session.add(new_plan)
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'subscription': {
-                'id': new_plan.id,
-                'name': new_plan.name,
-                'description': new_plan.description,
-                'price': new_plan.price,
-                'duration_days': new_plan.duration_days,
-                'features': new_plan.features,
-                'created_at': new_plan.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            }
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error creating subscription plan: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/admin/subscriptions/plans/<int:plan_id>', methods=['PUT'])
-def update_subscription_plan(plan_id):
-    """Update an existing subscription plan"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        plan = Subscription.query.get_or_404(plan_id)
-        data = request.get_json()
-
-        plan.name = data.get('name', plan.name)
-        plan.description = data.get('description', plan.description)
-        plan.price = float(data.get('price', plan.price))
-        plan.duration_days = int(data.get('duration_days', plan.duration_days))
-        plan.features = data.get('features', plan.features)
-
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'subscription': {
-                'id': plan.id,
-                'name': plan.name,
-                'description': plan.description,
-                'price': plan.price,
-                'duration_days': plan.duration_days,
-                'features': plan.features,
-                'updated_at': plan.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-            }
-        })
-
-    exceptException as e:
-        db.session.rollback()
-        logger.error(f"Error updating subscription plan: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/admin/subscriptions/users/<int:subscription_id>', methods=['GET'])
-def get_subscription_users(subscription_id):
-    """Get users for a specific subscription plan"""
-    if not session.get('is_admin'):
-        return jsonify({'error': 'Unauthorized'}), 403
-
-    try:
-        subscription = Subscription.query.get_or_404(subscription_id)
-        user_subscriptions = UserSubscription.query.filter_by(
-            subscription_id=subscription_id
-        ).join(User).all()
-
-        return jsonify({
-            'success': True,
-            'users': [{
-                'id': sub.user.id,
-                'name': f"{sub.user.first_name} {sub.user.last_name}",
-                'phone_number': sub.user.phone_number,
-                'subscription_status': sub.status,
-                'start_date': sub.start_date.strftime('%Y-%m-%d'),
-                'end_date': sub.end_date.strftime('%Y-%m-%d')
-            } for sub in user_subscriptions]
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting subscription users: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Add this route after the other admin routes
 
 @app.route('/admin/conversations/<int:conversation_id>/messages')
 def get_conversation_messages(conversation_id):
@@ -889,58 +694,60 @@ def get_conversation_messages(conversation_id):
         if not session.get('is_admin'):
             return jsonify({'error': 'Unauthorized access'}), 403
 
+        # Try to find the conversation in different models based on the ID
         conversation = None
         messages = []
 
-        # Try to find messages in different models based on the conversation ID
+        # Ensure conversation_id is integer
         try:
-            conversation = Conversation.query.get(conversation_id)
-            if conversation:
-                messages = Message.query.filter_by(conversation_id=conversation_id).order_by(Message.created_at).all()
-                messages_data = [{
-                    'id': msg.id,
-                    'role': msg.role,
-                    'content': msg.content,
-                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    'image_url': msg.image_url
-                } for msg in messages]
-                return jsonify({'success': True, 'messages': messages_data}), 200
-        except Exception as e:
-            logger.error(f"Error getting web conversation messages: {str(e)}")
+            conv_id = int(conversation_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid conversation ID format'}), 400
 
-        # Check in TelegramConversation
-        try:
-            conversation = TelegramConversation.query.get(conversation_id)
-            if conversation:
-                messages = TelegramMessage.query.filter_by(conversation_id=conversation_id).order_by(TelegramMessage.created_at).all()
-                messages_data = [{
-                    'id': msg.id,
+        # Check regular conversations
+        conversation = Conversation.query.get(conv_id)
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
                     'role': msg.role,
                     'content': msg.content,
+                    'image_url': msg.image_url,
                     'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in messages]
-                return jsonify({'success': True, 'messages': messages_data}), 200
-        except Exception as e:
-            logger.error(f"Error getting telegram conversation messages: {str(e)}")
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.get(conversation_id)
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
 
         # Check WhatsApp messages
-        try:
-            messages = WhatsAppMessage.query.filter_by(thread_id=str(conversation_id)).order_by(WhatsAppMessage.timestamp).all()
-            if messages:
-                messages_data = [{
-                    'id': msg.id,
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=conversation_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
                     'role': 'user' if msg.direction == 'inbound' else 'assistant',
                     'content': msg.content,
                     'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                } for msg in messages]
-                return jsonify({'success': True, 'messages': messages_data}), 200
-        except Exception as e:
-            logger.error(f"Error getting whatsapp conversation messages: {str(e)}")
+                } for msg in whatsapp_messages]
+            })
 
         return jsonify({'error': 'Conversation not found'}), 404
 
     except Exception as e:
-        logger.error(f"Error in get_conversation_messages: {str(e)}")
+        logger.error(f"Error fetching conversation messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
@@ -1080,9 +887,10 @@ def delete_conversation_by_title(conversation_title):
                 success = True
 
         # If we couldn't find by title, check if it's a "Sans titre" conversation
-        # For this case, we might want to add a warning here
-        # or implement an alternative way to identify these conversations
+        # For this case, we might need additional identifiers like the date
         if not success and conversation_title == "Sans titre":
+            # This is more complex - we might want to add a warning here
+            # or implement an alternative way to identify these conversations
             return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
 
         if success:
