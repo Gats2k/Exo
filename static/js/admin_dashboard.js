@@ -578,8 +578,6 @@ document.addEventListener('click', function(event) {
 });
 
 
-// Add these functions after the existing user-related functions
-
 let conversationIdToDelete = null;
 
 function fetchAllConversations(platform) {
@@ -609,7 +607,8 @@ function updateFullConversationsTable(conversations, platform) {
     const container = document.getElementById('fullConversationsTableContainer');
     const emptyState = container.querySelector('.empty-state');
 
-    console.log(`Updating conversations table for ${platform}:`, conversations); // Debug log
+    console.log('Updating conversations table for platform:', platform);
+    console.log('Conversations data:', conversations);
 
     if (!conversations || conversations.length === 0) {
         tableElement.style.display = 'none';
@@ -629,10 +628,7 @@ function updateFullConversationsTable(conversations, platform) {
             'Pas de message';
 
         // Get the conversation ID based on the platform
-        const conversationId = platform === 'whatsapp' ? 
-            conversation.thread_id : conversation.id;
-
-        console.log('Processing conversation:', { id: conversationId, platform }); // Debug log
+        const conversationId = platform === 'whatsapp' ? conversation.thread_id : conversation.id;
 
         // Create the row content
         row.innerHTML = `
@@ -642,32 +638,35 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view">
+                <button type="button" class="action-btn view" onclick="javascript:void(0);">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete">
+                <button type="button" class="action-btn delete" onclick="javascript:void(0);">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
         `;
 
-        // Add click event listeners
-        const viewBtn = row.querySelector('.action-btn.view');
-        const deleteBtn = row.querySelector('.action-btn.delete');
+        // Add event listeners after the row is added to the DOM
+        const viewButton = row.querySelector('.action-btn.view');
+        if (viewButton) {
+            viewButton.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('View button clicked for conversation:', conversationId);
+                viewConversation(conversationId);
+            };
+        }
 
-        viewBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('View button clicked for conversation:', conversationId);
-            viewConversation(conversationId);
-        });
-
-        deleteBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Delete button clicked for conversation:', conversationId);
-            deleteConversation(conversationId);
-        });
+        const deleteButton = row.querySelector('.action-btn.delete');
+        if (deleteButton) {
+            deleteButton.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Delete button clicked for conversation:', conversationId);
+                deleteConversation(conversationId);
+            };
+        }
     });
 
     updateConversationFilterCounts();
@@ -900,7 +899,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('confirmDeleteConversation').addEventListener('click', confirmDeleteConversation);
     document.querySelector('#viewConversationModal .close-modal').addEventListener('click', closeViewConversationModal);
 
-    // Global click handler for modals
+    // Global click handlerfor modals
     window.addEventListener('click', function(event) {
         const deleteModal = document.getElementById('deleteConversationModal');
         const viewModal = document.getElementById('viewConversationModal');
@@ -909,6 +908,30 @@ document.addEventListener('DOMContentLoaded', function() {
             closeDeleteConversationModal();
         } else if (event.target === viewModal) {
             closeViewConversationModal();
+        }
+    });
+    // Add click event delegation for conversation actions
+    document.getElementById('fullConversationsTable').addEventListener('click', function(e) {
+        const target = e.target.closest('.action-btn');
+        if (!target) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const row = target.closest('tr');
+        if (!row) return;
+
+        const conversationId = row.querySelector('.action-btn.view').dataset.conversationId;
+        console.log('Action button clicked:', {
+            isViewButton: target.classList.contains('view'),
+            isDeleteButton: target.classList.contains('delete'),
+            row: row,
+            conversationId: conversationId
+        });
+        if (target.classList.contains('view')) {
+            viewConversation(conversationId);
+        } else if (target.classList.contains('delete')) {
+            deleteConversation(conversationId);
         }
     });
 });
