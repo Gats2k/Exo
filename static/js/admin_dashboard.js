@@ -625,6 +625,14 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
+        // Ensure conversation.id is valid and escape it for HTML
+        const conversationId = conversation.id || '';
+        if (!conversationId) {
+            console.error('Missing conversation ID:', conversation);
+        }
+
+        const safeConversationId = conversationId.toString().replace(/['"]/g, '');
+
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
@@ -632,10 +640,10 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
+                <button class="action-btn view" onclick="viewConversation('${safeConversationId}')" ${!safeConversationId ? 'disabled' : ''}>
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
+                <button class="action-btn delete" onclick="deleteConversation('${safeConversationId}')" ${!safeConversationId ? 'disabled' : ''}>
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
@@ -775,17 +783,25 @@ function confirmDeleteConversation() {
 let messageViewerModal = document.getElementById('messageViewerModal');
 
 function viewConversation(conversationId) {
-    if (!conversationId) return;
+    // Validate conversation ID
+    if (!conversationId || conversationId === 'undefined') {
+        console.error('Invalid conversation ID:', conversationId);
+        return;
+    }
 
     // Show modal
     messageViewerModal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 
+    // Show loading state
+    const messagesList = document.getElementById('messagesList');
+    messagesList.innerHTML = '<div class="loading">Chargement des messages...</div>';
+
     // Fetch conversation details and messages
     fetch(`/admin/conversations/${conversationId}/messages`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
@@ -793,8 +809,7 @@ function viewConversation(conversationId) {
             // Update conversation title
             document.getElementById('conversationTitle').textContent = data.title || 'Conversation';
 
-            // Get messages container
-            const messagesList = document.getElementById('messagesList');
+            // Clear messages container
             messagesList.innerHTML = '';
 
             // Display messages
@@ -832,8 +847,7 @@ function viewConversation(conversationId) {
         })
         .catch(error => {
             console.error('Error:', error);
-            document.getElementById('messagesList').innerHTML = 
-                '<div class="empty-state">Erreur lors du chargement des messages</div>';
+            messagesList.innerHTML = '<div class="empty-state error">Erreur lors du chargement des messages</div>';
         });
 }
 
