@@ -456,7 +456,6 @@ body {
   border-bottom: none;
 }
 
-
 /* Platform badge styles */
 .platform-badge {
   padding: 4px 8px;
@@ -769,4 +768,13 @@ body {
 
 .conversation-modal .chat-viewport::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+/* Add to the existing styles */
+.conversation-modal .message.system {
+    background: rgba(255, 255, 255, 0.05);
+    align-self: center;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
 }

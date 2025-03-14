@@ -578,19 +578,28 @@ document.addEventListener('click', function(event) {
 });
 
 
-// Add these functions at the end of the file, before the DOMContentLoaded event listener
-
 function viewConversation(conversationId) {
+    if (!conversationId) {
+        console.error('No conversation ID provided');
+        alert('Error: Unable to view conversation details');
+        return;
+    }
+
     fetch(`/admin/conversations/${conversationId}/messages`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
             const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
             messagesContainer.innerHTML = '';
+
+            if (!data.messages || data.messages.length === 0) {
+                messagesContainer.innerHTML = '<div class="message system">Aucun message dans cette conversation</div>';
+                return;
+            }
 
             data.messages.forEach(message => {
                 const messageElement = document.createElement('div');
@@ -681,6 +690,9 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
+        // Escape quotes in ID to prevent JS errors
+        const safeId = conversation.id ? conversation.id.toString().replace(/"/g, '&quot;') : '';
+
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
@@ -688,12 +700,14 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
-                    <i class="bi bi-eye"></i>
-                </button>
-                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
-                    <i class="bi bi-trash"></i>
-                </button>
+                ${safeId ? `
+                    <button class="action-btn view" onclick="viewConversation('${safeId}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="action-btn delete" onclick="deleteConversation('${safeId}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                ` : ''}
             </td>
         `;
     });
