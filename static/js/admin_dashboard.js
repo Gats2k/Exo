@@ -266,19 +266,21 @@ function updateTableWithPlatformData(data) {
         }
     }
 
-    // Update conversations table
-    if (data.conversations && data.conversations.length > 0) {
-        // Display only first 5 rows
-        const displayConversations = data.conversations.slice(0, 5);
-        displayConversations.forEach(conv => {
-            const row = conversationsTable.insertRow();
-            row.innerHTML = `
-                <td>${conv.title || 'Sans titre'}</td>
-                <td>${conv.date || ''}</td>
-                <td>${conv.time || ''}</td>
-                <td>${conv.last_message || ''}</td>
-            `;
-        });
+        // Update conversations table
+        if (data.conversations && data.conversations.length > 0) {
+            // Display only first 5 rows
+            const displayConversations = data.conversations.slice(0, 5);
+            displayConversations.forEach(conv => {
+                // Ensure we have a numeric ID for the conversation
+                const conversationId = conv.id ? conv.id : null;
+                const row = conversationsTable.insertRow();
+                row.innerHTML = `
+                    <td>${conv.title || 'Sans titre'}</td>
+                    <td>${conv.date || ''}</td>
+                    <td>${conv.time || ''}</td>
+                    <td>${conv.last_message || ''}</td>
+                `;
+            });
 
         // Add "See more..." row if there are more than 5 conversations
         if (data.conversations.length >= 3) {
@@ -578,14 +580,44 @@ document.addEventListener('click', function(event) {
 });
 
 
-function viewConversation(conversationId) {
-    if (!conversationId) {
+function viewConversation(numericId) {
+    if (!numericId) {
         console.error('No conversation ID provided');
         alert('Error: Unable to view conversation details');
         return;
     }
 
-    fetch(`/admin/conversations/${conversationId}/messages`)
+    // Obtenir le titre original correspondant à cet ID numérique
+    const originalTitle = getTitleFromNumericId(numericId);
+
+    console.log('Viewing conversation:', numericId, 'Original title:', originalTitle);
+
+    // Si le titre commence par "Conversation thread_", c'est une conversation WhatsApp
+    if (originalTitle && originalTitle.startsWith('Conversation thread_')) {
+        // Extraire l'ID du thread directement
+        const threadId = originalTitle.replace('Conversation ', '');
+        console.log('WhatsApp thread detected:', threadId);
+
+        // Pour les conversations WhatsApp, utiliser directement l'ID du thread
+        fetch(`/admin/whatsapp/thread/${encodeURIComponent(threadId)}/messages`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                displayConversationMessages(data);
+            })
+            .catch(error => {
+                console.error('Error fetching WhatsApp messages:', error);
+                alert('Une erreur est survenue lors du chargement de la conversation WhatsApp');
+            });
+        return;
+    }
+
+    // Pour les autres types de conversations, utiliser la route par titre
+    fetch(`/admin/conversations/by-title/${encodeURIComponent(originalTitle)}/messages`)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -593,50 +625,54 @@ function viewConversation(conversationId) {
             return response.json();
         })
         .then(data => {
-            const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
-            messagesContainer.innerHTML = '';
-
-            if (!data.messages || data.messages.length === 0) {
-                messagesContainer.innerHTML = '<div class="message system">Aucun message dans cette conversation</div>';
-                return;
-            }
-
-            data.messages.forEach(message => {
-                const messageElement = document.createElement('div');
-                messageElement.className = `message ${message.role}`;
-
-                const contentElement = document.createElement('div');
-                contentElement.className = 'message-content';
-
-                // Handle images if present
-                if (message.image_url) {
-                    const img = document.createElement('img');
-                    img.src = message.image_url;
-                    img.style.maxWidth = '200px';
-                    img.style.borderRadius = '4px';
-                    img.style.marginBottom = '8px';
-                    contentElement.appendChild(img);
-                }
-
-                // Add message text
-                contentElement.innerHTML += message.content;
-                messageElement.appendChild(contentElement);
-                messagesContainer.appendChild(messageElement);
-            });
-
-            // Show the modal
-            const modal = document.getElementById('viewConversationModal');
-            modal.style.display = 'block';
-            document.body.style.overflow = 'hidden';
-
-            // Scroll to the bottom of the messages
-            const viewport = document.querySelector('#viewConversationModal .chat-viewport');
-            viewport.scrollTop = viewport.scrollHeight;
+            displayConversationMessages(data);
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Error fetching conversation messages:', error);
             alert('Une erreur est survenue lors du chargement de la conversation');
         });
+}
+
+function displayConversationMessages(data) {
+    const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
+    messagesContainer.innerHTML = '';
+
+    if (!data.messages || data.messages.length === 0) {
+        messagesContainer.innerHTML = '<div class="message system">Aucun message dans cette conversation</div>';
+        return;
+    }
+
+    data.messages.forEach(message => {
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${message.role}`;
+
+        const contentElement = document.createElement('div');
+        contentElement.className = 'message-content';
+
+        // Handle images if present
+        if (message.image_url) {
+            const img = document.createElement('img');
+            img.src = message.image_url;
+            img.style.maxWidth = '200px';
+            img.style.borderRadius = '4px';
+            img.style.marginBottom = '8px';
+            contentElement.appendChild(img);
+        }
+
+        // Add message text
+        contentElement.innerHTML += message.content;
+        messageElement.appendChild(contentElement);
+        messagesContainer.appendChild(messageElement);
+    });
+
+    // Show the modal
+    const modal = document.getElementById('viewConversationModal');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+
+    // Scroll to the bottom of the messages
+    const viewport = document.querySelector('#viewConversationModal .chat-viewport');
+    viewport.scrollTop = viewport.scrollHeight;
 }
 
 function closeViewConversationModal() {
@@ -690,20 +726,21 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
-        // Use conversation title as ID if no explicit ID exists
-        const conversationId = conversation.id || conversation.title;
+        // Utiliser l'ID existant ou créer un ID numérique basé sur le titre
+        const conversationTitle = conversation.title || 'Sans titre';
+        const numericId = conversation.id || getNumericIdForConversation(conversationTitle);
 
         row.innerHTML = `
-            <td>${conversation.title || 'Sans titre'}</td>
+            <td>${conversationTitle}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
             <td>${conversation.date || ''}</td>
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation('${conversationId}')">
+                <button class="action-btn view" onclick="viewConversation(${numericId})">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete" onclick="deleteConversation('${conversationId}')">
+                <button class="action-btn delete" onclick="deleteConversation(${numericId})">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
@@ -800,8 +837,10 @@ function searchConversations() {
     }
 }
 
-function deleteConversation(conversationId) {
-    conversationIdToDelete = conversationId;
+function deleteConversation(numericId) {
+    conversationIdToDelete = numericId;
+    // Stocke également le titre original pour la suppression
+    conversationTitleToDelete = getTitleFromNumericId(numericId);
     const modal = document.getElementById('deleteConversationModal');
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -815,9 +854,9 @@ function closeDeleteConversationModal() {
 }
 
 function confirmDeleteConversation() {
-    if (conversationIdToDelete === null) return;
+    if (conversationIdToDelete === null || !conversationTitleToDelete) return;
 
-    fetch(`/admin/conversations/${conversationIdToDelete}`, {
+    fetch(`/admin/conversations/by-title/${encodeURIComponent(conversationTitleToDelete)}`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
@@ -837,6 +876,39 @@ function confirmDeleteConversation() {
         console.error('Erreur:', error);
         closeDeleteConversationModal();
     });
+}
+
+/ À AJOUTER /
+// Map global pour stocker les correspondances entre titres et IDs numériques
+let conversationTitleToIdMap = {};
+let nextConversationId = 1;
+
+// Fonction utilitaire pour obtenir un ID numérique à partir d'un titre
+function getNumericIdForConversation(title) {
+    if (!title) return null;
+
+    // Ajouter des logs pour comprendre ce qui se passe
+    console.log('Getting numeric ID for title:', title);
+
+    // Si nous n'avons pas encore d'ID pour ce titre, en créer un
+    if (!conversationTitleToIdMap[title]) {
+        conversationTitleToIdMap[title] = nextConversationId++;
+        console.log('Created new ID:', conversationTitleToIdMap[title], 'for title:', title);
+    } else {
+        console.log('Using existing ID:', conversationTitleToIdMap[title], 'for title:', title);
+    }
+
+    return conversationTitleToIdMap[title];
+}
+
+// Fonction pour récupérer le titre original à partir de l'ID mappé
+function getTitleFromNumericId(numericId) {
+    for (const [title, id] of Object.entries(conversationTitleToIdMap)) {
+        if (id === parseInt(numericId)) {
+            return title;
+        }
+    }
+    return null;
 }
 
 // Update the initialization code to include conversation handlers

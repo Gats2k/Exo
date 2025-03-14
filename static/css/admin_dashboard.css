@@ -698,58 +698,160 @@ body {
 
 /* Add these styles at the end of the file */
 .conversation-modal {
-    width: 95%;
-    max-width: 1200px;
+    width: auto;
+    max-width: 800px;
+    min-width: 300px;
     height: 90vh;
     margin: 2% auto;
 }
 
 .conversation-modal .modal-body {
     padding: 0;
-    height: calc(90vh - 120px);
+    margin: 0;
+    height: calc(90vh - 56px); /* Juste la hauteur de l'en-tête */
     overflow: hidden;
+}
+
+/* À AJOUTER */
+.conversation-modal .chat-messages {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.conversation-modal .message-content {
+  max-width: 100%;
 }
 
 .conversation-modal .chat-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: rgba(0, 0, 0, 0.2);
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+/* À AJOUTER */
+.conversation-modal .chat-messages {
+    padding: 0;
+    margin: 0;
+}
+
+.conversation-modal .message:first-child {
+    margin-top: 5px;
+}
+
+.conversation-modal .message:last-child {
+    margin-bottom: 5px;
 }
 
 .conversation-modal .chat-viewport {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}
+
+.conversation-modal .modal-body {
+  position: relative;
+  overflow: visible;
+}
+
+.conversation-modal .chat-messages {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .conversation-modal .chat-messages {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    padding-top: 10px;
+    padding-bottom: 10px;
 }
 
 .conversation-modal .message {
-    display: flex;
+    max-width: 85%;
     margin-bottom: 20px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    max-width: 80%;
+    position: relative;
 }
 
 .conversation-modal .message.user {
-    background: rgba(255, 255, 255, 0.1);
+    margin-left: auto;
+    padding: 0 20px 0 0;
+    width: fit-content;
     align-self: flex-end;
 }
 
 .conversation-modal .message.assistant {
-    background: rgba(74, 85, 162, 0.3);
+    margin-right: auto;
+    padding: 0 0 0 20px;
+    width: fit-content;
     align-self: flex-start;
 }
 
 .conversation-modal .message-content {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 12px 15px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    word-wrap: break-word;
+    width: 100%;
+    min-width: fit-content;
     color: white;
     line-height: 1.5;
+}
+
+.conversation-modal .modal-content {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.conversation-modal .modal-header {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+}
+
+.conversation-modal .message-content {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#viewConversationModal.modal {
+  background-color: rgba(0, 0, 0, 0.7); /* Garde l'assombrissement */
+  backdrop-filter: blur(4px); /* Garde l'effet de flou sur l'arrière-plan */
+}
+
+/* S'assurer que les autres éléments du modal sont également transparents */
+#viewConversationModal .modal-content,
+#viewConversationModal .modal-body,
+#viewConversationModal .chat-container,
+#viewConversationModal .chat-viewport {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+#viewConversationModal .close-modal {
+  display: none;
+}
+
+.conversation-modal .message.system {
+    background: transparent;
+    align-self: center;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+    padding: 10px 0;
 }
 
 /* Add scrollbar styling for the chat viewport */

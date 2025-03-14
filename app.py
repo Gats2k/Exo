@@ -687,7 +687,7 @@ def delete_user(user_id):
 
 # Add this route after the other admin routes
 
-@app.route('/admin/conversations/<conversation_id>/messages')
+@app.route('/admin/conversations/<int:conversation_id>/messages')
 def get_conversation_messages(conversation_id):
     """Get messages for a specific conversation"""
     try:
@@ -698,8 +698,14 @@ def get_conversation_messages(conversation_id):
         conversation = None
         messages = []
 
+        # Ensure conversation_id is integer
+        try:
+            conv_id = int(conversation_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid conversation ID format'}), 400
+
         # Check regular conversations
-        conversation = Conversation.query.get(conversation_id)
+        conversation = Conversation.query.get(conv_id)
         if conversation:
             messages = Message.query.filter_by(conversation_id=conversation.id)\
                 .order_by(Message.created_at).all()
@@ -742,6 +748,188 @@ def get_conversation_messages(conversation_id):
 
     except Exception as e:
         logger.error(f"Error fetching conversation messages: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
+def get_conversation_messages_by_title(conversation_title):
+    """Get messages for a specific conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        whatsapp_thread_match = None
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread_match = conversation_title.replace('Conversation ', '')
+
+            # Get WhatsApp messages for this thread
+            whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread_match)\
+                .order_by(WhatsAppMessage.timestamp).all()
+
+            if whatsapp_messages:
+                return jsonify({
+                    'messages': [{
+                        'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                        'content': msg.content,
+                        'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in whatsapp_messages]
+                })
+
+        # Continue with the existing logic for other conversation types
+        # Try to find the conversation in different models based on the title
+        conversation = None
+        messages = []
+
+        # Check regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check for "Sans titre" or untitled conversations
+        if conversation_title == "Sans titre":
+            # For untitled conversations, just return some default content
+            return jsonify({
+                'messages': [{
+                    'role': 'system',
+                    'content': 'Aucun détail disponible pour cette conversation sans titre',
+                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }]
+            })
+
+        # If conversation not found, try to find by last message content
+        # This is a fallback mechanism
+        message = Message.query.filter(Message.content.like(f"%{conversation_title}%")).first()
+        if message:
+            conversation = Conversation.query.get(message.conversation_id)
+            if conversation:
+                messages = Message.query.filter_by(conversation_id=conversation.id)\
+                    .order_by(Message.created_at).all()
+                return jsonify({
+                    'messages': [{
+                        'role': msg.role,
+                        'content': msg.content,
+                        'image_url': msg.image_url,
+                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in messages]
+                })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages by title: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>', methods=['DELETE'])
+def delete_conversation_by_title(conversation_title):
+    """Delete a conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        success = False
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread = conversation_title.replace('Conversation ', '')
+
+            # Delete WhatsApp messages for this thread
+            messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread).all()
+            if messages:
+                for message in messages:
+                    db.session.delete(message)
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp conversation deleted successfully'})
+
+        # Try to find and delete the conversation in the regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            # First delete all associated messages
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            # Then delete the conversation
+            db.session.delete(conversation)
+            db.session.commit()
+            success = True
+
+        # Try to find and delete in Telegram conversations
+        if not success:
+            telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+            if telegram_conv:
+                # Delete all messages first
+                TelegramMessage.query.filter_by(conversation_id=telegram_conv.id).delete()
+                # Delete the conversation
+                db.session.delete(telegram_conv)
+                db.session.commit()
+                success = True
+
+        # If we couldn't find by title, check if it's a "Sans titre" conversation
+        # For this case, we might need additional identifiers like the date
+        if not success and conversation_title == "Sans titre":
+            # This is more complex - we might want to add a warning here
+            # or implement an alternative way to identify these conversations
+            return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
+
+        if success:
+            return jsonify({'success': True, 'message': 'Conversation deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Conversation not found'}), 404
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting conversation by title: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting conversation', 'error': str(e)}), 500
+
+@app.route('/admin/whatsapp/thread/<path:thread_id>/messages')
+def get_whatsapp_thread_messages(thread_id):
+    """Get messages for a specific WhatsApp thread"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Log pour le débogage
+        logger.debug(f"Fetching WhatsApp messages for thread: {thread_id}")
+
+        # Récupérer les messages WhatsApp pour ce thread
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
+                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                    'content': msg.content,
+                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in whatsapp_messages]
+            })
+
+        return jsonify({'error': 'No WhatsApp messages found for this thread'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching WhatsApp thread messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
