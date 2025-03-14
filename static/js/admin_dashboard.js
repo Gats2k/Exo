@@ -690,8 +690,8 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
-        // Escape quotes in ID to prevent JS errors
-        const safeId = conversation.id ? conversation.id.toString().replace(/"/g, '&quot;') : '';
+        // Use conversation title as ID if no explicit ID exists
+        const conversationId = conversation.id || conversation.title;
 
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
@@ -700,14 +700,12 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                ${safeId ? `
-                    <button class="action-btn view" onclick="viewConversation('${safeId}')">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="action-btn delete" onclick="deleteConversation('${safeId}')">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                ` : ''}
+                <button class="action-btn view" onclick="viewConversation('${conversationId}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="action-btn delete" onclick="deleteConversation('${conversationId}')">
+                    <i class="bi bi-trash"></i>
+                </button>
             </td>
         `;
     });
