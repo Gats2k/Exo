@@ -66,7 +66,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage
+from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage, Subscription
 from whatsapp_bot import whatsapp, WhatsAppMessage
 
 # Create tables within application context
@@ -750,6 +750,7 @@ def get_conversation_messages(conversation_id):
         logger.error(f"Error fetching conversation messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+
 @app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
 def get_conversation_messages_by_title(conversation_title):
     """Get messages for a specific conversation by its title"""
@@ -887,10 +888,9 @@ def delete_conversation_by_title(conversation_title):
                 success = True
 
         # If we couldn't find by title, check if it's a "Sans titre" conversation
-        # For this case, we might need additional identifiers like the date
+        # For this case, we might want to add a warning here
+        # or implement an alternative way to identify these conversations
         if not success and conversation_title == "Sans titre":
-            # This is more complex - we might want to add a warning here
-            # or implement an alternative way to identify these conversations
             return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
 
         if success:
@@ -932,17 +932,133 @@ def get_whatsapp_thread_messages(thread_id):
         logger.error(f"Error fetching WhatsApp thread messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/admin/subscriptions', methods=['GET'])
+def get_subscriptions():
+    """Get all subscriptions data"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscriptions = Subscription.query.all()
+
+        return jsonify({
+            'subscriptions': [{
+                'id': sub.id,
+                'user_id': sub.user_id,
+                'user_name': f"{sub.user.first_name} {sub.user.last_name}",
+                'type': sub.subscription_type,
+                'start_date': sub.start_date.strftime('%Y-%m-%d'),
+                'expiry_date': sub.expiry_date.strftime('%Y-%m-%d'),
+                'status': sub.status,
+                'last_payment_date': sub.last_payment_date.strftime('%Y-%m-%d') if sub.last_payment_date else None
+            } for sub in subscriptions]
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching subscriptions: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions', methods=['POST'])
+def create_subscription():
+    """Create a new subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['user_id', 'subscription_type', 'expiry_date', 'status']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Create new subscription
+        subscription = Subscription(
+            user_id=data['user_id'],
+            subscription_type=data['subscription_type'],
+            start_date=datetime.now(),
+            expiry_date=datetime.strptime(data['expiry_date'], '%Y-%m-%d'),
+            status=data['status'],
+            last_payment_date=datetime.now()
+        )
+
+        db.session.add(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription created successfully',
+            'subscription_id': subscription.id
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['PUT'])
+def update_subscription(subscription_id):
+    """Update an existing subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        data = request.get_json()
+
+        # Update fields if provided
+        if 'subscription_type' in data:
+            subscription.subscription_type = data['subscription_type']
+        if 'expiry_date' in data:
+            subscription.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d')
+        if 'status' in data:
+            subscription.status = data['status']
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription updated successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['DELETE'])
+def delete_subscription(subscription_id):
+    """Delete a subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        db.session.delete(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 if __name__ == '__main__':
-    # Configure scheduler for cleanup
+    # Schedule the cleanup task
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=cleanup_uploads, 
-                     trigger="interval", 
-                     hours=1,
-                     id='cleanup_job')
+    scheduler.add_job(func=cleanup_uploads, trigger="interval", hours=1)
     scheduler.start()
 
-    try:
-        # Only run Flask server, Telegram bot should be run separately
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
+    # Start the Socket.IO server
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

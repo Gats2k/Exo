@@ -73,3 +73,16 @@ class TelegramMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     image_url = db.Column(db.String(512))  # Optional, for messages with images
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Subscription(db.Model):
+    __tablename__ = 'subscription'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    subscription_type = db.Column(db.String(20), nullable=False)  # monthly, quarterly, yearly
+    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    expiry_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), nullable=False)  # active, pending, expired
+    last_payment_date = db.Column(db.DateTime)
+
+    # Relationship with User model
+    user = db.relationship('User', backref=db.backref('subscriptions', lazy=True))

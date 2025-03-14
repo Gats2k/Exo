@@ -212,6 +212,42 @@
             </div>
         </div>
 
+        <!-- Subscriptions Section -->
+        <div class="section" id="subscriptions-section" style="display: none;">
+            <h1 class="section-title">Gestion des Abonnements</h1>
+            <div class="subscriptions-filters">
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Rechercher un abonnement..." id="subscriptionSearchInput">
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">Tous</button>
+                    <button class="filter-btn" data-filter="active">Actifs</button>
+                    <button class="filter-btn" data-filter="expired">Expirés</button>
+                </div>
+            </div>
+            <div class="table-container" id="subscriptionsTableContainer">
+                <div class="empty-state" style="display: none;">
+                    <i class="bi bi-credit-card"></i>
+                    <p>Aucun abonnement disponible pour le moment</p>
+                </div>
+                <table class="data-table" id="subscriptionsTable">
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Type</th>
+                            <th>Date de début</th>
+                            <th>Date d'expiration</th>
+                            <th>Statut</th>
+                            <th>Dernier paiement</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Modal de confirmation de suppression -->
         <div id="deleteModal" class="modal">
             <div class="modal-content">
@@ -258,6 +294,44 @@
                             <!-- Messages will be loaded here dynamically -->
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add subscription management modal -->
+        <div id="subscriptionModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Gérer l'abonnement</h2>
+                    <span class="close-modal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="subscriptionForm">
+                        <div class="form-group">
+                            <label>Type d'abonnement</label>
+                            <select name="subscription_type" required>
+                                <option value="monthly">Mensuel</option>
+                                <option value="quarterly">Trimestriel</option>
+                                <option value="yearly">Annuel</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date d'expiration</label>
+                            <input type="date" name="expiry_date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Statut</label>
+                            <select name="status" required>
+                                <option value="active">Actif</option>
+                                <option value="pending">En attente</option>
+                                <option value="expired">Expiré</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelSubscriptionEdit" class="modal-btn cancel">Annuler</button>
+                    <button id="saveSubscription" class="modal-btn save">Enregistrer</button>
                 </div>
             </div>
         </div>

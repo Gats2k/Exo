@@ -712,29 +712,10 @@ body {
     overflow: hidden;
 }
 
-/* À AJOUTER */
+
 .conversation-modal .chat-messages {
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-.conversation-modal .message-content {
-  max-width: 100%;
-}
-
-.conversation-modal .chat-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: transparent;
-    padding: 0;
-    margin: 0;
-}
-
-/* À AJOUTER */
-.conversation-modal .chat-messages {
-    padding: 0;
-    margin: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .conversation-modal .message:first-child {
@@ -825,8 +806,8 @@ body {
 }
 
 #viewConversationModal.modal {
-  background-color: rgba(0, 0, 0, 0.7); /* Garde l'assombrissement */
-  backdrop-filter: blur(4px); /* Garde l'effet de flou sur l'arrière-plan */
+  background-color: rgba(0, 0, 0, 0.7); 
+  backdrop-filter: blur(4px); 
 }
 
 /* S'assurer que les autres éléments du modal sont également transparents */
@@ -846,7 +827,7 @@ body {
 }
 
 .conversation-modal .message.system {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.05);
     align-self: center;
     text-align: center;
     color: rgba(255, 255, 255, 0.6);
@@ -872,11 +853,77 @@ body {
     background: rgba(255, 255, 255, 0.3);
 }
 
-/* Add to the existing styles */
-.conversation-modal .message.system {
-    background: rgba(255, 255, 255, 0.05);
-    align-self: center;
-    text-align: center;
-    color: rgba(255, 255, 255, 0.6);
-    font-style: italic;
+
+/* Add subscription management styles */
+.subscriptions-filters {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+#subscriptionsTable td {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.form-group select,
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.modal-btn.save {
+    background: rgba(74, 222, 128, 0.8);
+    color: white;
+}
+
+.modal-btn.save:hover {
+    background: #4ADE80;
+}
+
+.status-badge.expired {
+    background: rgba(239, 68, 68, 0.2);
+    color: #EF4444;
+}
+
+.status-badge.pending {
+    background: rgba(245, 158, 11, 0.2);
+    color: #F59E0B;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .subscriptions-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #subscriptionsTable td {
+        max-width: 200px;
+    }
 }
