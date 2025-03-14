@@ -771,6 +771,78 @@ function confirmDeleteConversation() {
     });
 }
 
+// Add message viewer modal functionality
+let messageViewerModal = document.getElementById('messageViewerModal');
+
+function viewConversation(conversationId) {
+    if (!conversationId) return;
+
+    // Show modal
+    messageViewerModal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+
+    // Fetch conversation details and messages
+    fetch(`/admin/conversations/${conversationId}/messages`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update conversation title
+            document.getElementById('conversationTitle').textContent = data.title || 'Conversation';
+
+            // Get messages container
+            const messagesList = document.getElementById('messagesList');
+            messagesList.innerHTML = '';
+
+            // Display messages
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.role}`;
+
+                    let messageContent = `<div class="message-content">${message.content}</div>`;
+
+                    // Add timestamp if available
+                    if (message.timestamp) {
+                        const timestamp = new Date(message.timestamp);
+                        const formattedTime = timestamp.toLocaleTimeString('fr-FR', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                        });
+                        messageContent += `<div class="timestamp">${formattedTime}</div>`;
+                    }
+
+                    // Add image if present
+                    if (message.image_url) {
+                        messageContent += `<img src="${message.image_url}" alt="Message image">`;
+                    }
+
+                    messageDiv.innerHTML = messageContent;
+                    messagesList.appendChild(messageDiv);
+                });
+
+                // Scroll to bottom of messages
+                messagesList.scrollTop = messagesList.scrollHeight;
+            } else {
+                messagesList.innerHTML = '<div class="empty-state">Aucun message dans cette conversation</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('messagesList').innerHTML = 
+                '<div class="empty-state">Erreur lors du chargement des messages</div>';
+        });
+}
+
+// Close message viewer modal
+function closeMessageViewerModal() {
+    messageViewerModal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
 // Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
@@ -813,6 +885,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('deleteConversationModal');
         if (event.target === modal) {
             closeDeleteConversationModal();
+        }
+    });
+
+    // Add event listeners for message viewer modal
+    document.querySelector('#messageViewerModal .close-modal').addEventListener('click', closeMessageViewerModal);
+
+    // Close on click outside
+    window.addEventListener('click', function(event) {
+        if (event.target === messageViewerModal) {
+            closeMessageViewerModal();
         }
     });
 });

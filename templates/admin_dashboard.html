@@ -247,6 +247,21 @@
                 </div>
             </div>
         </div>
+
+        <!-- Add this modal for message viewing after the delete modals -->
+        <div id="messageViewerModal" class="modal">
+            <div class="modal-content message-viewer">
+                <div class="modal-header">
+                    <h2 id="conversationTitle">Titre de la conversation</h2>
+                    <span class="close-modal">&times;</span>
+                </div>
+                <div class="modal-body messages-container">
+                    <div id="messagesList" class="messages-list">
+                        <!-- Messages will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

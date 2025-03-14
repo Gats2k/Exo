@@ -685,6 +685,66 @@ def delete_user(user_id):
         logger.error(f"Error deleting user {user_id}: {str(e)}")
         return jsonify({'success': False, 'message': 'Error deleting user'}), 500
 
+@app.route('/admin/conversations/<conversation_id>/messages')
+def get_conversation_messages(conversation_id):
+    """Get all messages for a specific conversation"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # Try to find conversation in Web conversations
+        conversation = Conversation.query.get(conversation_id)
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+
+            return jsonify({
+                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'timestamp': msg.created_at.isoformat()
+                } for msg in messages]
+            })
+
+        # Try Telegram conversations
+        conversation = TelegramConversation.query.get(conversation_id)
+        if conversation:
+            messages = TelegramMessage.query.filter_by(conversation_id=conversation.id)\
+                .order_by(TelegramMessage.created_at).all()
+
+            return jsonify({
+                'title': conversation.title or f"Conversation Telegram {conversation.created_at.strftime('%d/%m/%Y')}",
+                'messages': [{
+                    'role': 'user' if msg.is_from_user else 'assistant',
+                    'content': msg.content,
+                    'timestamp': msg.created_at.isoformat()
+                } for msg in messages]
+            })
+
+        # Try WhatsApp conversations
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=conversation_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+
+        if whatsapp_messages:
+            first_message = whatsapp_messages[0]
+            return jsonify({
+                'title': f"Conversation WhatsApp avec {first_message.from_number}",
+                'messages': [{
+                    'role': 'user' if msg.is_from_user else 'assistant',
+                    'content': msg.content,
+                    'timestamp': msg.timestamp.isoformat()
+                } for msg in whatsapp_messages]
+            })
+
+        logger.warning(f"Conversation {conversation_id} not found in any platform")
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching messages for conversation {conversation_id}: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 if __name__ == '__main__':
     # Configure scheduler for cleanup
     scheduler = BackgroundScheduler()
