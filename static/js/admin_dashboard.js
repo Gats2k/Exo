@@ -625,41 +625,21 @@ function updateFullConversationsTable(conversations, platform) {
             (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
             'Pas de message';
 
-        // Ensure conversation.id is valid and escape it for HTML
-        const conversationId = conversation.id || '';
-        if (!conversationId) {
-            console.error('Missing conversation ID:', conversation);
-        }
-
-        const safeConversationId = conversationId.toString().replace(/['"]/g, '');
-
-        // Create view and delete buttons
-        const viewButton = document.createElement('button');
-        viewButton.className = 'action-btn view';
-        viewButton.innerHTML = '<i class="bi bi-eye"></i>';
-        viewButton.onclick = () => viewConversation(safeConversationId);
-        if (!safeConversationId) viewButton.disabled = true;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'action-btn delete';
-        deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
-        deleteButton.onclick = () => deleteConversation(safeConversationId);
-        if (!safeConversationId) deleteButton.disabled = true;
-
-        // Create the table row content
         row.innerHTML = `
             <td>${conversation.title || 'Sans titre'}</td>
             <td><span class="platform-badge ${platform}">${platform}</span></td>
             <td>${conversation.date || ''}</td>
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
+            <td class="action-buttons">
+                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         `;
-
-        // Add the action buttons cell
-        const actionsCell = row.insertCell();
-        actionsCell.className = 'action-buttons';
-        actionsCell.appendChild(viewButton);
-        actionsCell.appendChild(deleteButton);
     });
 
     updateConversationFilterCounts();
@@ -791,131 +771,14 @@ function confirmDeleteConversation() {
     });
 }
 
-// Add message viewer modal functionality
-let messageViewerModal = document.getElementById('messageViewerModal');
-
-function viewConversation(conversationId) {
-    // Validate conversation ID
-    if (!conversationId || conversationId === 'undefined') {
-        console.error('Invalid conversation ID:', conversationId);
-        return;
-    }
-
-    console.log('Opening message viewer for conversation:', conversationId); // Debug log
-
-    // Show modal
-    if (!messageViewerModal) {
-        console.error('Message viewer modal not found in DOM');
-        return;
-    }
-
-    messageViewerModal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-
-    // Show loading state
-    const messagesList = document.getElementById('messagesList');
-    messagesList.innerHTML = '<div class="loading">Chargement des messages...</div>';
-
-    // Fetch conversation details and messages
-    fetch(`/admin/conversations/${conversationId}/messages`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Update conversation title
-            document.getElementById('conversationTitle').textContent = data.title || 'Conversation';
-
-            // Clear messages container
-            messagesList.innerHTML = '';
-
-            // Display messages
-            if (data.messages && data.messages.length > 0) {
-                data.messages.forEach(message => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = `message ${message.role}`;
-
-                    let messageContent = `<div class="message-content">${message.content}</div>`;
-
-                    // Add timestamp if available
-                    if (message.timestamp) {
-                        const timestamp = new Date(message.timestamp);
-                        const formattedTime = timestamp.toLocaleTimeString('fr-FR', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                        });
-                        messageContent += `<div class="timestamp">${formattedTime}</div>`;
-                    }
-
-                    // Add image if present
-                    if (message.image_url) {
-                        messageContent += `<img src="${message.image_url}" alt="Message image">`;
-                    }
-
-                    messageDiv.innerHTML = messageContent;
-                    messagesList.appendChild(messageDiv);
-                });
-
-                // Scroll to bottom of messages
-                messagesList.scrollTop = messagesList.scrollHeight;
-            } else {
-                messagesList.innerHTML = '<div class="empty-state">Aucun message dans cette conversation</div>';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            messagesList.innerHTML = '<div class="empty-state error">Erreur lors du chargement des messages</div>';
-        });
-}
-
-// Close message viewer modal
-function closeMessageViewerModal() {
-    if (!messageViewerModal) {
-        console.error('Message viewer modal not found in DOM');
-        return;
-    }
-    messageViewerModal.style.display = 'none';
-    document.body.style.overflow = 'auto';
-}
-
-
-// Update the initialization code
+// Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded'); // Debug log
-
-    // Initialize message viewer modal
-    messageViewerModal = document.getElementById('messageViewerModal');
-    if (!messageViewerModal) {
-        console.error('Failed to initialize message viewer modal');
-    }
-
     initializeNavigation();
     showSection('dashboard');
     fetchPlatformData('web');
 
-    // Add conversation-specific event listeners
-    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => filterConversations(btn.getAttribute('data-filter')));
-    });
-
-    document.getElementById('conversationSearchInput')?.addEventListener('input', searchConversations);
-
-    // Message viewer modal handlers
-    if (messageViewerModal) {
-        const closeButton = messageViewerModal.querySelector('.close-modal');
-        if (closeButton) {
-            closeButton.addEventListener('click', closeMessageViewerModal);
-        }
-
-        window.addEventListener('click', function(event) {
-            if (event.target === messageViewerModal) {
-                closeMessageViewerModal();
-            }
-        });
-    }
-    // Add event listeners for user filtering and search    document.querySelectorAll('.filter-btn').forEach(btn => {
+    // Add event listeners for user filtering and search
+    document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
     });
 
@@ -950,16 +813,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('deleteConversationModal');
         if (event.target === modal) {
             closeDeleteConversationModal();
-        }
-    });
-
-    // Add event listeners for message viewer modal
-    document.querySelector('#messageViewerModal .close-modal').addEventListener('click', closeMessageViewerModal);
-
-    // Close on click outside
-    window.addEventListener('click', function(event) {
-        if (event.target === messageViewerModal) {
-            closeMessageViewerModal();
         }
     });
 });
