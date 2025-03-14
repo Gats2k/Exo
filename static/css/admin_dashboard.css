@@ -228,6 +228,7 @@ body {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
 }
 
 .data-table th {
@@ -325,8 +326,6 @@ body {
     grid-template-columns: 1fr;
   }
 }
-
-/* Add these new styles after the existing ones */
 
 .section {
     display: none;
@@ -446,7 +445,6 @@ body {
     color: #EF4444;
 }
 
-/* Update existing table styles */
 .data-table th, .data-table td {
     padding: 12px 15px;
     text-align: left;
@@ -458,8 +456,87 @@ body {
     border-bottom: none;
 }
 
-/* À AJOUTER */
-/* Styles pour le modal */
+
+/* Platform badge styles */
+.platform-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.platform-badge.web {
+    background: rgba(74, 222, 128, 0.2);
+    color: #4ADE80;
+}
+
+.platform-badge.telegram {
+    background: rgba(0, 136, 204, 0.2);
+    color: #0088cc;
+}
+
+.platform-badge.whatsapp {
+    background: rgba(37, 211, 102, 0.2);
+    color: #25D366;
+}
+
+.platform-badge i {
+    font-size: 14px;
+}
+
+/* Status badge styles */
+.status-badge.archived {
+    background: rgba(148, 163, 184, 0.2);
+    color: #94A3B8;
+}
+
+/* Action button hover effects */
+.action-btn.view {
+    color: #60A5FA;
+}
+
+.action-btn.view:hover {
+    background: rgba(96, 165, 250, 0.1);
+}
+
+/* Table cell styles for truncated messages */
+.conversations-filters {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+#fullConversationsTable td {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.see-more-row {
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.see-more-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.see-more-cell {
+    text-align: center;
+    padding: 12px;
+    color: #FFD700;
+    font-style: italic;
+}
+
+/* Modal styles for conversation deletion confirmation */
 .modal {
     display: none;
     position: fixed;
@@ -562,19 +639,14 @@ body {
     background: #EF4444;
 }
 
-/* Add responsive styles */
 @media (max-width: 768px) {
-    .users-filters {
+    .conversations-filters {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .search-box {
-        max-width: none;
-    }
-
-    .filter-buttons {
-        justify-content: center;
+    #fullConversationsTable td {
+        max-width: 200px;
     }
 }
 
@@ -623,21 +695,4 @@ body {
 .sidebar {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0.1);
-}
-
-.see-more-row {
-    background: rgba(255, 255, 255, 0.05);
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.see-more-row:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.see-more-cell {
-    text-align: center;
-    padding: 12px;
-    color: #FFD700;
-    font-style: italic;
 }

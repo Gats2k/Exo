@@ -1,3 +1,7 @@
+# Move eventlet monkey patch to top
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import logging
 import asyncio
@@ -12,10 +16,12 @@ import uuid
 from datetime import datetime
 import base64
 import requests
+from contextlib import contextmanager
+
+# Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
 from app import get_db_context
-from contextlib import contextmanager
 
 # Set up logging
 logging.basicConfig(

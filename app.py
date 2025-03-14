@@ -413,13 +413,14 @@ def login():
         phone_number = request.form.get('phone_number')
         password = request.form.get('password')
 
-        # Check for admin credentials
+        # Check for admin credentials first
         if phone_number == os.environ.get('ADMIN_PHONE') and \
            password == os.environ.get('ADMIN_PASSWORD'):
-            # Create admin session
             session['is_admin'] = True
+            flash('Connecté en tant qu\'administrateur.', 'success')
             return redirect(url_for('admin_dashboard'))
 
+        # Regular user login
         user = User.query.filter_by(phone_number=phone_number).first()
         if user and user.check_password(password):
             login_user(user)
@@ -429,6 +430,50 @@ def login():
         return redirect(url_for('login'))
 
     return render_template('login.html')
+
+@app.route('/admin')
+def admin_dashboard():
+    """Admin dashboard route that displays platform statistics"""
+    # Check if user is admin
+    if not session.get('is_admin'):
+        flash('Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.', 'error')
+        return redirect(url_for('login'))
+
+    try:
+        # Get web platform data
+        users = User.query.all()
+        conversations = Conversation.query.all()
+        today = datetime.today().date()
+
+        # Count today's conversations
+        today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
+
+        # Get actual number of users
+        active_users = len(users)
+        # Count users created today
+        active_users_today = sum(1 for user in users if user.created_at.date() == today)
+        # Initialize satisfaction rate to 0
+        satisfaction_rate = 0
+
+        return render_template(
+            'admin_dashboard.html',
+            active_users=active_users,
+            active_users_today=active_users_today,
+            today_conversations=today_conversations,
+            satisfaction_rate=satisfaction_rate,
+            is_admin=True  # Add this to help template logic
+        )
+    except Exception as e:
+        logger.error(f"Error in admin dashboard: {str(e)}")
+        flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
+        return redirect(url_for('login'))
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Logout route for admin"""
+    session.pop('is_admin', None)
+    flash('Vous avez été déconnecté.', 'success')
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -489,38 +534,6 @@ def forgot_password():
         return redirect(url_for('forgot_password'))
 
     return render_template('forgot_password.html')
-
-@app.route('/admin')
-def admin_dashboard():
-    """Admin dashboard route that displays platform statistics"""
-    # Check if user is admin
-    if not session.get('is_admin'):
-        flash('Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.', 'error')
-        return redirect(url_for('login'))
-
-    today = datetime.today().date()
-
-    # Get web platform data
-    users = User.query.all()
-    conversations = Conversation.query.all()
-
-    # Count today's conversations
-    today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
-
-    # Get actual number of users
-    active_users = len(users)
-    # Count users created today
-    active_users_today = sum(1 for user in users if user.created_at.date() == today)
-    # Initialize satisfaction rate to 0
-    satisfaction_rate = 0
-
-    return render_template('admin_dashboard.html', 
-                         users=users, 
-                         conversations=conversations,
-                         active_users=active_users,
-                         active_users_today=active_users_today,
-                         today_conversations=today_conversations,
-                         satisfaction_rate=satisfaction_rate)
 
 @app.route('/admin/data/<platform>')
 def admin_platform_data(platform):

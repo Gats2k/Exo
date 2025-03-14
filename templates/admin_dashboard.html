@@ -177,6 +177,41 @@
             </div>
         </div>
 
+        <!-- Conversations Section -->
+        <div class="section" id="conversations-section" style="display: none;">
+            <h1 class="section-title">Toutes les Conversations</h1>
+            <div class="conversations-filters">
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Rechercher une conversation..." id="conversationSearchInput">
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">Toutes</button>
+                    <button class="filter-btn" data-filter="active">Actives</button>
+                    <button class="filter-btn" data-filter="archived">Archivées</button>
+                </div>
+            </div>
+            <div class="table-container" id="fullConversationsTableContainer">
+                <div class="empty-state" style="display: none;">
+                    <i class="bi bi-chat-dots"></i>
+                    <p>Aucune conversation disponible pour le moment</p>
+                </div>
+                <table class="data-table" id="fullConversationsTable">
+                    <thead>
+                        <tr>
+                            <th>Titre</th>
+                            <th>Plateforme</th>
+                            <th>Date</th>
+                            <th>Dernier message</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Modal de confirmation de suppression -->
         <div id="deleteModal" class="modal">
             <div class="modal-content">
@@ -191,6 +226,24 @@
                 <div class="modal-footer">
                     <button id="cancelDelete" class="modal-btn cancel">Annuler</button>
                     <button id="confirmDelete" class="modal-btn delete">Supprimer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add this modal for conversation deletion -->
+        <div id="deleteConversationModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Confirmation de suppression</h2>
+                    <span class="close-modal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p>Êtes-vous sûr de vouloir supprimer cette conversation ?</p>
+                    <p class="warning-text">Cette action est définitive et ne pourra pas être annulée.</p>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelDeleteConversation" class="modal-btn cancel">Annuler</button>
+                    <button id="confirmDeleteConversation" class="modal-btn delete">Supprimer</button>
                 </div>
             </div>
         </div>

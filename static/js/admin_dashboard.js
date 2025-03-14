@@ -12,6 +12,13 @@ function showSection(sectionId) {
         item.classList.remove('active');
     });
     document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+
+    // Fetch appropriate data based on section
+    if (sectionId === 'users') {
+        fetchAllUsers(currentPlatform);
+    } else if (sectionId === 'conversations') {
+        fetchAllConversations(currentPlatform);
+    }
 }
 
 function initializeNavigation() {
@@ -154,6 +161,8 @@ function selectPlatform(platform) {
     const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
     if (currentSection === 'users') {
         fetchAllUsers(platform);
+    } else if (currentSection === 'conversations') {
+        fetchAllConversations(platform);
     } else {
         fetchPlatformData(platform);
     }
@@ -484,7 +493,7 @@ function updateFullUsersTable(users, platform) {
     updateFilterCounts();
 }
 
-function showEmptyState(containerId, platform) {
+function showEmptyState(containerId, platform, type = 'users') {
     const container = document.getElementById(containerId);
     const emptyState = container.querySelector('.empty-state');
     const table = container.querySelector('table');
@@ -493,10 +502,13 @@ function showEmptyState(containerId, platform) {
     if (table) table.style.display = 'none';
     emptyState.style.display = 'flex';
 
-    // Personnaliser le message selon la plateforme
+    // Personnaliser le message selon la plateforme et le type
     if (containerId === 'fullUsersTableContainer') {
         const platformName = platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1);
         emptyState.querySelector('p').textContent = `Aucun utilisateur ${platformName} disponible pour le moment`;
+    } else if (containerId === 'fullConversationsTableContainer') {
+        const platformName = platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1);
+        emptyState.querySelector('p').textContent = `Aucune conversation ${platformName} disponible pour le moment`;
     }
 }
 
@@ -565,10 +577,204 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// Initialize the dashboard
+
+// Add these functions after the existing user-related functions
+
+let conversationIdToDelete = null;
+
+function fetchAllConversations(platform) {
+    console.log('Fetching conversations for platform:', platform);
+
+    fetch(`/admin/data/${platform}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(`Data received for ${platform} conversations:`, data);
+            updateFullConversationsTable(data.conversations || [], platform);
+        })
+        .catch(error => {
+            console.error(`Error fetching ${platform} conversations:`, error);
+            showEmptyState('fullConversationsTableContainer', platform, 'conversations');
+        });
+}
+
+function updateFullConversationsTable(conversations, platform) {
+    const tableBody = document.getElementById('fullConversationsTable').getElementsByTagName('tbody')[0];
+    const tableElement = document.getElementById('fullConversationsTable');
+    const container = document.getElementById('fullConversationsTableContainer');
+    const emptyState = container.querySelector('.empty-state');
+
+    if (!conversations || conversations.length === 0) {
+        tableElement.style.display = 'none';
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    tableElement.style.display = 'table';
+    emptyState.style.display = 'none';
+    tableBody.innerHTML = '';
+
+    conversations.forEach(conversation => {
+        const row = tableBody.insertRow();
+        const isActive = conversation.status === 'active';
+        const truncatedMessage = conversation.last_message ? 
+            (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
+            'Pas de message';
+
+        row.innerHTML = `
+            <td>${conversation.title || 'Sans titre'}</td>
+            <td><span class="platform-badge ${platform}">${platform}</span></td>
+            <td>${conversation.date || ''}</td>
+            <td>${truncatedMessage}</td>
+            <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
+            <td class="action-buttons">
+                <button class="action-btn view" onclick="viewConversation('${conversation.id}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+                <button class="action-btn delete" onclick="deleteConversation('${conversation.id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+    });
+
+    updateConversationFilterCounts();
+}
+
+function filterConversations(filter) {
+    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.conversations-filters [data-filter="${filter}"]`).classList.add('active');
+
+    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const status = row.querySelector('.status-badge').textContent.toLowerCase();
+
+        if (filter === 'all' || 
+            (filter === 'active' && status === 'active') || 
+            (filter === 'archived' && status === 'archivée')) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const tableElement = document.getElementById('fullConversationsTable');
+    const container = document.getElementById('fullConversationsTableContainer');
+    const emptyState = container.querySelector('.empty-state');
+
+    if (visibleCount === 0) {
+        tableElement.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.querySelector('p').textContent = `Aucune conversation ${filter === 'active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
+    } else {
+        tableElement.style.display = 'table';
+        emptyState.style.display = 'none';
+    }
+}
+
+function updateConversationFilterCounts() {
+    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
+    let activeCount = 0;
+    let archivedCount = 0;
+
+    rows.forEach(row => {
+        const status = row.querySelector('.status-badge').textContent.toLowerCase();
+        if (status === 'active') {
+            activeCount++;
+        } else {
+            archivedCount++;
+        }
+    });
+
+    document.querySelector('.conversations-filters [data-filter="all"]').textContent = `Toutes (${activeCount + archivedCount})`;
+    document.querySelector('.conversations-filters [data-filter="active"]').textContent = `Actives (${activeCount})`;
+    document.querySelector('.conversations-filters [data-filter="archived"]').textContent = `Archivées (${archivedCount})`;
+}
+
+function searchConversations() {
+    const searchTerm = document.getElementById('conversationSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const text = Array.from(row.cells)
+            .map(cell => cell.textContent.toLowerCase())
+            .join(' ');
+
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const tableElement = document.getElementById('fullConversationsTable');
+    const container = document.getElementById('fullConversationsTableContainer');
+    const emptyState = container.querySelector('.empty-state');
+
+    if (visibleCount === 0) {
+        tableElement.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.querySelector('p').textContent = "Aucune conversation ne correspond à votre recherche";
+    } else {
+        tableElement.style.display = 'table';
+        emptyState.style.display = 'none';
+    }
+}
+
+function deleteConversation(conversationId) {
+    conversationIdToDelete = conversationId;
+    const modal = document.getElementById('deleteConversationModal');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDeleteConversationModal() {
+    const modal = document.getElementById('deleteConversationModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+    conversationIdToDelete = null;
+}
+
+function confirmDeleteConversation() {
+    if (conversationIdToDelete === null) return;
+
+    fetch(`/admin/conversations/${conversationIdToDelete}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Erreur lors de la suppression');
+        }
+        return response.json();
+    })
+    .then(data => {
+        closeDeleteConversationModal();
+        fetchAllConversations(currentPlatform);
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        closeDeleteConversationModal();
+    });
+}
+
+// Update the initialization code to include conversation handlers
 document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
-    showSection('dashboard'); // Show dashboard by default
+    showSection('dashboard');
     fetchPlatformData('web');
 
     // Add event listeners for user filtering and search
@@ -590,4 +796,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('userSearchInput').addEventListener('input', searchUsers);
+
+    // Add conversation-specific event listeners
+    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => filterConversations(btn.getAttribute('data-filter')));
+    });
+
+    document.getElementById('conversationSearchInput').addEventListener('input', searchConversations);
+
+    // Conversation deletion modal handlers
+    document.querySelector('#deleteConversationModal .close-modal').addEventListener('click', closeDeleteConversationModal);
+    document.getElementById('cancelDeleteConversation').addEventListener('click', closeDeleteConversationModal);
+    document.getElementById('confirmDeleteConversation').addEventListener('click', confirmDeleteConversation);
+
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('deleteConversationModal');
+        if (event.target === modal) {
+            closeDeleteConversationModal();
+        }
+    });
 });
