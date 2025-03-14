@@ -42,6 +42,29 @@ function filterUsers(filter) {
             row.style.display = 'none';
         }
     });
+
+    // Update filter button counts
+    updateFilterCounts();
+}
+
+function updateFilterCounts() {
+    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+    let activeCount = 0;
+    let inactiveCount = 0;
+
+    rows.forEach(row => {
+        const status = row.querySelector('.status-badge').textContent.toLowerCase();
+        if (status === 'actif') {
+            activeCount++;
+        } else {
+            inactiveCount++;
+        }
+    });
+
+    // Update the filter buttons with counts
+    document.querySelector('[data-filter="all"]').textContent = `Tous (${activeCount + inactiveCount})`;
+    document.querySelector('[data-filter="active"]').textContent = `Actifs (${activeCount})`;
+    document.querySelector('[data-filter="inactive"]').textContent = `Inactifs (${inactiveCount})`;
 }
 
 function searchUsers() {
@@ -64,8 +87,8 @@ function searchUsers() {
 let currentPlatform = 'web';
 
 function toggleDropdown() {
-  const dropdown = document.getElementById('platformDropdown');
-  dropdown.classList.toggle('show');
+    const dropdown = document.getElementById('platformDropdown');
+    dropdown.classList.toggle('show');
 }
 
 function selectPlatform(platform) {
@@ -323,7 +346,9 @@ function fetchPlatformData(platform) {
 }
 
 function fetchAllUsers(platform) {
-    fetch(`/admin/users/${platform}`)
+    console.log('Fetching users for platform:', platform);
+
+    fetch(`/admin/data/${platform}`)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -331,79 +356,124 @@ function fetchAllUsers(platform) {
             return response.json();
         })
         .then(data => {
-            updateFullUsersTable(data.users);
+            console.log(`Data received for ${platform} users:`, data);
+
+            if (data.users && data.users.length > 0) {
+                const usersWithStatus = data.users.map(user => ({
+                    ...user,
+                    // Check last_active timestamp to determine if user is active
+                    active: user.last_active ? 
+                        (new Date(user.last_active) > new Date(Date.now() - 15 * 60 * 1000)) : false
+                }));
+                updateFullUsersTable(usersWithStatus, platform);
+            } else {
+                showEmptyState('fullUsersTableContainer', platform);
+            }
         })
         .catch(error => {
-            console.error('Error fetching users:', error);
+            console.error(`Error fetching ${platform} users:`, error);
             showEmptyState('fullUsersTableContainer', platform);
         });
 }
 
-function updateFullUsersTable(users) {
-    const table = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
+function updateFullUsersTable(users, platform) {
+    const tableBody = document.getElementById('fullUsersTable').getElementsByTagName('tbody')[0];
+    const tableElement = document.getElementById('fullUsersTable');
     const container = document.getElementById('fullUsersTableContainer');
     const emptyState = container.querySelector('.empty-state');
 
+    // Debug pour voir les données reçues
+    console.log(`Users data received for ${platform}:`, users);
+
     if (!users || users.length === 0) {
-        table.style.display = 'none';
-        emptyState.style.display = 'block';
+        tableElement.style.display = 'none';
+        emptyState.style.display = 'flex';
         return;
     }
 
-    table.style.display = 'table';
+    tableElement.style.display = 'table';
     emptyState.style.display = 'none';
-    table.innerHTML = '';
+    tableBody.innerHTML = '';
 
     users.forEach(user => {
-        const row = table.insertRow();
-        row.innerHTML = `
-            <td>${user.last_name || user.name || ''}</td>
-            <td>${user.first_name || ''}</td>
-            <td>${user.age || '--'}</td>
-            <td>${user.phone_number || user.phone || ''}</td>
-            <td>${user.study_level || ''}</td>
-            <td>${user.created_at || ''}</td>
-            <td><span class="status-badge ${user.active ? 'active' : 'inactive'}">${user.active ? 'Actif' : 'Inactif'}</span></td>
-            <td class="action-buttons">
-                <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
-                <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
-            </td>
-        `;
-    });
-}
+        const row = tableBody.insertRow();
+        const isActive = user.active;
 
+        if (platform === 'web') {
+            row.innerHTML = `
+                <td>${user.last_name || ''}</td>
+                <td>${user.first_name || ''}</td>
+                <td>${user.age || '--'}</td>
+                <td>${user.phone_number || ''}</td>
+                <td>${user.study_level || ''}</td>
+                <td>${user.created_at || ''}</td>
+                <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Actif' : 'Inactif'}</span></td>
+                <td class="action-buttons">
+                    <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
+                    <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+                </td>
+            `;
+        } else {
+            const name = platform === 'telegram' ? 
+                (user.name || `Telegram User ${user.id || ''}`) : 
+                (user.name || `WhatsApp User ${user.phone || 'None'}`);
+
+            row.innerHTML = `
+                <td>${name}</td>
+                <td>--</td>
+                <td>--</td>
+                <td>${user.phone || '--'}</td>
+                <td>${user.study_level || '--'}</td>
+                <td>${user.created_at || ''}</td>
+                <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Actif' : 'Inactif'}</span></td>
+                <td class="action-buttons">
+                    <button class="action-btn edit" onclick="editUser(${user.id})"><i class="bi bi-pencil"></i></button>
+                    <button class="action-btn delete" onclick="deleteUser(${user.id})"><i class="bi bi-trash"></i></button>
+                </td>
+            `;
+        }
+    });
+
+    // Update filter counts after populating the table
+    updateFilterCounts();
+}
 
 function showEmptyState(containerId, platform) {
     const container = document.getElementById(containerId);
     const emptyState = container.querySelector('.empty-state');
-    emptyState.style.display = 'block';
-    //Customize empty state message based on platform and container
-    if (containerId === 'fullUsersTableContainer') {
-        emptyState.querySelector('p').textContent = `Aucun utilisateur ${platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1)} disponible pour le moment`;
-    }
+    const table = container.querySelector('table');
 
+    // Cacher le tableau et montrer l'état vide
+    if (table) table.style.display = 'none';
+    emptyState.style.display = 'flex';
+
+    // Personnaliser le message selon la plateforme
+    if (containerId === 'fullUsersTableContainer') {
+        const platformName = platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1);
+        emptyState.querySelector('p').textContent = `Aucun utilisateur ${platformName} disponible pour le moment`;
+    }
 }
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
-  const dropdown = document.getElementById('platformDropdown');
-  const webSelector = document.querySelector('.web-selector');
+    const dropdown = document.getElementById('platformDropdown');
+    const webSelector = document.querySelector('.web-selector');
 
-  if (!webSelector.contains(event.target)) {
-      dropdown.classList.remove('show');
-  }
+    if (!webSelector.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
 });
 
-// Initialize the dashboard with web data by default
+// Initialize the dashboard
 document.addEventListener('DOMContentLoaded', function() {
-  initializeNavigation();
-  showSection('dashboard'); // Show dashboard by default
-  fetchPlatformData('web');
+    initializeNavigation();
+    showSection('dashboard'); // Show dashboard by default
+    fetchPlatformData('web');
 
-  // Add event listeners for user filtering and search
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
-  });
+    // Add event listeners for user filtering and search
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
+    });
 
-  document.getElementById('userSearchInput').addEventListener('input', searchUsers);
+    document.getElementById('userSearchInput').addEventListener('input', searchUsers);
 });
