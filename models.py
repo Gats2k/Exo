@@ -50,6 +50,7 @@ class TelegramUser(db.Model):
     __tablename__ = 'telegram_user'
     telegram_id = db.Column(db.BigInteger, primary_key=True)  # Telegram user IDs are large numbers
     first_name = db.Column(db.String(64), default="---")
+    last_name = db.Column(db.String(64), default="---")  # Ajout du champ last_name
     phone_number = db.Column(db.String(20), default="---")
     study_level = db.Column(db.String(20), default="---")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

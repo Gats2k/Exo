@@ -172,6 +172,22 @@ function updateTableWithWebData(data) {
   const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
   const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
 
+  // Configurer les en-têtes du tableau pour afficher la structure standard
+  const tableHeader = document.getElementById('usersTable').getElementsByTagName('thead')[0];
+  // Vérifions si l'en-tête a une colonne ID, si oui, on la supprime pour revenir à la structure standard
+  if (tableHeader.querySelector('tr th:first-child').innerText === 'ID') {
+      tableHeader.innerHTML = `
+      <tr>
+          <th>Nom</th>
+          <th>Prénom</th>
+          <th>Âge</th>
+          <th>Téléphone</th>
+          <th>Niveau d'étude</th>
+          <th>Date d'inscription</th>
+      </tr>
+      `;
+  }
+
   // Clear existing table data
   usersTable.innerHTML = '';
   conversationsTable.innerHTML = '';
@@ -197,7 +213,7 @@ function updateTableWithWebData(data) {
           const moreRow = usersTable.insertRow();
           moreRow.className = 'see-more-row';
           moreRow.innerHTML = `
-              <td colspan="6" class="see-more-cell">See more...</td>
+              <td colspan="6" class="see-more-cell">Voir plus...</td>
           `;
       }
   }
@@ -226,7 +242,7 @@ function updateTableWithWebData(data) {
           const moreRow = conversationsTable.insertRow();
           moreRow.className = 'see-more-row';
           moreRow.innerHTML = `
-              <td colspan="4" class="see-more-cell">See more...</td>
+              <td colspan="4" class="see-more-cell">Voir plus...</td>
           `;
       }
   }
@@ -235,6 +251,38 @@ function updateTableWithWebData(data) {
 function updateTableWithPlatformData(data) {
     const usersTable = document.getElementById('usersTable').getElementsByTagName('tbody')[0];
     const conversationsTable = document.getElementById('conversationsTable').getElementsByTagName('tbody')[0];
+
+    // Configurer les en-têtes du tableau en fonction de la plateforme
+    const tableHeader = document.getElementById('usersTable').getElementsByTagName('thead')[0];
+
+    if (data.platform === 'telegram') {
+        // Configurer l'en-tête avec colonne ID pour Telegram
+        tableHeader.innerHTML = `
+        <tr>
+            <th>ID</th>
+            <th>Nom</th>
+            <th>Prénom</th>
+            <th>Âge</th>
+            <th>Téléphone</th>
+            <th>Niveau d'étude</th>
+            <th>Date d'inscription</th>
+        </tr>
+        `;
+    } else {
+        // Configuration standard pour WhatsApp ou autres
+        if (tableHeader.querySelector('tr th:first-child').innerText === 'ID') {
+            tableHeader.innerHTML = `
+            <tr>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Âge</th>
+                <th>Téléphone</th>
+                <th>Niveau d'étude</th>
+                <th>Date d'inscription</th>
+            </tr>
+            `;
+        }
+    }
 
     // Clear existing table data
     usersTable.innerHTML = '';
@@ -246,41 +294,64 @@ function updateTableWithPlatformData(data) {
         const displayUsers = data.users.slice(0, 5);
         displayUsers.forEach(user => {
             const row = usersTable.insertRow();
-            row.innerHTML = `
-                <td>${user.name || ''}</td>
-                <td>--</td>
-                <td>--</td>
-                <td>${user.phone || ''}</td>
-                <td>${user.study_level || ''}</td>
-                <td>${user.created_at || ''}</td>
-            `;
+
+            if (data.platform === 'telegram') {
+                // Format Telegram avec colonne ID
+                row.innerHTML = `
+                    <td>${user.telegram_id || ''}</td>
+                    <td>${user.last_name || '---'}</td>
+                    <td>${user.first_name || '---'}</td>
+                    <td>--</td>
+                    <td>${user.phone || ''}</td>
+                    <td>${user.study_level || ''}</td>
+                    <td>${user.created_at || ''}</td>
+                `;
+            } else {
+                // Format WhatsApp ou autre
+                const name = data.platform === 'whatsapp' ? 
+                    (user.name || `WhatsApp User ${user.phone || 'None'}`) : 
+                    (user.name || '');
+
+                row.innerHTML = `
+                    <td>${name}</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>${user.phone || ''}</td>
+                    <td>${user.study_level || ''}</td>
+                    <td>${user.created_at || ''}</td>
+                `;
+            }
         });
 
         // Add "See more..." row if there are more than 5 users
         if (data.users.length >= 3) {
             const moreRow = usersTable.insertRow();
             moreRow.className = 'see-more-row';
+
+            // Ajuster le colspan en fonction de la présence de la colonne ID
+            const colSpan = data.platform === 'telegram' ? 7 : 6;
+
             moreRow.innerHTML = `
-                <td colspan="6" class="see-more-cell">Voir plus...</td>
+                <td colspan="${colSpan}" class="see-more-cell">Voir plus...</td>
             `;
         }
     }
 
-        // Update conversations table
-        if (data.conversations && data.conversations.length > 0) {
-            // Display only first 5 rows
-            const displayConversations = data.conversations.slice(0, 5);
-            displayConversations.forEach(conv => {
-                // Ensure we have a numeric ID for the conversation
-                const conversationId = conv.id ? conv.id : null;
-                const row = conversationsTable.insertRow();
-                row.innerHTML = `
-                    <td>${conv.title || 'Sans titre'}</td>
-                    <td>${conv.date || ''}</td>
-                    <td>${conv.time || ''}</td>
-                    <td>${conv.last_message || ''}</td>
-                `;
-            });
+    // Update conversations table
+    if (data.conversations && data.conversations.length > 0) {
+        // Display only first 5 rows
+        const displayConversations = data.conversations.slice(0, 5);
+        displayConversations.forEach(conv => {
+            // Ensure we have a numeric ID for the conversation
+            const conversationId = conv.id ? conv.id : null;
+            const row = conversationsTable.insertRow();
+            row.innerHTML = `
+                <td>${conv.title || 'Sans titre'}</td>
+                <td>${conv.date || ''}</td>
+                <td>${conv.time || ''}</td>
+                <td>${conv.last_message || ''}</td>
+            `;
+        });
 
         // Add "See more..." row if there are more than 5 conversations
         if (data.conversations.length >= 3) {
@@ -421,6 +492,45 @@ function updateFullUsersTable(users, platform) {
     const container = document.getElementById('fullUsersTableContainer');
     const emptyState = container.querySelector('.empty-state');
 
+    // Mise à jour des en-têtes du tableau en fonction de la plateforme
+    const tableHeader = document.getElementById('fullUsersTable').getElementsByTagName('thead')[0];
+    if (platform === 'telegram') {
+        // S'assurer que la colonne ID est visible pour Telegram
+        if (tableHeader.querySelector('tr th:first-child').innerText !== 'ID') {
+            // Recréer les en-têtes avec ID pour Telegram
+            tableHeader.innerHTML = `
+            <tr>
+                <th>ID</th>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Âge</th>
+                <th>Téléphone</th>
+                <th>Niveau d'étude</th>
+                <th>Date d'inscription</th>
+                <th>Statut</th>
+                <th>Actions</th>
+            </tr>
+            `;
+        }
+    } else {
+        // Pour les autres plateformes, retirer la colonne ID s'il existe
+        if (tableHeader.querySelector('tr th:first-child').innerText === 'ID') {
+            // Recréer les en-têtes sans ID pour Web et WhatsApp
+            tableHeader.innerHTML = `
+            <tr>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Âge</th>
+                <th>Téléphone</th>
+                <th>Niveau d'étude</th>
+                <th>Date d'inscription</th>
+                <th>Statut</th>
+                <th>Actions</th>
+            </tr>
+            `;
+        }
+    }
+
     // Debug pour voir les données reçues
     console.log(`Users data received for ${platform}:`, users);
 
@@ -445,9 +555,8 @@ function updateFullUsersTable(users, platform) {
             // Pour le web, utiliser phone_number comme ID
             userId = user.phone_number || '';
         } else if (platform === 'telegram') {
-            // Pour Telegram, extraire telegram_id du nom qui est au format "Telegram User {id}"
-            const match = user.name && user.name.match(/Telegram User (\d+)/);
-            userId = match ? match[1] : (user.phone || '');
+            // Pour Telegram, utiliser directement l'ID Telegram
+            userId = user.telegram_id || '';
         } else {
             // Pour WhatsApp, utiliser le numéro de téléphone
             userId = user.phone || '';
@@ -456,7 +565,24 @@ function updateFullUsersTable(users, platform) {
         // Ajouter l'ID comme attribut de données à la ligne
         row.setAttribute('data-user-id', userId);
 
-        if (platform === 'web') {
+        if (platform === 'telegram') {
+            // Pour Telegram, afficher l'ID, le nom et le prénom
+            row.innerHTML = `
+                <td>${user.telegram_id || ''}</td>
+                <td>${user.last_name || '---'}</td>
+                <td>${user.first_name || '---'}</td>
+                <td>--</td>
+                <td>${user.phone || '--'}</td>
+                <td>${user.study_level || '--'}</td>
+                <td>${user.created_at || ''}</td>
+                <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Actif' : 'Inactif'}</span></td>
+                <td class="action-buttons">
+                    <button class="action-btn edit" onclick="editUser('${userId}')"><i class="bi bi-pencil"></i></button>
+                    <button class="action-btn delete" onclick="deleteUser('${userId}')"><i class="bi bi-trash"></i></button>
+                </td>
+            `;
+        } else if (platform === 'web') {
+            // Pour Web, format standard
             row.innerHTML = `
                 <td>${user.last_name || ''}</td>
                 <td>${user.first_name || ''}</td>
@@ -471,10 +597,8 @@ function updateFullUsersTable(users, platform) {
                 </td>
             `;
         } else {
-            const name = platform === 'telegram' ? 
-                (user.name || `Telegram User ${userId || ''}`) : 
-                (user.name || `WhatsApp User ${user.phone || 'None'}`);
-
+            // Pour WhatsApp
+            const name = user.name || `WhatsApp User ${user.phone || 'None'}`;
             row.innerHTML = `
                 <td>${name}</td>
                 <td>--</td>

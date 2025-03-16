@@ -620,7 +620,9 @@ def admin_platform_data(platform):
             'satisfaction_rate': 0,
             'platform': 'telegram',
             'users': [{
-                'name': f'Telegram User {user.telegram_id}',
+                'telegram_id': user.telegram_id,
+                'first_name': user.first_name or "---",
+                'last_name': user.last_name or "---",
                 'phone': user.phone_number,
                 'study_level': user.study_level,
                 'created_at': user.created_at.strftime('%d/%m/%Y')

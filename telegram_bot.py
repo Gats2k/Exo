@@ -59,19 +59,34 @@ def db_retry_session(max_retries=3, retry_delay=1):
             logger.warning(f"Database operation failed, retrying... (attempt {attempt + 1}/{max_retries})")
             time.sleep(retry_delay)
 
-async def get_or_create_telegram_user(user_id: int) -> TelegramUser:
-    """Get or create a TelegramUser record."""
+async def get_or_create_telegram_user(user_id: int, first_name: str = None, last_name: str = None) -> TelegramUser:
+    """Get or create a TelegramUser record with name information."""
     try:
         with db_retry_session() as session:
             logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
             user = TelegramUser.query.get(user_id)
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
-                user = TelegramUser(telegram_id=user_id)
+                user = TelegramUser(
+                    telegram_id=user_id,
+                    first_name=first_name or "---",
+                    last_name=last_name or "---"
+                )
                 session.add(user)
                 session.commit()
-                logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
             else:
+                # Mettre à jour les noms s'ils ont changé
+                updated = False
+                if first_name and user.first_name != first_name:
+                    user.first_name = first_name
+                    updated = True
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                    updated = True
+                if updated:
+                    session.commit()
+                    logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
             return user
     except Exception as e:
@@ -117,9 +132,11 @@ async def add_telegram_message(conversation_id: int, role: str, content: str, im
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /start is issued."""
     user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name
     try:
         # Create or get the user in our database
-        await get_or_create_telegram_user(user_id)
+        await get_or_create_telegram_user(user_id, first_name, last_name)
 
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
@@ -150,11 +167,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    logger.info(f"Processing message from user {user_id}")
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name
+    logger.info(f"Processing message from user {user_id} ({first_name} {last_name})")
 
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id)
+        user = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         with db_retry_session() as session:
@@ -242,9 +261,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""
     user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id)
+        user = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         with db_retry_session() as session:
