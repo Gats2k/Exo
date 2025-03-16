@@ -179,7 +179,7 @@ def handle_message(data):
                 # Check if an error occurred
                 if "error" in mathpix_result:
                     logger.error(f"Mathpix error: {mathpix_result['error']}")
-                    formatted_summary = f"Image content extraction failed. I will analyze the image visually."
+                    formatted_summary = f"Image content extraction failed. I will analyze it visually."
                 else:
                     formatted_summary = mathpix_result.get("formatted_summary", "")
                     logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
