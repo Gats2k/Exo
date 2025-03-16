@@ -497,13 +497,17 @@ def admin_dashboard():
         # Initialize satisfaction rate to 0
         satisfaction_rate = 0
 
+        # Get OpenAI Assistant ID for settings
+        openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'Non configuré')
+
         return render_template(
             'admin_dashboard.html',
             active_users=active_users,
             active_users_today=active_users_today,
             today_conversations=today_conversations,
             satisfaction_rate=satisfaction_rate,
-            is_admin=True  # Add this to help template logic
+            is_admin=True,
+            openai_assistant_id=openai_assistant_id  # Add OpenAI Assistant ID
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
