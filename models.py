@@ -49,7 +49,7 @@ class Message(db.Model):
 class TelegramUser(db.Model):
     __tablename__ = 'telegram_user'
     telegram_id = db.Column(db.BigInteger, primary_key=True)  # Telegram user IDs are large numbers
-    first_name = db.Column(db.String(64), default="---")
+    first_name = db.Column(db.String(64), nullable=False)  
     phone_number = db.Column(db.String(20), default="---")
     study_level = db.Column(db.String(20), default="---")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

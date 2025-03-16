@@ -620,7 +620,8 @@ def admin_platform_data(platform):
             'satisfaction_rate': 0,
             'platform': 'telegram',
             'users': [{
-                'name': f'Telegram User {user.telegram_id}',
+                'name': user.first_name,  # Now using first_name instead of telegram_id
+                'telegram_id': str(user.telegram_id),  # Added telegram_id as separate field
                 'phone': user.phone_number,
                 'study_level': user.study_level,
                 'created_at': user.created_at.strftime('%d/%m/%Y')
