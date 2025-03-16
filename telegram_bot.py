@@ -59,34 +59,19 @@ def db_retry_session(max_retries=3, retry_delay=1):
             logger.warning(f"Database operation failed, retrying... (attempt {attempt + 1}/{max_retries})")
             time.sleep(retry_delay)
 
-async def get_or_create_telegram_user(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> TelegramUser:
+async def get_or_create_telegram_user(user_id: int) -> TelegramUser:
     """Get or create a TelegramUser record."""
     try:
         with db_retry_session() as session:
             logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
             user = TelegramUser.query.get(user_id)
-
-            # Get the update context to access user's first name
-            telegram_user = context._user  # Access the underlying Telegram user object
-            first_name = telegram_user.first_name if telegram_user else None
-            if not first_name:
-                first_name = context.user_data.get('first_name', "---")
-
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
-                user = TelegramUser(
-                    telegram_id=user_id,
-                    first_name=first_name
-                )
+                user = TelegramUser(telegram_id=user_id)
                 session.add(user)
                 session.commit()
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
             else:
-                # Update the first name if it's available and different
-                if first_name and first_name != "---" and user.first_name != first_name:
-                    user.first_name = first_name
-                    session.commit()
-                    logger.info(f"Updated first name for TelegramUser: {user.telegram_id}")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
             return user
     except Exception as e:
@@ -134,8 +119,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
         # Create or get the user in our database
-        await get_or_create_telegram_user(user_id, context)
-        context.user_data['first_name'] = update.effective_user.first_name
+        await get_or_create_telegram_user(user_id)
 
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
@@ -170,7 +154,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id, context)
+        user = await get_or_create_telegram_user(user_id)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         with db_retry_session() as session:
@@ -260,7 +244,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id, context)
+        user = await get_or_create_telegram_user(user_id)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         with db_retry_session() as session:
