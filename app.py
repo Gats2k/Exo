@@ -161,7 +161,7 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Variables for storing Mathpix results
+        # Variables to store Mathpix results
         mathpix_result = None
         formatted_summary = None
 
@@ -173,28 +173,31 @@ def handle_message(data):
                 # Create a public URL for the image
                 image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
 
-                # Process image with Mathpix first
+                # ===== ADDED: Process image with Mathpix =====
                 mathpix_result = process_image_with_mathpix(data['image'])
 
                 # Check if an error occurred
                 if "error" in mathpix_result:
                     logger.error(f"Mathpix error: {mathpix_result['error']}")
-                    formatted_summary = f"Image content extraction failed. I will analyze it visually."
+                    # Continue without Mathpix extraction, but log the error
+                    formatted_summary = f"Image content extraction failed. I will analyze the image visually."
                 else:
+                    # Use the formatted summary for the assistant
                     formatted_summary = mathpix_result.get("formatted_summary", "")
                     logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
 
-                # Build user message content
+                # Build user message with image extraction
                 user_content = data.get('message', '')
                 if formatted_summary:
+                    # If user also sent a text message
                     if user_content:
-                        user_store_content = f"{user_content}\n\n[Image Content]\n{formatted_summary}"
+                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}"
                     else:
-                        user_store_content = f"[Image Content]\n{formatted_summary}"
+                        user_store_content = f"[Extracted Image Content]\n{formatted_summary}"
                 else:
-                    user_store_content = user_content if user_content else "Please analyze this image."
+                    user_store_content = user_content
 
-                # Store message in database with image URL
+                # Store user message with image and extracted content
                 user_message = Message(
                     conversation_id=conversation.id,
                     role='user',
@@ -203,17 +206,49 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
 
-                # Send only the text content to OpenAI
+                # Create message for OpenAI with image and extracted content
+                openai_message_content = []
+
+                # Add image content
+                openai_message_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image_url
+                    }
+                })
+
+                # ===== MODIFIED: Create enriched message for assistant =====
+                message_for_assistant = ""
+
+                # Add user's message first if it exists
+                if data.get('message'):
+                    message_for_assistant += f"{data['message']}\n\n"
+
+                # Add Mathpix extraction results
+                if formatted_summary:
+                    message_for_assistant += formatted_summary
+                else:
+                    # Default message if no extraction
+                    if not data.get('message'):  # Only if user didn't provide a message
+                        message_for_assistant = "Please analyze this image."
+
+                # Add text content with Mathpix extraction
+                openai_message_content.append({
+                    "type": "text",
+                    "text": message_for_assistant
+                })
+
+                # Send message to OpenAI with image URL and extracted text
                 client.beta.threads.messages.create(
                     thread_id=conversation.thread_id,
                     role="user",
-                    content=user_store_content
+                    content=openai_message_content
                 )
             except Exception as img_error:
                 logger.error(f"Image processing error: {str(img_error)}")
                 raise Exception("Failed to process image. Please make sure it's a valid image file.")
         else:
-            # Handle text-only message
+            # Store text-only message
             user_message = Message(
                 conversation_id=conversation.id,
                 role='user',
@@ -821,7 +856,7 @@ def get_conversation_messages_by_title(conversation_title):
             })
 
         # Check telegram conversations
-        telegramconv = TelegramConversation.query.filter_by(title=conversation_title).first()
+        telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
         if telegram_conv:
             messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
                 .order_by(TelegramMessage.created_at).all()
