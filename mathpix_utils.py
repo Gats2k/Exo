@@ -35,25 +35,15 @@ def process_image_with_mathpix(image_data):
         if isinstance(image_data, str) and "base64," in image_data:
             image_data = image_data.split("base64,")[1]
         
-        # Configuration for capturing all content types
+        # Configuration simplifiée mais efficace pour la détection mathématique
         payload = {
             "src": f"data:image/jpeg;base64,{image_data}",
             "formats": ["text", "data", "html"],
             "data_options": {
                 "include_asciimath": True,
-                "include_latex": True,
-                "include_mathml": True,
-                "include_svg": True,
-                "include_tsv": True,
-                "include_table_html": True
+                "include_latex": True
             },
-            "include_detected_alphabets": True,
-            "include_geometry_data": True,
-            "include_line_data": True,
-            "include_word_data": True,
-            "include_smiles": True,
-            "include_inchi": True,
-            "enable_tables_fallback": True
+            "include_geometry_data": True
         }
         
         # Send request to Mathpix
@@ -125,7 +115,7 @@ def format_mathpix_result_for_assistant(result):
     if result["has_table"]: content_types.append("tables")
     if result["has_chemistry"]: content_types.append("chemical formulas")
     if result["has_geometry"]: content_types.append("geometric figures")
-    
+
     if content_types:
         summary.append(f"Image contains {', '.join(content_types)}.")
     

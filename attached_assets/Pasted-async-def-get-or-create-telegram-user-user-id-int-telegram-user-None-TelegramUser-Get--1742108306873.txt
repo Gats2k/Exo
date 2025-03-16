@@ -1,0 +1,51 @@
+async def get_or_create_telegram_user(user_id: int, telegram_user=None) -> TelegramUser:
+    """Get or create a TelegramUser record with additional user info if available."""
+    try:
+        with db_retry_session() as session:
+            logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
+            user = TelegramUser.query.get(user_id)
+            
+            if not user:
+                logger.info(f"Creating new TelegramUser for ID: {user_id}")
+                user = TelegramUser(telegram_id=user_id)
+                
+                # Ajout des informations utilisateur si disponibles
+                if telegram_user:
+                    user.first_name = getattr(telegram_user, 'first_name', "---")
+                    user.last_name = getattr(telegram_user, 'last_name', "---")
+                    user.username = getattr(telegram_user, 'username', "---")
+                    logger.info(f"Added user details: {user.first_name} {user.last_name} (@{user.username})")
+                
+                session.add(user)
+                session.commit()
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
+            else:
+                # Mise à jour des informations si elles ont changé
+                if telegram_user:
+                    updated = False
+                    
+                    new_first_name = getattr(telegram_user, 'first_name', "---")
+                    if new_first_name != "---" and user.first_name != new_first_name:
+                        user.first_name = new_first_name
+                        updated = True
+                        
+                    new_last_name = getattr(telegram_user, 'last_name', "---")
+                    if new_last_name != "---" and user.last_name != new_last_name:
+                        user.last_name = new_last_name
+                        updated = True
+                        
+                    new_username = getattr(telegram_user, 'username', "---")
+                    if new_username != "---" and user.username != new_username:
+                        user.username = new_username
+                        updated = True
+                    
+                    if updated:
+                        session.commit()
+                        logger.info(f"Updated user details for TelegramUser: {user.telegram_id} - {user.first_name} {user.last_name}")
+                
+                logger.info(f"Found existing TelegramUser: {user.telegram_id}")
+            
+            return user
+    except Exception as e:
+        logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
+        raise

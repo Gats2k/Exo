@@ -17,6 +17,7 @@ from datetime import datetime
 import base64
 import requests
 from contextlib import contextmanager
+from mathpix_utils import process_image_with_mathpix
 
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
@@ -282,30 +283,81 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 action=constants.ChatAction.TYPING
             )
 
-            # Create message content with image
-            message_content = [{
-                "type": "image_url",
-                "image_url": {
-                    "url": file_url
-                }
-            }]
+            # Téléchargement et conversion de l'image en base64
+            base64_image = await download_telegram_image(file_url)
+            if not base64_image:
+                logger.error("Failed to download or convert image")
+                await update.message.reply_text(
+                    "I'm having trouble processing your image. Please try again."
+                )
+                return
 
-            # Add caption if present
-            caption = update.message.caption or "Image sent"
-            message_content.append({
-                "type": "text",
-                "text": caption
-            })
+            # Traitement avec Mathpix
+            mathpix_result = process_image_with_mathpix(base64_image)
+
+            # Variables pour stocker les résultats
+            formatted_summary = None
+
+            # Vérification d'erreur Mathpix
+            if "error" in mathpix_result:
+                logger.error(f"Mathpix error: {mathpix_result['error']}")
+                formatted_summary = "Image content extraction failed. I will analyze the image visually."
+            else:
+                formatted_summary = mathpix_result.get("formatted_summary", "")
+                logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
+
+            # Récupération de la légende si présente
+            caption = update.message.caption or ""
+
+            # Construction du message pour l'assistant
+            message_for_assistant = ""
+
+            # Ajout du message de l'utilisateur s'il existe
+            if caption:
+                message_for_assistant += f"{caption}\n\n"
+
+            # Ajout des résultats d'extraction Mathpix
+            if formatted_summary:
+                message_for_assistant += formatted_summary
+            else:
+                # Message par défaut si pas d'extraction et pas de message utilisateur
+                if not caption:
+                    message_for_assistant = "Please analyze the image I uploaded."
+
+            # Construction du contenu à stocker en BDD
+            user_store_content = caption
+            if formatted_summary:
+                if caption:
+                    user_store_content = f"{caption}\n\n[Extracted Image Content]\n{formatted_summary}"
+                else:
+                    user_store_content = f"[Extracted Image Content]\n{formatted_summary}"
+
+            # Mise à jour du titre de la conversation si c'est une nouvelle conversation
+            if conversation.title == "Nouvelle conversation" and mathpix_result:
+                content_types = []
+                if mathpix_result.get("has_math"): content_types.append("math")
+                if mathpix_result.get("has_table"): content_types.append("table")
+                if mathpix_result.get("has_chemistry"): content_types.append("chemistry")
+                if mathpix_result.get("has_geometry"): content_types.append("geometry")
+
+                if content_types:
+                    new_title = f"Image ({', '.join(content_types)})"
+                else:
+                    new_title = "Image"
+
+                conversation.title = new_title
+                session.commit()
+                logger.info(f"Updated conversation title to: {new_title}")
 
             # Store the user's message in our database
-            await add_telegram_message(conversation.id, 'user', caption, file_url)
+            await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
-            # Send to OpenAI
-            logger.info(f"Sending message to OpenAI thread {thread_id}")
+            # Send to OpenAI (text only, not image)
+            logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
             openai_client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role="user",
-                content=message_content
+                content=message_for_assistant
             )
             logger.info("Message sent to OpenAI")
 
@@ -355,6 +407,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log Errors caused by Updates."""
     logger.error(f'Update "{update}" caused error "{context.error}"', exc_info=True)
+
+async def download_telegram_image(file_url):
+    """Télécharge l'image depuis l'URL Telegram et la convertit en base64"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(file_url) as response:
+                if response.status == 200:
+                    image_data = await response.read()
+                    # Conversion en base64
+                    base64_image = base64.b64encode(image_data).decode('utf-8')
+                    return f"data:image/jpeg;base64,{base64_image}"
+                else:
+                    logger.error(f"Failed to download image: HTTP {response.status}")
+                    return None
+    except Exception as e:
+        logger.error(f"Error downloading image: {str(e)}")
+        return None
 
 def setup_telegram_bot():
     """Initialize and setup the Telegram bot."""
