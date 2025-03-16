@@ -608,32 +608,6 @@ def admin_platform_data(platform):
             } for conv in conversations]
         }
 
-    elif platform == 'telegram':
-        # For telegram, query telegram-specific data
-        users = TelegramUser.query.all()
-        conversations = TelegramConversation.query.all()
-
-        data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0,
-            'platform': 'telegram',
-            'users': [{
-                'name': user.first_name,  # Now using first_name instead of telegram_id
-                'telegram_id': str(user.telegram_id),  # Added telegram_id as separate field
-                'phone': user.phone_number,
-                'study_level': user.study_level,
-                'created_at': user.created_at.strftime('%d/%m/%Y')
-            } for user in users],
-            'conversations': [{
-                'title': conv.title,
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
-            } for conv in conversations]
-        }
-
     elif platform == 'whatsapp':
         # Get WhatsApp statistics
         messages = WhatsAppMessage.query.all()
@@ -674,14 +648,10 @@ def admin_platform_data(platform):
             } for conv in conversations]
         }
 
+    else:
+        return jsonify({'error': 'Invalid platform'}), 400
+
     return jsonify(data)
-
-
-@login_manager.unauthorized_handler
-def unauthorized():
-    """Redirect unauthorized users to Login page."""
-    flash('Please log in to access this page.')
-    return redirect(url_for('register'))
 
 
 @app.route('/admin/users/<user_id>', methods=['DELETE'])
@@ -1094,6 +1064,1322 @@ def delete_subscription(subscription_id):
 
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/data/telegram')
+def admin_platform_data_telegram():
+    today = datetime.today().date()
+    users = TelegramUser.query.all()
+    conversations = TelegramConversation.query.all()
+
+    data = {
+        'active_users': len(users),
+        'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+        'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+        'satisfaction_rate': 0,
+        'platform': 'telegram',
+        'users': [{
+            'telegram_id': str(user.telegram_id),  # First column - Telegram ID
+            'name': user.first_name or "---",  # Use dashes only when no name available
+            'phone': user.phone_number or "---",
+            'study_level': user.study_level or "---",
+            'created_at': user.created_at.strftime('%d/%m/%Y')
+        } for user in users],
+        'conversations': [{
+            'title': conv.title,
+            'date': conv.created_at.strftime('%d/%m/%Y'),
+            'time': conv.created_at.strftime('%H:%M'),
+            'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id)\
+                .order_by(TelegramMessage.created_at.desc())\
+                .first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+        } for conv in conversations]
+    }
+
+    return jsonify(data)
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Logout route for admin"""
+    session.pop('is_admin', None)
+    flash('Vous avez été déconnecté.', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        age = request.form.get('age')
+        phone_number = request.form.get('phone_number')
+        password = request.form.get('password')
+        study_level = request.form.get('study_level') or 'Terminal A'  # Default value
+        grade_goals = request.form.get('grade_goals') or 'average'  # Default value
+
+        # Basic validation
+        if not all([first_name, last_name, age, phone_number, password]):
+            flash('Tous les champs obligatoires doivent être remplis.', 'error')
+            return redirect(url_for('register'))
+
+        try:
+            # Create new user
+            user = User(
+                first_name=first_name,
+                last_name=last_name,
+                age=int(age),
+                phone_number=phone_number,
+                study_level=study_level,
+                grade_goals=grade_goals
+            )
+            user.set_password(password)
+
+            db.session.add(user)
+            db.session.commit()
+
+            # Log the user in
+            login_user(user)
+            return redirect(url_for('chat'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash('Une erreur est survenue lors de l\'inscription.', 'error')
+            app.logger.error(f"Registration error: {str(e)}")
+            return redirect(url_for('register'))
+
+    return render_template('register.html')
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        phone_number = request.form.get('phone_number')
+        user = User.query.filter_by(phone_number=phone_number).first()
+
+        if user:
+            # Here we would typically send a reset link or code
+            # For now, we'll just show a success message
+            flash('Instructions de réinitialisation envoyées à votre numéro.', 'success')
+            return redirect(url_for('login'))
+
+        flash('Aucun compte trouvé avec ce numéro.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    return render_template('forgot_password.html')
+
+@app.route('/admin/data/<platform>')
+def admin_platform_data(platform):
+    today = datetime.today().date()
+
+    if platform == 'web':
+        # Get web platform statistics
+        users = User.query.all()
+        conversations = Conversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0,
+            'platform': 'web',
+            'users': [{
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number,
+                'age': user.age,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title or "Sans titre",
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+            } for conv in conversations]
+        }
+
+    elif platform == 'whatsapp':
+        # Get WhatsApp statistics
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
+        data = {
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate': 0,
+            'platform': 'whatsapp',
+            'users': [{
+                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'phone': user[0],
+                'study_level': 'N/A',
+                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
+                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
+            } for user in unique_users],
+            'conversations': [{
+                'title': f'Conversation {conv.thread_id}',
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
+                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+            } for conv in conversations]
+        }
+
+    else:
+        return jsonify({'error': 'Invalid platform'}), 400
+
+    return jsonify(data)
+
+
+@app.route('/admin/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user and their associated data."""
+    try:
+        with db_retry_session() as session:
+            # Find the user based on the platform data
+            user = None
+
+            # Try to find in web users
+            user = User.query.filter_by(phone_number=user_id).first()
+            if user:
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+            # Try to find in Telegram users
+            user = TelegramUser.query.filter_by(telegram_id=user_id).first()
+            if user:
+                # Delete all messages first
+                for conv in user.conversations:
+                    TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+
+                # Delete all conversations
+                TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+
+                # Finally delete the user
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+
+            # Check WhatsApp users (using the phone number as ID)
+            messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
+            if messages:
+                for message in messages:
+                    session.delete(message)
+                session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting user'}), 500
+
+# Add this route after the other admin routes
+
+@app.route('/admin/conversations/<int:conversation_id>/messages')
+def get_conversation_messages(conversation_id):
+    """Get messages for a specific conversation"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Try to find the conversation in different models based on the ID
+        conversation = None
+        messages = []
+
+        # Ensure conversation_id is integer
+        try:
+            conv_id = int(conversation_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid conversation ID format'}), 400
+
+        # Check regular conversations
+        conversation = Conversation.query.get(conv_id)
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.get(conversation_id)
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check WhatsApp messages
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=conversation_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
+                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                    'content': msg.content,
+                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in whatsapp_messages]
+            })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
+def get_conversation_messages_by_title(conversation_title):
+    """Get messages for a specific conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        whatsapp_thread_match = None
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread_match = conversation_title.replace('Conversation ', '')
+
+            # Get WhatsApp messages for this thread
+            whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread_match)\
+                .order_by(WhatsAppMessage.timestamp).all()
+
+            if whatsapp_messages:
+                return jsonify({
+                    'messages': [{
+                        'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                        'content': msg.content,
+                        'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in whatsapp_messages]
+                })
+
+        # Continue with the existing logic for other conversation types
+        # Try to find the conversation in different models based on the title
+        conversation = None
+        messages = []
+
+        # Check regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check for "Sans titre" or untitled conversations
+        if conversation_title == "Sans titre":
+            # For untitled conversations, just return some default content
+            return jsonify({
+                'messages': [{
+                    'role': 'system',
+                    'content': 'Aucun détail disponible pour cette conversation sans titre',
+                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }]
+            })
+
+        # If conversation not found, try to find by last message content
+        # This is a fallback mechanism
+        message = Message.query.filter(Message.content.like(f"%{conversation_title}%")).first()
+        if message:
+            conversation = Conversation.query.get(message.conversation_id)
+            if conversation:
+                messages = Message.query.filter_by(conversation_id=conversation.id)\
+                    .order_by(Message.created_at).all()
+                return jsonify({
+                    'messages': [{
+                        'role': msg.role,
+                        'content': msg.content,
+                        'image_url': msg.image_url,
+                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in messages]
+                })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages by title: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>', methods=['DELETE'])
+def delete_conversation_by_title(conversation_title):
+    """Delete a conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        success = False
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread = conversation_title.replace('Conversation ', '')
+
+            # Delete WhatsApp messages for this thread
+            messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread).all()
+            if messages:
+                for message in messages:
+                    db.session.delete(message)
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp conversation deleted successfully'})
+
+        # Try to find and delete the conversation in the regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            # First delete all associated messages
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            # Then delete the conversation
+            db.session.delete(conversation)
+            db.session.commit()
+            success = True
+
+        # Try to find and delete in Telegram conversations
+        if not success:
+            telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+            if telegram_conv:
+                # Delete all messages first
+                TelegramMessage.query.filter_by(conversation_id=telegram_conv.id).delete()
+                # Delete the conversation
+                db.session.delete(telegram_conv)
+                db.session.commit()
+                success = True
+
+        # If we couldn't find by title, check if it's a "Sans titre" conversation
+        # For this case, we might want to add a warning here
+        # or implement an alternative way to identify these conversations
+        if not success and conversation_title == "Sans titre":
+            return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
+
+        if success:
+            return jsonify({'success': True, 'message': 'Conversation deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Conversation not found'}), 404
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting conversation by title: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting conversation', 'error': str(e)}), 500
+
+@app.route('/admin/whatsapp/thread/<path:thread_id>/messages')
+def get_whatsapp_thread_messages(thread_id):
+    """Get messages for a specific WhatsApp thread"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Log pour le débogage
+        logger.debug(f"Fetching WhatsApp messages for thread: {thread_id}")
+
+        # Récupérer les messages WhatsApp pour ce thread
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
+                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                    'content': msg.content,
+                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in whatsapp_messages]
+            })
+
+        return jsonify({'error': 'No WhatsApp messages found for this thread'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching WhatsApp thread messages: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/subscriptions', methods=['GET'])
+def get_subscriptions():
+    """Get all subscriptions data"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscriptions = Subscription.query.all()
+
+        return jsonify({
+            'subscriptions': [{
+                'id': sub.id,
+                'user_id': sub.user_id,
+                'user_name': f"{sub.user.first_name} {sub.user.last_name}",
+                'type': sub.subscription_type,
+                'start_date': sub.start_date.strftime('%Y-%m-%d'),
+                'expiry_date': sub.expiry_date.strftime('%Y-%m-%d'),
+                'status': sub.status,
+                'last_payment_date': sub.last_payment_date.strftime('%Y-%m-%d') if sub.last_payment_date else None
+            } for sub in subscriptions]
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching subscriptions: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions', methods=['POST'])
+def create_subscription():
+    """Create a new subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['user_id', 'subscription_type', 'expiry_date', 'status']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Create new subscription
+        subscription = Subscription(
+            user_id=data['user_id'],
+            subscription_type=data['subscription_type'],
+            start_date=datetime.now(),
+            expiry_date=datetime.strptime(data['expiry_date'], '%Y-%m-%d'),
+            status=data['status'],
+            last_payment_date=datetime.now()
+        )
+
+        db.session.add(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription created successfully',
+            'subscription_id': subscription.id
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['PUT'])
+def update_subscription(subscription_id):
+    """Update an existing subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        data = request.get_json()
+
+        # Update fields if provided
+        if 'subscription_type' in data:
+            subscription.subscription_type = data['subscription_type']
+        if 'expiry_date' in data:
+            subscription.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d')
+        if 'status' in data:
+            subscription.status = data['status']
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription updated successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['DELETE'])
+def delete_subscription(subscription_id):
+    """Delete a subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        db.session.delete(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/data/telegram')
+def admin_platform_data_telegram():
+    today = datetime.today().date()
+    users = TelegramUser.query.all()
+    conversations = TelegramConversation.query.all()
+
+    data = {
+        'active_users': len(users),
+        'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+        'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+        'satisfaction_rate': 0,
+        'platform': 'telegram',
+        'users': [{
+            'telegram_id': str(user.telegram_id),  # First column - Telegram ID
+            'name': user.first_name or "---",  # Use dashes only when no name available
+            'phone': user.phone_number or "---",
+            'study_level': user.study_level or "---",
+            'created_at': user.created_at.strftime('%d/%m/%Y')
+        } for user in users],
+        'conversations': [{
+            'title': conv.title,
+            'date': conv.created_at.strftime('%d/%m/%Y'),
+            'time': conv.created_at.strftime('%H:%M'),
+            'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id)\
+                .order_by(TelegramMessage.created_at.desc())\
+                .first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+        } for conv in conversations]
+    }
+
+    return jsonify(data)
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Logout route for admin"""
+    session.pop('is_admin', None)
+    flash('Vous avez été déconnecté.', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        age = request.form.get('age')
+        phone_number = request.form.get('phone_number')
+        password = request.form.get('password')
+        study_level = request.form.get('study_level') or 'Terminal A'  # Default value
+        grade_goals = request.form.get('grade_goals') or 'average'  # Default value
+
+        # Basic validation
+        if not all([first_name, last_name, age, phone_number, password]):
+            flash('Tous les champs obligatoires doivent être remplis.', 'error')
+            return redirect(url_for('register'))
+
+        try:
+            # Create new user
+            user = User(
+                first_name=first_name,
+                last_name=last_name,
+                age=int(age),
+                phone_number=phone_number,
+                study_level=study_level,
+                grade_goals=grade_goals
+            )
+            user.set_password(password)
+
+            db.session.add(user)
+            db.session.commit()
+
+            # Log the user in
+            login_user(user)
+            return redirect(url_for('chat'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash('Une erreur est survenue lors de l\'inscription.', 'error')
+            app.logger.error(f"Registration error: {str(e)}")
+            return redirect(url_for('register'))
+
+    return render_template('register.html')
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        phone_number = request.form.get('phone_number')
+        user = User.query.filter_by(phone_number=phone_number).first()
+
+        if user:
+            # Here we would typically send a reset link or code
+            # For now, we'll just show a success message
+            flash('Instructions de réinitialisation envoyées à votre numéro.', 'success')
+            return redirect(url_for('login'))
+
+        flash('Aucun compte trouvé avec ce numéro.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    return render_template('forgot_password.html')
+
+@app.route('/admin/data/<platform>')
+def admin_platform_data(platform):
+    today = datetime.today().date()
+
+    if platform == 'web':
+        # Get web platform statistics
+        users = User.query.all()
+        conversations = Conversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0,
+            'platform': 'web',
+            'users': [{
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number,
+                'age': user.age,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title or "Sans titre",
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+            } for conv in conversations]
+        }
+
+    elif platform == 'whatsapp':
+        # Get WhatsApp statistics
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
+        data = {
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate': 0,
+            'platform': 'whatsapp',
+            'users': [{
+                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'phone': user[0],
+                'study_level': 'N/A',
+                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
+                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
+            } for user in unique_users],
+            'conversations': [{
+                'title': f'Conversation {conv.thread_id}',
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
+                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+            } for conv in conversations]
+        }
+
+    else:
+        return jsonify({'error': 'Invalid platform'}), 400
+
+    return jsonify(data)
+
+
+@app.route('/admin/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user and their associated data."""
+    try:
+        with db_retry_session() as session:
+            # Find the user based on the platform data
+            user = None
+
+            # Try to find in web users
+            user = User.query.filter_by(phone_number=user_id).first()
+            if user:
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+            # Try to find in Telegram users
+            user = TelegramUser.query.filter_by(telegram_id=user_id).first()
+            if user:
+                # Delete all messages first
+                for conv in user.conversations:
+                    TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+
+                # Delete all conversations
+                TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+
+                # Finally delete the user
+                session.delete(user)
+                session.commit()
+                return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+
+            # Check WhatsApp users (using the phone number as ID)
+            messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
+            if messages:
+                for message in messages:
+                    session.delete(message)
+                session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting user'}), 500
+
+# Add this route after the other admin routes
+
+@app.route('/admin/conversations/<int:conversation_id>/messages')
+def get_conversation_messages(conversation_id):
+    """Get messages for a specific conversation"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Try to find the conversation in different models based on the ID
+        conversation = None
+        messages = []
+
+        # Ensure conversation_id is integer
+        try:
+            conv_id = int(conversation_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid conversation ID format'}), 400
+
+        # Check regular conversations
+        conversation = Conversation.query.get(conv_id)
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.get(conversation_id)
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check WhatsApp messages
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=conversation_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
+                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                    'content': msg.content,
+                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in whatsapp_messages]
+            })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
+def get_conversation_messages_by_title(conversation_title):
+    """Get messages for a specific conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        whatsapp_thread_match = None
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread_match = conversation_title.replace('Conversation ', '')
+
+            # Get WhatsApp messages for this thread
+            whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread_match)\
+                .order_by(WhatsAppMessage.timestamp).all()
+
+            if whatsapp_messages:
+                return jsonify({
+                    'messages': [{
+                        'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                        'content': msg.content,
+                        'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in whatsapp_messages]
+                })
+
+        # Continue with the existing logic for other conversation types
+        # Try to find the conversation in different models based on the title
+        conversation = None
+        messages = []
+
+        # Check regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            messages = Message.query.filter_by(conversation_id=conversation.id)\
+                .order_by(Message.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        # Check for "Sans titre" or untitled conversations
+        if conversation_title == "Sans titre":
+            # For untitled conversations, just return some default content
+            return jsonify({
+                'messages': [{
+                    'role': 'system',
+                    'content': 'Aucun détail disponible pour cette conversation sans titre',
+                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }]
+            })
+
+        # If conversation not found, try to find by last message content
+        # This is a fallback mechanism
+        message = Message.query.filter(Message.content.like(f"%{conversation_title}%")).first()
+        if message:
+            conversation = Conversation.query.get(message.conversation_id)
+            if conversation:
+                messages = Message.query.filter_by(conversation_id=conversation.id)\
+                    .order_by(Message.created_at).all()
+                return jsonify({
+                    'messages': [{
+                        'role': msg.role,
+                        'content': msg.content,
+                        'image_url': msg.image_url,
+                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    } for msg in messages]
+                })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages by title: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>', methods=['DELETE'])
+def delete_conversation_by_title(conversation_title):
+    """Delete a conversation by its title"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        success = False
+
+        # Check if this is a WhatsApp conversation (title format: "Conversation thread_XXXX")
+        if conversation_title.startswith('Conversation thread_'):
+            # Extract thread_id from the title
+            whatsapp_thread = conversation_title.replace('Conversation ', '')
+
+            # Delete WhatsApp messages for this thread
+            messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread).all()
+            if messages:
+                for message in messages:
+                    db.session.delete(message)
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'WhatsApp conversation deleted successfully'})
+
+        # Try to find and delete the conversation in the regular conversations
+        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        if conversation:
+            # First delete all associated messages
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            # Then delete the conversation
+            db.session.delete(conversation)
+            db.session.commit()
+            success = True
+
+        # Try to find and delete in Telegram conversations
+        if not success:
+            telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+            if telegram_conv:
+                # Delete all messages first
+                TelegramMessage.query.filter_by(conversation_id=telegram_conv.id).delete()
+                # Delete the conversation
+                db.session.delete(telegram_conv)
+                db.session.commit()
+                success = True
+
+        # If we couldn't find by title, check if it's a "Sans titre" conversation
+        # For this case, we might want to add a warning here
+        # or implement an alternative way to identify these conversations
+        if not success and conversation_title == "Sans titre":
+            return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
+
+        if success:
+            return jsonify({'success': True, 'message': 'Conversation deleted successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Conversation not found'}), 404
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting conversation by title: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error deleting conversation', 'error': str(e)}), 500
+
+@app.route('/admin/whatsapp/thread/<path:thread_id>/messages')
+def get_whatsapp_thread_messages(thread_id):
+    """Get messages for a specific WhatsApp thread"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Log pour le débogage
+        logger.debug(f"Fetching WhatsApp messages for thread: {thread_id}")
+
+        # Récupérer les messages WhatsApp pour ce thread
+        whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+            .order_by(WhatsAppMessage.timestamp).all()
+
+        if whatsapp_messages:
+            return jsonify({
+                'messages': [{
+                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
+                    'content': msg.content,
+                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in whatsapp_messages]
+            })
+
+        return jsonify({'error': 'No WhatsApp messages found for this thread'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching WhatsApp thread messages: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/admin/subscriptions', methods=['GET'])
+def get_subscriptions():
+    """Get all subscriptions data"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscriptions = Subscription.query.all()
+
+        return jsonify({
+            'subscriptions': [{
+                'id': sub.id,
+                'user_id': sub.user_id,
+                'user_name': f"{sub.user.first_name} {sub.user.last_name}",
+                'type': sub.subscription_type,
+                'start_date': sub.start_date.strftime('%Y-%m-%d'),
+                'expiry_date': sub.expiry_date.strftime('%Y-%m-%d'),
+                'status': sub.status,
+                'last_payment_date': sub.last_payment_date.strftime('%Y-%m-%d') if sub.last_payment_date else None
+            } for sub in subscriptions]
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching subscriptions: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions', methods=['POST'])
+def create_subscription():
+    """Create a new subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['user_id', 'subscription_type', 'expiry_date', 'status']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        # Create new subscription
+        subscription = Subscription(
+            user_id=data['user_id'],
+            subscription_type=data['subscription_type'],
+            start_date=datetime.now(),
+            expiry_date=datetime.strptime(data['expiry_date'], '%Y-%m-%d'),
+            status=data['status'],
+            last_payment_date=datetime.now()
+        )
+
+        db.session.add(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription created successfully',
+            'subscription_id': subscription.id
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['PUT'])
+def update_subscription(subscription_id):
+    """Update an existing subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        data = request.get_json()
+
+        # Update fields if provided
+        if 'subscription_type' in data:
+            subscription.subscription_type = data['subscription_type']
+        if 'expiry_date' in data:
+            subscription.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d')
+        if 'status' in data:
+            subscription.status = data['status']
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription updated successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/subscriptions/<int:subscription_id>', methods=['DELETE'])
+def delete_subscription(subscription_id):
+    """Delete a subscription"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        subscription = Subscription.query.get(subscription_id)
+        if not subscription:
+            return jsonify({'error': 'Subscription not found'}), 404
+
+        db.session.delete(subscription)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Subscription deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting subscription: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/admin/data/telegram')
+def admin_platform_data_telegram():
+    """Get Telegram platform statistics"""
+    today = datetime.today().date()
+    users = TelegramUser.query.all()
+    conversations = TelegramConversation.query.all()
+
+    data = {
+        'active_users': len(users),
+        'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+        'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+        'satisfaction_rate': 0,
+        'platform': 'telegram',
+        'users': [{
+            'telegram_id': str(user.telegram_id),  # First column - Telegram ID
+            'name': user.first_name or "---",  # Use dashes only when no name available
+            'phone': user.phone_number or "---",
+            'study_level': user.study_level or "---", 
+            'created_at': user.created_at.strftime('%d/%m/%Y')
+        } for user in users],
+        'conversations': [{
+            'title': conv.title,
+            'date': conv.created_at.strftime('%d/%m/%Y'),
+            'time': conv.created_at.strftime('%H:%M'),
+            'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id)
+                .order_by(TelegramMessage.created_at.desc())
+                .first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+        } for conv in conversations]
+    }
+
+    return jsonify(data)
+
+
+@app.route('/admin/data/<platform>')
+def admin_platform_data(platform):
+    """Get platform-specific statistics"""
+    if platform == 'telegram':
+        return admin_platform_data_telegram()
+    elif platform == 'web':
+        # Get web platform statistics
+        today = datetime.today().date()
+        users = User.query.all()
+        conversations = Conversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0,
+            'platform': 'web',
+            'users': [{
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number,
+                'age': user.age,
+                'study_level': user.study_level,
+                'created_at': user.created_at.strftime('%d/%m/%Y')
+            } for user in users],
+            'conversations': [{
+                'title': conv.title or "Sans titre",
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+            } for conv in conversations]
+        }
+        return jsonify(data)
+
+    elif platform == 'whatsapp':
+        # Get WhatsApp statistics
+        today = datetime.today().date()
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
+        data = {
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate': 0,
+            'platform': 'whatsapp',
+            'users': [{
+                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                'phone': user[0],
+                'study_level': 'N/A',
+                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
+                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
+            } for user in unique_users],
+            'conversations': [{
+                'title': f'Conversation {conv.thread_id}',
+                'date': conv.created_at.strftime('%d/%m/%Y'),
+                'time': conv.created_at.strftime('%H:%M'),
+                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
+                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+            } for conv in conversations]
+        }
+        return jsonify(data)
+
+    else:
+        return jsonify({'error': 'Invalid platform'}), 400
+
+
+@app.route('/admin/conversations/<int:conversation_id>/messages')
+def get_conversation_messages(conversation_id):
+    """Get messages for a specific conversation"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Check telegram conversations
+        telegram_conv = TelegramConversation.query.get(conversation_id)
+        if telegram_conv:
+            messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
+                .order_by(TelegramMessage.created_at).all()
+            return jsonify({
+                'messages': [{
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                } for msg in messages]
+            })
+
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 

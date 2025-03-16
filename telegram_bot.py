@@ -67,8 +67,10 @@ async def get_or_create_telegram_user(user_id: int, context: ContextTypes.DEFAUL
             user = TelegramUser.query.get(user_id)
 
             # Get the update context to access user's first name
-            first_name = context.user_data.get('first_name', "Unknown")
-
+            telegram_user = context._user  # Access the underlying Telegram user object
+            first_name = telegram_user.first_name if telegram_user else None
+            if not first_name:
+                first_name = context.user_data.get('first_name', "---")
 
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
@@ -80,8 +82,8 @@ async def get_or_create_telegram_user(user_id: int, context: ContextTypes.DEFAUL
                 session.commit()
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id}")
             else:
-                # Update the first name if it has changed
-                if user.first_name != first_name:
+                # Update the first name if it's available and different
+                if first_name and first_name != "---" and user.first_name != first_name:
                     user.first_name = first_name
                     session.commit()
                     logger.info(f"Updated first name for TelegramUser: {user.telegram_id}")
