@@ -882,12 +882,6 @@ def delete_user(user_id):
 
 # Add this route after the other admin routes
 
-@app.route('/privacy-policy')
-@login_required
-def privacy_policy():
-    """Privacy policy page route"""
-    return render_template('privacy_policy.html')
-
 @app.route('/admin/conversations/<int:conversation_id>/messages')
 def get_conversation_messages(conversation_id):
     """Get messages for a specific conversation"""
