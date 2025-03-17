@@ -806,6 +806,7 @@ function closeViewConversationModal() {
 }
 
 let conversationIdToDelete = null;
+let conversationTitleToDelete = null;
 
 function fetchAllConversations(platform) {
     console.log('Fetching conversations for platform:', platform);
@@ -1092,8 +1093,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Add this after the existing JavaScript code
-
 // AI Model Settings
 document.getElementById('ai-model').addEventListener('change', function(e) {
     const selectedModel = e.target.value;
@@ -1116,20 +1115,26 @@ document.getElementById('ai-model').addEventListener('change', function(e) {
 // Save AI Model Settings
 document.getElementById('save-ai-settings').addEventListener('click', function() {
     const selectedModel = document.getElementById('ai-model').value;
+    let data = {
+        model: selectedModel
+    };
+
+    // Add instructions if DeepSeek is selected
+    if (selectedModel === 'deepseek') {
+        const instructions = document.getElementById('deepseek-instructions').value;
+        data.instructions = instructions;
+    }
 
     fetch('/admin/settings/model', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            model: selectedModel
-        })
+        body: JSON.stringify(data)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success message or update UI
             showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
         } else {
             showNotification('Une erreur est survenue lors de la sauvegarde', 'error');

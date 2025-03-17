@@ -383,6 +383,13 @@
                         </div>
 
                         <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="deepseek-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ deepseek_instructions }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
                             <label>Statut de l'API</label>
                             <div class="api-status">
                                 <span class="status-indicator active"></span>

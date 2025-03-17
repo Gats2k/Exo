@@ -65,6 +65,7 @@ deepseek_client = OpenAI(
 
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -228,7 +229,7 @@ def handle_message(data):
                         .order_by(Message.created_at).all()
 
                     # Build message history
-                    messages = [{"role": "system", "content": "You are a helpful educational assistant"}]
+                    messages = [{"role": "system", "content": DEEPSEEK_INSTRUCTIONS}]  # Use custom instructions
                     for msg in conversation_messages:
                         messages.append({
                             "role": msg.role,
@@ -305,7 +306,7 @@ def handle_message(data):
                     .order_by(Message.created_at).all()
 
                 # Build message history
-                messages = [{"role": "system", "content": "You are a helpful educational assistant"}]
+                messages = [{"role": "system", "content": DEEPSEEK_INSTRUCTIONS}]  # Use custom instructions
                 for msg in conversation_messages:
                     messages.append({
                         "role": msg.role,
@@ -574,7 +575,8 @@ def admin_dashboard():
             satisfaction_rate=satisfaction_rate,
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
-            current_model=CURRENT_MODEL  # Add current model selection
+            current_model=CURRENT_MODEL,  # Add current model selection
+            deepseek_instructions=DEEPSEEK_INSTRUCTIONS  # Add DeepSeek instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
@@ -590,18 +592,20 @@ def update_model_settings():
     try:
         data = request.get_json()
         model = data.get('model')
+        instructions = data.get('instructions')
 
         if model not in ['openai', 'deepseek']:
             return jsonify({'error': 'Invalid model selection'}), 400
 
         # Update the current model
-        global CURRENT_MODEL
+        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS
         CURRENT_MODEL = model
 
-        # You might want to persist this setting in a database
-        # For now, we're just using a global variable
+        # Update instructions if provided and model is deepseek
+        if model == 'deepseek' and instructions:
+            DEEPSEEK_INSTRUCTIONS = instructions
 
-        return jsonify({'success': True, 'message': 'Model updated successfully'})
+        return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:
         logger.error(f"Error updating model settings: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -862,7 +866,7 @@ def get_conversation_messages(conversation_id):
         telegram_conv = TelegramConversation.query.get(conversation_id)
         if telegram_conv:
             messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
-                .orderby(TelegramMessage.Message.created_at).all()
+                .order_by(TelegramMessage.created_at).all()
             return jsonify({
                 'messages': [{
                     'role': msg.role,
