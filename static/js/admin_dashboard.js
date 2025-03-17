@@ -2,18 +2,96 @@
 const socket = io();
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const section = item.getAttribute('data-section');
+            showSection(section);
+
+            // Fetch data based on section
+            if (section === 'users') {
+                fetchAllUsers(currentPlatform);
+            } else if (section === 'conversations') {
+                fetchAllConversations(currentPlatform);
+            }
+        });
+    });
+
     // Show dashboard section by default
     showSection('dashboard');
 
-    // Initialize navigation
-    initializeNavigation();
-
     // Initialize platform selector
+    initializePlatformSelector();
+
+    // Initialize AI model settings
+    initializeAIModelSettings();
+
+    // Initialize search and filters
+    initializeSearchAndFilters();
+});
+
+function showSection(sectionId) {
+    console.log('Showing section:', sectionId); // Debug log
+
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show the selected section
+    const selectedSection = document.getElementById(sectionId + '-section');
+    if (selectedSection) {
+        selectedSection.style.display = 'block';
+    }
+
+    // Update active state in sidebar
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    const activeNavItem = document.querySelector(`[data-section="${sectionId}"]`);
+    if (activeNavItem) {
+        activeNavItem.classList.add('active');
+    }
+}
+
+function initializePlatformSelector() {
     const webSelector = document.querySelector('.web-selector');
     if (webSelector) {
         webSelector.addEventListener('click', toggleDropdown);
     }
 
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('platformDropdown');
+        const webSelector = document.querySelector('.web-selector');
+
+        if (dropdown && webSelector && !webSelector.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+}
+
+function initializeAIModelSettings() {
+    const aiModelSelect = document.getElementById('ai-model');
+    if (aiModelSelect) {
+        aiModelSelect.addEventListener('change', function(e) {
+            const selectedModel = e.target.value;
+            updateModelSettingsVisibility(selectedModel);
+        });
+
+        // Set initial visibility
+        updateModelSettingsVisibility(aiModelSelect.value);
+    }
+
+    const saveSettingsBtn = document.getElementById('save-ai-settings');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', saveAISettings);
+    }
+}
+
+function initializeSearchAndFilters() {
     // Initialize filter buttons
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -36,36 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (conversationSearchInput) {
         conversationSearchInput.addEventListener('input', searchConversations);
     }
-
-    // Initialize AI Model settings
-    const aiModelSelect = document.getElementById('ai-model');
-    if (aiModelSelect) {
-        aiModelSelect.addEventListener('change', function(e) {
-            const selectedModel = e.target.value;
-            updateModelSettingsVisibility(selectedModel);
-        });
-    }
-
-    // Initialize save settings button
-    const saveSettingsBtn = document.getElementById('save-ai-settings');
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', saveAISettings);
-    }
-
-    // Close dropdowns when clicking outside
-    document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById('platformDropdown');
-        const webSelector = document.querySelector('.web-selector');
-
-        if (dropdown && webSelector && !webSelector.contains(event.target)) {
-            dropdown.classList.remove('show');
-        }
-    });
-
-    // Initial visibility of model settings
-    const currentModel = aiModelSelect ? aiModelSelect.value : 'openai';
-    updateModelSettingsVisibility(currentModel);
-});
+}
 
 function updateModelSettingsVisibility(selectedModel) {
     const openaiSettings = document.getElementById('openai-settings');
@@ -113,28 +162,6 @@ function saveAISettings() {
     });
 }
 
-function showSection(sectionId) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(section => {
-        section.style.display = 'none';
-    });
-
-    // Show the selected section
-    const selectedSection = document.getElementById(sectionId + '-section');
-    if (selectedSection) {
-        selectedSection.style.display = 'block';
-    }
-
-    // Update active state in sidebar
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    const activeNavItem = document.querySelector(`[data-section="${sectionId}"]`);
-    if (activeNavItem) {
-        activeNavItem.classList.add('active');
-    }
-}
-
 function showNotification(message, type) {
     alert(message); // Basic implementation - you can enhance this later
 }
@@ -147,6 +174,8 @@ function initializeNavigation() {
             showSection(section);
             if (section === 'users') {
                 fetchAllUsers(currentPlatform);
+            } else if (section === 'conversations') {
+                fetchAllConversations(currentPlatform);
             }
         });
     });
