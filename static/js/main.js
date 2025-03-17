@@ -429,6 +429,22 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
 
+    // Add socket handler for model changes after the existing socket event handlers
+    socket.on('model_changed', function(data) {
+        // Clear current messages
+        chatMessages.innerHTML = '';
+
+        // Reset UI state
+        inputContainer.classList.add('centered');
+        responseTime.classList.add('centered');
+        welcomeContainer.classList.add('visible');
+        suggestionsContainer.classList.add('visible');
+        isFirstMessage = true;
+
+        // Clear session on model change
+        socket.emit('clear_session');
+    });
+
     sendBtn.addEventListener('click', sendMessage);
 
     input.addEventListener('keydown', function(e) {

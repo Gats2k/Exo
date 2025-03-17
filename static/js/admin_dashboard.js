@@ -903,7 +903,7 @@ function filterConversations(filter) {
     if (visibleCount === 0) {
         tableElement.style.display = 'none';
         emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
+        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active: ' : 'archived' : ''} disponible`;
     } else {
         tableElement.style.display = 'table';
         emptyState.style.display = 'none';
@@ -1129,7 +1129,8 @@ document.getElementById('save-ai-settings').addEventListener('click', function()
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show success message or update UI
+            // Emit socket event to notify all clients about model change
+            socket.emit('broadcast_model_change', { model: selectedModel });
             showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
         } else {
             showNotification('Une erreur est survenue lors de la sauvegarde', 'error');

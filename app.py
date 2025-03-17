@@ -457,9 +457,26 @@ def handle_open_conversation(data):
             'error': str(e)
         })
 
+@socketio.on('broadcast_model_change')
+def handle_broadcast_model_change(data):
+    """Handle model change broadcast from admin dashboard"""
+    if not session.get('is_admin'):
+        emit('error', {'message': 'Unauthorized'})
+        return
+
+    model = data.get('model')
+    if model in ['openai', 'deepseek']:
+        global CURRENT_MODEL
+        CURRENT_MODEL = model
+        logger.info(f"AI model changed to: {model}")
+        # Broadcast the change to all connected clients
+        emit('model_changed', {'model': model}, broadcast=True)
+    else:
+        emit('error', {'message': 'Invalid model selection'})
+
 @socketio.on('clear_session')
 def handle_clear_session():
-    # Clear the thread_id from session
+    """Clear the thread_id from session when model changes"""
     session.pop('thread_id', None)
     emit('session_cleared', {'success': True})
 
