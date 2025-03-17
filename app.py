@@ -1244,6 +1244,11 @@ def delete_subscription(subscription_id):
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/privacy-policy')
+@login_required
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
 if __name__ == '__main__':
     # Schedule the cleanup task
     scheduler = BackgroundScheduler()

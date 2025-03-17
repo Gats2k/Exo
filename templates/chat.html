@@ -71,9 +71,15 @@
             {% endfor %}
         </div>
         <div class="sidebar-footer">
-            <div class="nav-item">
+            <div class="nav-item" onclick="toggleSettingsMenu()">
                 <i class="bi bi-gear"></i>
                 <span>Paramètres</span>
+                <div class="settings-submenu">
+                    <a href="/privacy-policy">
+                        <i class="bi bi-shield-check"></i>
+                        <span>Politique de confidentialité</span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -154,4 +160,10 @@
         </div>
     </div>
 </div>
+<script>
+function toggleSettingsMenu() {
+    const submenu = document.querySelector('.settings-submenu');
+    submenu.classList.toggle('show');
+}
+</script>
 {% endblock %}
