@@ -184,6 +184,36 @@ def chat():
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
+def get_interleaved_messages(conversation_id, current_message=None):
+    """Returns properly interleaved messages for DeepSeek Reasoner"""
+    messages = Message.query.filter_by(conversation_id=conversation_id)\
+        .order_by(Message.created_at).all()
+
+    # Start with system message
+    formatted_messages = [{"role": "system", "content": get_system_instructions()}]
+
+    # Process past messages ensuring alternation
+    prev_role = None
+    for msg in messages:
+        # Skip consecutive messages with the same role
+        if msg.role != prev_role:
+            formatted_messages.append({
+                "role": msg.role,
+                "content": msg.content
+            })
+            prev_role = msg.role
+
+    # Add current message if provided
+    if current_message:
+        # Only add if it wouldn't create consecutive user messages
+        if not formatted_messages[-1]["role"] == "user":
+            formatted_messages.append({
+                "role": "user",
+                "content": current_message
+            })
+
+    return formatted_messages
+
 @socketio.on('send_message')
 def handle_message(data):
     try:
@@ -241,24 +271,25 @@ def handle_message(data):
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
                 if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
-                    # Get conversation history for DeepSeek
-                    conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
-                        .order_by(Message.created_at).all()
-
-                    # Build message history
-                    messages = [{"role": "system", "content": get_system_instructions()}]
-                    for msg in conversation_messages:
+                    # Get properly formatted messages based on model
+                    if CURRENT_MODEL == 'deepseek-reasoner':
+                        messages = get_interleaved_messages(conversation.id, message_for_assistant)
+                    else:
+                        # Regular DeepSeek chat can handle all messages
+                        conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                            .order_by(Message.created_at).all()
+                        messages = [{"role": "system", "content": get_system_instructions()}]
+                        for msg in conversation_messages:
+                            messages.append({
+                                "role": msg.role,
+                                "content": msg.content
+                            })
                         messages.append({
-                            "role": msg.role,
-                            "content": msg.content
+                            "role": "user",
+                            "content": message_for_assistant
                         })
-                    # Add current message
-                    messages.append({
-                        "role": "user",
-                        "content": message_for_assistant
-                    })
 
-                    # Send to DeepSeek with conversation history
+                    # Send to DeepSeek
                     response = ai_client.chat.completions.create(
                         model=get_model_name(),
                         messages=messages,
@@ -318,24 +349,25 @@ def handle_message(data):
             db.session.add(user_message)
 
             if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
-                # Get conversation history for DeepSeek
-                conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
-                    .order_by(Message.created_at).all()
-
-                # Build message history
-                messages = [{"role": "system", "content": get_system_instructions()}]
-                for msg in conversation_messages:
+                # Get properly formatted messages based on model
+                if CURRENT_MODEL == 'deepseek-reasoner':
+                    messages = get_interleaved_messages(conversation.id, data.get('message', ''))
+                else:
+                    # Regular DeepSeek chat can handle all messages
+                    conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                        .order_by(Message.created_at).all()
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    for msg in conversation_messages:
+                        messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
                     messages.append({
-                        "role": msg.role,
-                        "content": msg.content
+                        "role": "user",
+                        "content": data.get('message', '')
                     })
-                # Add current message
-                messages.append({
-                    "role": "user",
-                    "content": data.get('message', '')
-                })
 
-                # Send to DeepSeek with conversation history
+                # Send to DeepSeek
                 response = ai_client.chat.completions.create(
                     model=get_model_name(),
                     messages=messages,
