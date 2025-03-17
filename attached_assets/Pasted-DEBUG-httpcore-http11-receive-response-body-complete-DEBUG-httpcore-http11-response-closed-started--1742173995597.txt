@@ -1,0 +1,26 @@
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers([('date', 'Mon, 17 Mar 2025 01:12:01 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('vary', 'origin, access-control-request-method, access-control-request-headers'), ('vary', 'accept-encoding'), ('access-control-allow-credentials', 'true'), ('x-ds-trace-id', '905b3f32fa147edb0ac2d329b51d8f09'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('x-content-type-options', 'nosniff'), ('content-encoding', 'gzip'), ('cf-cache-status', 'DYNAMIC'), ('server', 'cloudflare'), ('cf-ray', '92189ea0bdcbdad8-ORD')])
+DEBUG:openai._base_client:request_id: None
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'You are a helpful educational assistant'}, {'role': 'user', 'content': 'vraiment'}], 'model': 'deepseek-chat', 'stream': False}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.deepseek.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f682d35f710>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7f682dab9d90> server_hostname='api.deepseek.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f682d376b90>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Mon, 17 Mar 2025 01:12:30 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'x-ds-trace-id', b'e5cffc994ad3941728701c0200ab44bb'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'X-Content-Type-Options', b'nosniff'), (b'Content-Encoding', b'gzip'), (b'cf-cache-status', b'DYNAMIC'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92189f530f5a29bd-ORD')])
+INFO:httpx:HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers([('date', 'Mon, 17 Mar 2025 01:12:30 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('vary', 'origin, access-control-request-method, access-control-request-headers'), ('vary', 'accept-encoding'), ('access-control-allow-credentials', 'true'), ('x-ds-trace-id', 'e5cffc994ad3941728701c0200ab44bb'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('x-content-type-options', 'nosniff'), ('content-encoding', 'gzip'), ('cf-cache-status', 'DYNAMIC'), ('server', 'cloudflare'), ('cf-ray', '92189f530f5a29bd-ORD')])
+DEBUG:openai._base_client:request_id: None

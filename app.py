@@ -223,13 +223,27 @@ def handle_message(data):
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
                 if CURRENT_MODEL == 'deepseek':
-                    # Use DeepSeek's chat completion API
+                    # Get conversation history for DeepSeek
+                    conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                        .order_by(Message.created_at).all()
+
+                    # Build message history
+                    messages = [{"role": "system", "content": "You are a helpful educational assistant"}]
+                    for msg in conversation_messages:
+                        messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
+                    # Add current message
+                    messages.append({
+                        "role": "user",
+                        "content": message_for_assistant
+                    })
+
+                    # Send to DeepSeek with conversation history
                     response = ai_client.chat.completions.create(
                         model="deepseek-chat",
-                        messages=[
-                            {"role": "system", "content": "You are a helpful educational assistant"},
-                            {"role": "user", "content": message_for_assistant}
-                        ],
+                        messages=messages,
                         stream=False
                     )
                     assistant_message = response.choices[0].message.content
@@ -286,13 +300,28 @@ def handle_message(data):
             db.session.add(user_message)
 
             if CURRENT_MODEL == 'deepseek':
-                # Use DeepSeek's chat completion API
+                # Get conversation history for DeepSeek
+                conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                    .order_by(Message.created_at).all()
+
+                # Build message history
+                messages = [{"role": "system", "content": "You are a helpful educational assistant"}]
+                for msg in conversation_messages:
+                    messages.append({
+                        "role": msg.role,
+                        "content": msg.content
+                    })
+
+                # Add current message
+                messages.append({
+                    "role": "user",
+                    "content": data.get('message', '')
+                })
+
+                # Send to DeepSeek with conversation history
                 response = ai_client.chat.completions.create(
                     model="deepseek-chat",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful educational assistant"},
-                        {"role": "user", "content": data.get('message', '')}
-                    ],
+                    messages=messages,
                     stream=False
                 )
                 assistant_message = response.choices[0].message.content
