@@ -71,9 +71,16 @@
             {% endfor %}
         </div>
         <div class="sidebar-footer">
-            <div class="nav-item">
+            <div class="nav-item settings-nav-item">
                 <i class="bi bi-gear"></i>
                 <span>Paramètres</span>
+                <i class="bi bi-chevron-down settings-chevron"></i>
+                <div class="settings-dropdown">
+                    <a href="{{ url_for('privacy_policy') }}" class="settings-item">
+                        <i class="bi bi-shield-check"></i>
+                        Politique de confidentialité
+                    </a>
+                </div>
             </div>
         </div>
     </div>
