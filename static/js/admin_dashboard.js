@@ -1,169 +1,24 @@
-// Initialize socket connection
-const socket = io();
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize navigation
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            const section = item.getAttribute('data-section');
-            showSection(section);
-
-            // Fetch data based on section
-            if (section === 'users') {
-                fetchAllUsers(currentPlatform);
-            } else if (section === 'conversations') {
-                fetchAllConversations(currentPlatform);
-            }
-        });
-    });
-
-    // Show dashboard section by default
-    showSection('dashboard');
-
-    // Initialize platform selector
-    initializePlatformSelector();
-
-    // Initialize AI model settings
-    initializeAIModelSettings();
-
-    // Initialize search and filters
-    initializeSearchAndFilters();
-});
-
 function showSection(sectionId) {
-    console.log('Showing section:', sectionId); // Debug log
-
     // Hide all sections
     document.querySelectorAll('.section').forEach(section => {
         section.style.display = 'none';
     });
 
     // Show the selected section
-    const selectedSection = document.getElementById(sectionId + '-section');
-    if (selectedSection) {
-        selectedSection.style.display = 'block';
-    }
+    document.getElementById(sectionId + '-section').style.display = 'block';
 
     // Update active state in sidebar
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
+    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
 
-    const activeNavItem = document.querySelector(`[data-section="${sectionId}"]`);
-    if (activeNavItem) {
-        activeNavItem.classList.add('active');
+    // Fetch appropriate data based on section
+    if (sectionId === 'users') {
+        fetchAllUsers(currentPlatform);
+    } else if (sectionId === 'conversations') {
+        fetchAllConversations(currentPlatform);
     }
-}
-
-function initializePlatformSelector() {
-    const webSelector = document.querySelector('.web-selector');
-    if (webSelector) {
-        webSelector.addEventListener('click', toggleDropdown);
-    }
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById('platformDropdown');
-        const webSelector = document.querySelector('.web-selector');
-
-        if (dropdown && webSelector && !webSelector.contains(event.target)) {
-            dropdown.classList.remove('show');
-        }
-    });
-}
-
-function initializeAIModelSettings() {
-    const aiModelSelect = document.getElementById('ai-model');
-    if (aiModelSelect) {
-        aiModelSelect.addEventListener('change', function(e) {
-            const selectedModel = e.target.value;
-            updateModelSettingsVisibility(selectedModel);
-        });
-
-        // Set initial visibility
-        updateModelSettingsVisibility(aiModelSelect.value);
-    }
-
-    const saveSettingsBtn = document.getElementById('save-ai-settings');
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', saveAISettings);
-    }
-}
-
-function initializeSearchAndFilters() {
-    // Initialize filter buttons
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filter = btn.getAttribute('data-filter');
-            if (btn.closest('#users-section')) {
-                filterUsers(filter);
-            } else if (btn.closest('#conversations-section')) {
-                filterConversations(filter);
-            }
-        });
-    });
-
-    // Initialize search inputs
-    const userSearchInput = document.getElementById('userSearchInput');
-    if (userSearchInput) {
-        userSearchInput.addEventListener('input', searchUsers);
-    }
-
-    const conversationSearchInput = document.getElementById('conversationSearchInput');
-    if (conversationSearchInput) {
-        conversationSearchInput.addEventListener('input', searchConversations);
-    }
-}
-
-function updateModelSettingsVisibility(selectedModel) {
-    const openaiSettings = document.getElementById('openai-settings');
-    const deepseekSettings = document.getElementById('deepseek-settings');
-
-    if (openaiSettings && deepseekSettings) {
-        if (selectedModel === 'openai') {
-            openaiSettings.style.display = 'block';
-            deepseekSettings.style.display = 'none';
-        } else if (selectedModel === 'deepseek') {
-            openaiSettings.style.display = 'none';
-            deepseekSettings.style.display = 'block';
-        } else {
-            openaiSettings.style.display = 'none';
-            deepseekSettings.style.display = 'none';
-        }
-    }
-}
-
-function saveAISettings() {
-    const selectedModel = document.getElementById('ai-model').value;
-
-    fetch('/admin/settings/model', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: selectedModel
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Emit socket event to notify all clients about model change
-            socket.emit('broadcast_model_change', { model: selectedModel });
-            showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
-        } else {
-            showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
-    });
-}
-
-function showNotification(message, type) {
-    alert(message); // Basic implementation - you can enhance this later
 }
 
 function initializeNavigation() {
@@ -174,8 +29,6 @@ function initializeNavigation() {
             showSection(section);
             if (section === 'users') {
                 fetchAllUsers(currentPlatform);
-            } else if (section === 'conversations') {
-                fetchAllConversations(currentPlatform);
             }
         });
     });
@@ -953,7 +806,6 @@ function closeViewConversationModal() {
 }
 
 let conversationIdToDelete = null;
-let conversationTitleToDelete = null;
 
 function fetchAllConversations(platform) {
     console.log('Fetching conversations for platform:', platform);
@@ -1051,7 +903,7 @@ function filterConversations(filter) {
     if (visibleCount === 0) {
         tableElement.style.display = 'none';
         emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active: ' : 'archived' : ''} disponible`;
+        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
     } else {
         tableElement.style.display = 'table';
         emptyState.style.display = 'none';
@@ -1277,8 +1129,7 @@ document.getElementById('save-ai-settings').addEventListener('click', function()
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Emit socket event to notify all clients about model change
-            socket.emit('broadcast_model_change', { model: selectedModel });
+            // Show success message or update UI
             showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
         } else {
             showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
