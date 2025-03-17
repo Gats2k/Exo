@@ -341,19 +341,16 @@
 
         <!-- Settings Section -->
         <div class="section" id="settings-section" style="display: none;">
-            <h1 class="section-title">Paramètres</h1>
+            <h1 class="section-title">Configuration du Modèle IA</h1>
+            <p class="section-description">Sélectionnez et configurez le modèle d'intelligence artificielle utilisé par le chatbot.</p>
 
             <!-- AI Model Configuration -->
-            <div class="settings-card">
-                <div class="settings-card-header">
-                    <h2>Configuration du Modèle IA</h2>
-                    <p class="settings-description">Sélectionnez et configurez le modèle d'intelligence artificielle utilisé par le chatbot.</p>
-                </div>
+            <div class="ai-config-card">
 
-                <div class="settings-card-content">
+                <div class="ai-config-content">
                     <div class="model-selector">
                         <label for="ai-model">Modèle actuel</label>
-                        <select id="ai-model" class="settings-select">
+                        <select id="ai-model" class="ai-config-select">
                             <option value="openai" selected>OpenAI (GPT)</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
@@ -361,14 +358,14 @@
 
                     <!-- OpenAI Settings -->
                     <div id="openai-settings" class="model-settings">
-                        <div class="settings-group">
+                        <div class="ai-config-group">
                             <label>Assistant ID</label>
-                            <input type="text" id="openai-assistant-id" class="settings-input" 
+                            <input type="text" id="openai-assistant-id" class="ai-config-input" 
                                    value="{{ openai_assistant_id }}" readonly>
-                            <p class="settings-help">L'ID de l'assistant OpenAI utilisé pour le chat.</p>
+                            <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour le chat.</p>
                         </div>
 
-                        <div class="settings-group">
+                        <div class="ai-config-group">
                             <label>Statut de l'API</label>
                             <div class="api-status">
                                 <span class="status-indicator active"></span>
@@ -378,8 +375,8 @@
                     </div>
                 </div>
 
-                <div class="settings-card-footer">
-                    <button id="save-ai-settings" class="settings-button">
+                <div class="ai-config-footer">
+                    <button id="save-ai-settings" class="ai-config-button">
                         <i class="bi bi-check2"></i>
                         Sauvegarder les modifications
                     </button>
@@ -392,110 +389,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}">
-<style>
-    .settings-card {
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-        padding: 20px;
-    }
-
-    .settings-card-header {
-        margin-bottom: 20px;
-    }
-
-    .settings-card-header h2 {
-        font-size: 1.2em;
-        color: #333;
-        margin-bottom: 8px;
-    }
-
-    .settings-description {
-        color: #666;
-        font-size: 0.9em;
-    }
-
-    .settings-card-content {
-        padding: 15px 0;
-    }
-
-    .model-selector {
-        margin-bottom: 20px;
-    }
-
-    .settings-select {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        margin-top: 8px;
-    }
-
-    .settings-group {
-        margin-bottom: 15px;
-    }
-
-    .settings-input {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background: #f8f8f8;
-    }
-
-    .settings-help {
-        font-size: 0.8em;
-        color: #666;
-        margin-top: 4px;
-    }
-
-    .api-status {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 8px;
-    }
-
-    .status-indicator {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #ddd;
-    }
-
-    .status-indicator.active {
-        background: #4CAF50;
-    }
-
-    .status-text {
-        font-size: 0.9em;
-        color: #333;
-    }
-
-    .settings-card-footer {
-        margin-top: 20px;
-        padding-top: 15px;
-        border-top: 1px solid #eee;
-    }
-
-    .settings-button {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 16px;
-        background: #007bff;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background 0.3s;
-    }
-
-    .settings-button:hover {
-        background: #0056b3;
-    }
-</style>
 {% endblock %}
 
 {% block extra_js %}

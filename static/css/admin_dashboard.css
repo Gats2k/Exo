@@ -927,3 +927,122 @@ body {
         max-width: 200px;
     }
 }
+
+/* Styles for AI configuration */
+.ai-config-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.ai-config-header {
+    margin-bottom: 20px;
+}
+
+.ai-config-header h2 {
+    font-size: 1.2em;
+    color: white;
+    margin-bottom: 8px;
+}
+
+.ai-config-description {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9em;
+}
+
+.ai-config-content {
+    padding: 15px 0;
+}
+
+.model-selector {
+    margin-bottom: 20px;
+}
+
+.ai-config-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    margin-top: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+}
+
+.ai-config-group {
+    margin-bottom: 15px;
+}
+
+.ai-config-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+}
+
+.ai-config-help {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4px;
+}
+
+.ai-config-select option {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+}
+
+.api-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ddd;
+}
+
+.status-indicator.active {
+    background: #4CAF50;
+}
+
+.status-text {
+    font-size: 0.9em;
+    color: white;
+}
+
+.ai-config-footer {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.ai-config-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.ai-config-button:hover {
+    background: #0056b3;
+}
+
+.section-description {
+    color: rgba(255, 215, 0, 0.7); /* Version plus claire du #FFD700 (jaune or) */
+    margin-top: -15px;
+    margin-bottom: 25px;
+    font-size: 1em;
+}
