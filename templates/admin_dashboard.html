@@ -338,7 +338,6 @@
             </div>
         </div>
 
-
         <!-- Settings Section -->
         <div class="section" id="settings-section" style="display: none;">
             <h1 class="section-title">Configuration du Modèle IA</h1>
@@ -351,18 +350,36 @@
                     <div class="model-selector">
                         <label for="ai-model">Modèle actuel</label>
                         <select id="ai-model" class="ai-config-select">
-                            <option value="openai" selected>OpenAI (GPT)</option>
+                            <option value="openai" {% if current_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
+                            <option value="deepseek" {% if current_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
                     </div>
 
                     <!-- OpenAI Settings -->
-                    <div id="openai-settings" class="model-settings">
+                    <div id="openai-settings" class="model-settings" {% if current_model != 'openai' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Assistant ID</label>
                             <input type="text" id="openai-assistant-id" class="ai-config-input" 
                                    value="{{ openai_assistant_id }}" readonly>
                             <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour le chat.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DeepSeek Settings -->
+                    <div id="deepseek-settings" class="model-settings" {% if current_model != 'deepseek' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Modèle</label>
+                            <input type="text" class="ai-config-input" value="deepseek-chat" readonly>
+                            <p class="ai-config-help">Le modèle DeepSeek utilisé pour le chat.</p>
                         </div>
 
                         <div class="ai-config-group">

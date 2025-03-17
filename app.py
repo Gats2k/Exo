@@ -3,7 +3,6 @@ eventlet.monkey_patch()
 
 import os
 from dotenv import load_dotenv
-
 # Load environment variables before any other imports
 load_dotenv()
 
@@ -57,9 +56,19 @@ db.init_app(app)
 # Initialize SocketIO with eventlet
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
+# Initialize OpenAI clients
+openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+deepseek_client = OpenAI(
+    api_key=os.getenv('DEEPSEEK_API_KEY'),
+    base_url="https://api.deepseek.com"
+)
+
+# Get the current AI model from environment or default to OpenAI
+CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+
+def get_ai_client():
+    """Returns the appropriate AI client based on the current model setting"""
+    return deepseek_client if CURRENT_MODEL == 'deepseek' else openai_client
 
 # Initialize LoginManager
 login_manager = LoginManager()
@@ -147,6 +156,8 @@ def chat():
                           credits=42,
                           error="Une erreur est survenue. Veuillez réessayer.")
 
+ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
+
 @socketio.on('send_message')
 def handle_message(data):
     try:
@@ -160,6 +171,9 @@ def handle_message(data):
             # Create new conversation for first message
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
+
+        # Get the appropriate AI client based on current model setting
+        client = get_ai_client()
 
         # Variables to store Mathpix results
         mathpix_result = None
@@ -239,52 +253,64 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            # Send message to OpenAI
-            client.beta.threads.messages.create(
-                thread_id=conversation.thread_id,
-                role="user",
-                content=data.get('message', '')
+            if CURRENT_MODEL == 'deepseek':
+                # Use DeepSeek's chat completion API
+                response = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful educational assistant"},
+                        {"role": "user", "content": data.get('message', '')}
+                    ],
+                    stream=False
+                )
+                assistant_message = response.choices[0].message.content
+            else:
+                # Use OpenAI's threads API
+                client.beta.threads.messages.create(
+                    thread_id=conversation.thread_id,
+                    role="user",
+                    content=data.get('message', '')
+                )
+
+                # Create and run assistant
+                run = client.beta.threads.runs.create(
+                    thread_id=conversation.thread_id,
+                    assistant_id=ASSISTANT_ID
+                )
+
+                # Wait for response with timeout
+                timeout = 30
+                start_time = time.time()
+
+                while True:
+                    if time.time() - start_time > timeout:
+                        emit('receive_message', {'message': 'Request timed out.'})
+                        return
+
+                    run_status = client.beta.threads.runs.retrieve(
+                        thread_id=conversation.thread_id,
+                        run_id=run.id
+                    )
+
+                    if run_status.status == 'completed':
+                        break
+                    elif run_status.status == 'failed':
+                        emit('receive_message', {'message': 'Sorry, there was an error.'})
+                        return
+
+                    eventlet.sleep(1)
+
+                # Retrieve OpenAI's response
+                messages = client.beta.threads.messages.list(thread_id=conversation.thread_id)
+                assistant_message = messages.data[0].content[0].text.value
+
+            # Store assistant response in database
+            db_message = Message(
+                conversation_id=conversation.id,
+                role='assistant',
+                content=assistant_message
             )
-
-        # Create and run assistant
-        run = client.beta.threads.runs.create(
-            thread_id=conversation.thread_id,
-            assistant_id=ASSISTANT_ID
-        )
-
-        # Wait for response with timeout
-        timeout = 30
-        start_time = time.time()
-
-        while True:
-            if time.time() - start_time > timeout:
-                emit('receive_message', {'message': 'Request timed out.'})
-                return
-
-            run_status = client.beta.threads.runs.retrieve(
-                thread_id=conversation.thread_id,
-                run_id=run.id
-            )
-
-            if run_status.status == 'completed':
-                break
-            elif run_status.status == 'failed':
-                emit('receive_message', {'message': 'Sorry, there was an error.'})
-                return
-
-            eventlet.sleep(1)
-
-        # Retrieve and store assistant's response
-        messages = client.beta.threads.messages.list(thread_id=conversation.thread_id)
-        assistant_message = messages.data[0].content[0].text.value
-
-        # Store assistant response in database
-        db_message = Message(
-            conversation_id=conversation.id,
-            role='assistant',
-            content=assistant_message
-        )
-        db.session.add(db_message)
+            db.session.add(db_message)
 
         # Generate and set conversation title if this is the first message
         if not conversation.title:
@@ -507,12 +533,38 @@ def admin_dashboard():
             today_conversations=today_conversations,
             satisfaction_rate=satisfaction_rate,
             is_admin=True,
-            openai_assistant_id=openai_assistant_id  # Add OpenAI Assistant ID
+            openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
+            current_model=CURRENT_MODEL  # Add current model selection
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
+
+@app.route('/admin/settings/model', methods=['POST'])
+def update_model_settings():
+    """Update AI model settings"""
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        data = request.get_json()
+        model = data.get('model')
+
+        if model not in ['openai', 'deepseek']:
+            return jsonify({'error': 'Invalid model selection'}), 400
+
+        # Update the current model
+        global CURRENT_MODEL
+        CURRENT_MODEL = model
+
+        # You might want to persist this setting in a database
+        # For now, we're just using a global variable
+
+        return jsonify({'success': True, 'message': 'Model updated successfully'})
+    except Exception as e:
+        logger.error(f"Error updating model settings: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/admin/logout')
 def admin_logout():
@@ -797,7 +849,6 @@ def get_conversation_messages(conversation_id):
     except Exception as e:
         logger.error(f"Error fetching conversation messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
-
 
 @app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
 def get_conversation_messages_by_title(conversation_title):
@@ -1100,7 +1151,6 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
-
 
 if __name__ == '__main__':
     # Schedule the cleanup task

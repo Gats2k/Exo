@@ -903,7 +903,7 @@ function filterConversations(filter) {
     if (visibleCount === 0) {
         tableElement.style.display = 'none';
         emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = `Aucune conversation ${filter === 'active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
+        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
     } else {
         tableElement.style.display = 'table';
         emptyState.style.display = 'none';
@@ -1002,7 +1002,7 @@ function confirmDeleteConversation() {
     });
 }
 
-/ À AJOUTER /
+// À AJOUTER 
 // Map global pour stocker les correspondances entre titres et IDs numériques
 let conversationTitleToIdMap = {};
 let nextConversationId = 1;
@@ -1091,3 +1091,58 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// Add this after the existing JavaScript code
+
+// AI Model Settings
+document.getElementById('ai-model').addEventListener('change', function(e) {
+    const selectedModel = e.target.value;
+    const openaiSettings = document.getElementById('openai-settings');
+    const deepseekSettings = document.getElementById('deepseek-settings');
+
+    // Update visibility of settings panels
+    if (selectedModel === 'openai') {
+        openaiSettings.style.display = 'block';
+        deepseekSettings.style.display = 'none';
+    } else if (selectedModel === 'deepseek') {
+        openaiSettings.style.display = 'none';
+        deepseekSettings.style.display = 'block';
+    } else {
+        openaiSettings.style.display = 'none';
+        deepseekSettings.style.display = 'none';
+    }
+});
+
+// Save AI Model Settings
+document.getElementById('save-ai-settings').addEventListener('click', function() {
+    const selectedModel = document.getElementById('ai-model').value;
+
+    fetch('/admin/settings/model', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: selectedModel
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message or update UI
+            showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
+        } else {
+            showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
+    });
+});
+
+// Helper function to show notifications
+function showNotification(message, type) {
+    // You can implement this based on your notification system
+    alert(message); // Basic implementation
+}
