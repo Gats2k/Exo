@@ -66,10 +66,27 @@ deepseek_client = OpenAI(
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
 DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
+DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
-    return deepseek_client if CURRENT_MODEL == 'deepseek' else openai_client
+    return deepseek_client if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner'] else openai_client
+
+def get_model_name():
+    """Returns the appropriate model name based on the current model setting"""
+    if CURRENT_MODEL == 'deepseek':
+        return "deepseek-chat"
+    elif CURRENT_MODEL == 'deepseek-reasoner':
+        return "deepseek-reasoner"
+    return None  # For OpenAI, model is determined by assistant
+
+def get_system_instructions():
+    """Returns the appropriate system instructions based on the current model setting"""
+    if CURRENT_MODEL == 'deepseek':
+        return DEEPSEEK_INSTRUCTIONS
+    elif CURRENT_MODEL == 'deepseek-reasoner':
+        return DEEPSEEK_REASONER_INSTRUCTIONS
+    return None  # For OpenAI, instructions are set in the assistant
 
 # Initialize LoginManager
 login_manager = LoginManager()
@@ -223,13 +240,13 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                if CURRENT_MODEL == 'deepseek':
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
                     # Get conversation history for DeepSeek
                     conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                         .order_by(Message.created_at).all()
 
                     # Build message history
-                    messages = [{"role": "system", "content": DEEPSEEK_INSTRUCTIONS}]  # Use custom instructions
+                    messages = [{"role": "system", "content": get_system_instructions()}]
                     for msg in conversation_messages:
                         messages.append({
                             "role": msg.role,
@@ -243,7 +260,7 @@ def handle_message(data):
 
                     # Send to DeepSeek with conversation history
                     response = ai_client.chat.completions.create(
-                        model="deepseek-chat",
+                        model=get_model_name(),
                         messages=messages,
                         stream=False
                     )
@@ -300,19 +317,18 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            if CURRENT_MODEL == 'deepseek':
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
                 # Get conversation history for DeepSeek
                 conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                     .order_by(Message.created_at).all()
 
                 # Build message history
-                messages = [{"role": "system", "content": DEEPSEEK_INSTRUCTIONS}]  # Use custom instructions
+                messages = [{"role": "system", "content": get_system_instructions()}]
                 for msg in conversation_messages:
                     messages.append({
                         "role": msg.role,
                         "content": msg.content
                     })
-
                 # Add current message
                 messages.append({
                     "role": "user",
@@ -321,7 +337,7 @@ def handle_message(data):
 
                 # Send to DeepSeek with conversation history
                 response = ai_client.chat.completions.create(
-                    model="deepseek-chat",
+                    model=get_model_name(),
                     messages=messages,
                     stream=False
                 )
@@ -576,7 +592,8 @@ def admin_dashboard():
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
             current_model=CURRENT_MODEL,  # Add current model selection
-            deepseek_instructions=DEEPSEEK_INSTRUCTIONS  # Add DeepSeek instructions
+            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
+            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS # Add DeepSeek Reasoner instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
@@ -594,16 +611,18 @@ def update_model_settings():
         model = data.get('model')
         instructions = data.get('instructions')
 
-        if model not in ['openai', 'deepseek']:
+        if model not in ['openai', 'deepseek', 'deepseek-reasoner']:
             return jsonify({'error': 'Invalid model selection'}), 400
 
         # Update the current model
-        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS
+        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS
         CURRENT_MODEL = model
 
-        # Update instructions if provided and model is deepseek
+        # Update instructions if provided and model is deepseek or deepseek-reasoner
         if model == 'deepseek' and instructions:
             DEEPSEEK_INSTRUCTIONS = instructions
+        elif model == 'deepseek-reasoner' and instructions:
+            DEEPSEEK_REASONER_INSTRUCTIONS = instructions
 
         return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:

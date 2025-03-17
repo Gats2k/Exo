@@ -1098,18 +1098,12 @@ document.getElementById('ai-model').addEventListener('change', function(e) {
     const selectedModel = e.target.value;
     const openaiSettings = document.getElementById('openai-settings');
     const deepseekSettings = document.getElementById('deepseek-settings');
+    const deepseekReasonerSettings = document.getElementById('deepseek-reasoner-settings');
 
     // Update visibility of settings panels
-    if (selectedModel === 'openai') {
-        openaiSettings.style.display = 'block';
-        deepseekSettings.style.display = 'none';
-    } else if (selectedModel === 'deepseek') {
-        openaiSettings.style.display = 'none';
-        deepseekSettings.style.display = 'block';
-    } else {
-        openaiSettings.style.display = 'none';
-        deepseekSettings.style.display = 'none';
-    }
+    openaiSettings.style.display = selectedModel === 'openai' ? 'block' : 'none';
+    deepseekSettings.style.display = selectedModel === 'deepseek' ? 'block' : 'none';
+    deepseekReasonerSettings.style.display = selectedModel === 'deepseek-reasoner' ? 'block' : 'none';
 });
 
 // Save AI Model Settings
@@ -1119,9 +1113,12 @@ document.getElementById('save-ai-settings').addEventListener('click', function()
         model: selectedModel
     };
 
-    // Add instructions if DeepSeek is selected
+    // Add instructions based on selected model
     if (selectedModel === 'deepseek') {
         const instructions = document.getElementById('deepseek-instructions').value;
+        data.instructions = instructions;
+    } else if (selectedModel === 'deepseek-reasoner') {
+        const instructions = document.getElementById('deepseek-reasoner-instructions').value;
         data.instructions = instructions;
     }
 

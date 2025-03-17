@@ -352,6 +352,7 @@
                         <select id="ai-model" class="ai-config-select">
                             <option value="openai" {% if current_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
                             <option value="deepseek" {% if current_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
+                            <option value="deepseek-reasoner" {% if current_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
                     </div>
@@ -386,6 +387,30 @@
                             <label>Instructions personnalisées</label>
                             <textarea id="deepseek-instructions" class="ai-config-input" rows="4" 
                                       placeholder="Entrez des instructions personnalisées pour le modèle...">{{ deepseek_instructions }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DeepSeek Reasoner Settings -->
+                    <div id="deepseek-reasoner-settings" class="model-settings" {% if current_model != 'deepseek-reasoner' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Modèle</label>
+                            <input type="text" class="ai-config-input" value="deepseek-reasoner" readonly>
+                            <p class="ai-config-help">Le modèle DeepSeek Reasoner, optimisé pour le raisonnement.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="deepseek-reasoner-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ deepseek_reasoner_instructions }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
