@@ -117,8 +117,16 @@ def get_or_create_conversation(thread_id=None):
                 return conversation
 
         # Create new thread and conversation
-        thread = client.beta.threads.create()
-        conversation = Conversation(thread_id=thread.id)
+        client = get_ai_client()
+        if CURRENT_MODEL == 'openai':
+            # Only create thread for OpenAI
+            thread = client.beta.threads.create()
+            thread_id = thread.id
+        else:
+            # For other models, generate a UUID as thread_id
+            thread_id = str(uuid.uuid4())
+
+        conversation = Conversation(thread_id=thread_id)
         session.add(conversation)
         session.commit()
         return conversation
@@ -161,19 +169,18 @@ ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Get current conversation or create a new one if this is the first message
+        # Get current conversation or create a new one
         thread_id = session.get('thread_id')
         conversation = None
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
 
         if not conversation:
-            # Create new conversation for first message
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
         # Get the appropriate AI client based on current model setting
-        client = get_ai_client()
+        ai_client = get_ai_client()
 
         # Variables to store Mathpix results
         mathpix_result = None
@@ -182,34 +189,25 @@ def handle_message(data):
         # Handle image if present
         if 'image' in data and data['image']:
             try:
-                # Save the base64 image
                 filename = save_base64_image(data['image'])
-                # Create a public URL for the image
                 image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
 
-                # ===== ADDED: Process image with Mathpix =====
+                # Process image with Mathpix
                 mathpix_result = process_image_with_mathpix(data['image'])
 
                 # Check if an error occurred
                 if "error" in mathpix_result:
                     logger.error(f"Mathpix error: {mathpix_result['error']}")
-                    # Continue without Mathpix extraction, but log the error
-                    formatted_summary = f"Image content extraction failed. I will analyze the image visually."
+                    formatted_summary = "Image content extraction failed. I will analyze the image visually."
                 else:
-                    # Use the formatted summary for the assistant
                     formatted_summary = mathpix_result.get("formatted_summary", "")
-                    logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
 
-                    # Build user message with image extraction
-                    user_content = data.get('message', '')
-                    if formatted_summary:
-                        # If user also sent a text message
-                        if user_content:
-                            user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}"
-                        else:
-                            user_store_content = f"[Extracted Image Content]\n{formatted_summary}"
-                    else:
-                        user_store_content = user_content
+                # Build user message with image extraction
+                user_content = data.get('message', '')
+                if formatted_summary:
+                    user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                else:
+                    user_store_content = user_content
 
                 # Store user message with image and extracted content
                 user_message = Message(
@@ -220,27 +218,61 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
 
-                # Prepare message text for assistant (without image)
-                message_for_assistant = ""
+                # Prepare message text for assistant
+                message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
+                message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                # Add user's message first if it exists
-                if data.get('message'):
-                    message_for_assistant += f"{data['message']}\n\n"
-
-                # Add Mathpix extraction results
-                if formatted_summary:
-                    message_for_assistant += formatted_summary
+                if CURRENT_MODEL == 'deepseek':
+                    # Use DeepSeek's chat completion API
+                    response = ai_client.chat.completions.create(
+                        model="deepseek-chat",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful educational assistant"},
+                            {"role": "user", "content": message_for_assistant}
+                        ],
+                        stream=False
+                    )
+                    assistant_message = response.choices[0].message.content
                 else:
-                    # Default message if no extraction and no user message
-                    if not data.get('message'):
-                        message_for_assistant = "Please analyze the image I uploaded."
+                    # Use OpenAI's threads API
+                    ai_client.beta.threads.messages.create(
+                        thread_id=conversation.thread_id,
+                        role="user",
+                        content=message_for_assistant
+                    )
 
-                # Send only the text content to OpenAI (no image)
-                client.beta.threads.messages.create(
-                    thread_id=conversation.thread_id,
-                    role="user",
-                    content=message_for_assistant
-                )
+                    # Create and run assistant
+                    run = ai_client.beta.threads.runs.create(
+                        thread_id=conversation.thread_id,
+                        assistant_id=ASSISTANT_ID
+                    )
+
+                    # Wait for response with timeout
+                    timeout = 30
+                    start_time = time.time()
+
+                    while True:
+                        if time.time() - start_time > timeout:
+                            emit('receive_message', {'message': 'Request timed out.'})
+                            return
+
+                        run_status = ai_client.beta.threads.runs.retrieve(
+                            thread_id=conversation.thread_id,
+                            run_id=run.id
+                        )
+
+                        if run_status.status == 'completed':
+                            break
+                        elif run_status.status == 'failed':
+                            emit('receive_message', {'message': 'Sorry, there was an error.'})
+                            return
+
+                        eventlet.sleep(1)
+
+                    # Retrieve OpenAI's response
+                    messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
+                    assistant_message = messages.data[0].content[0].text.value
+
             except Exception as img_error:
                 logger.error(f"Image processing error: {str(img_error)}")
                 raise Exception("Failed to process image. Please make sure it's a valid image file.")
@@ -255,7 +287,7 @@ def handle_message(data):
 
             if CURRENT_MODEL == 'deepseek':
                 # Use DeepSeek's chat completion API
-                response = client.chat.completions.create(
+                response = ai_client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
                         {"role": "system", "content": "You are a helpful educational assistant"},
@@ -266,14 +298,14 @@ def handle_message(data):
                 assistant_message = response.choices[0].message.content
             else:
                 # Use OpenAI's threads API
-                client.beta.threads.messages.create(
+                ai_client.beta.threads.messages.create(
                     thread_id=conversation.thread_id,
                     role="user",
                     content=data.get('message', '')
                 )
 
                 # Create and run assistant
-                run = client.beta.threads.runs.create(
+                run = ai_client.beta.threads.runs.create(
                     thread_id=conversation.thread_id,
                     assistant_id=ASSISTANT_ID
                 )
@@ -287,7 +319,7 @@ def handle_message(data):
                         emit('receive_message', {'message': 'Request timed out.'})
                         return
 
-                    run_status = client.beta.threads.runs.retrieve(
+                    run_status = ai_client.beta.threads.runs.retrieve(
                         thread_id=conversation.thread_id,
                         run_id=run.id
                     )
@@ -301,53 +333,32 @@ def handle_message(data):
                     eventlet.sleep(1)
 
                 # Retrieve OpenAI's response
-                messages = client.beta.threads.messages.list(thread_id=conversation.thread_id)
+                messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
                 assistant_message = messages.data[0].content[0].text.value
 
-            # Store assistant response in database
-            db_message = Message(
-                conversation_id=conversation.id,
-                role='assistant',
-                content=assistant_message
-            )
-            db.session.add(db_message)
+        # Store assistant response in database
+        db_message = Message(
+            conversation_id=conversation.id,
+            role='assistant',
+            content=assistant_message
+        )
+        db.session.add(db_message)
 
         # Generate and set conversation title if this is the first message
         if not conversation.title:
-            first_user_message = Message.query.filter_by(
-                conversation_id=conversation.id,
-                role='user'
-            ).order_by(Message.created_at).first()
+            title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+            if not title:
+                title = "New Conversation"
+            conversation.title = title
+            db.session.commit()
 
-            if first_user_message:
-                # Use the first 30 characters of the message without the extracted image text 
-                # for a cleaner title
-                raw_content = data.get('message', '') or "Image"
-                title = raw_content[:30] + "..." if len(raw_content) > 30 else raw_content
-
-                # If it's just an image without user text, create a more descriptive title
-                if not data.get('message') and mathpix_result:
-                    content_types = []
-                    if mathpix_result.get("has_math"): content_types.append("math")
-                    if mathpix_result.get("has_table"): content_types.append("table")
-                    if mathpix_result.get("has_chemistry"): content_types.append("chemistry")
-                    if mathpix_result.get("has_geometry"): content_types.append("geometry")
-
-                    if content_types:
-                        title = f"Image ({', '.join(content_types)})"
-                    else:
-                        title = "Image"
-
-                conversation.title = title
-                db.session.commit()
-
-                # Emit the new conversation to all clients for real-time history update
-                emit('new_conversation', {
-                    'id': conversation.id,
-                    'title': conversation.title,
-                    'subject': 'Général',
-                    'time': conversation.created_at.strftime('%H:%M')
-                }, broadcast=True)
+            # Emit the new conversation to all clients
+            emit('new_conversation', {
+                'id': conversation.id,
+                'title': conversation.title,
+                'subject': 'Général',
+                'time': conversation.created_at.strftime('%H:%M')
+            }, broadcast=True)
 
         db.session.commit()
 
@@ -822,7 +833,7 @@ def get_conversation_messages(conversation_id):
         telegram_conv = TelegramConversation.query.get(conversation_id)
         if telegram_conv:
             messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
-                .order_by(TelegramMessage.created_at).all()
+                .orderby(TelegramMessage.Message.created_at).all()
             return jsonify({
                 'messages': [{
                     'role': msg.role,
@@ -1057,7 +1068,6 @@ def get_subscriptions():
         logger.error(f"Error fetching subscriptions: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
 @app.route('/admin/subscriptions', methods=['POST'])
 def create_subscription():
     """Create a new subscription"""
@@ -1095,7 +1105,6 @@ def create_subscription():
         logger.error(f"Error creating subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
 @app.route('/admin/subscriptions/<int:subscription_id>', methods=['PUT'])
 def update_subscription(subscription_id):
     """Update an existing subscription"""
@@ -1127,7 +1136,6 @@ def update_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error updating subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
-
 
 @app.route('/admin/subscriptions/<int:subscription_id>', methods=['DELETE'])
 def delete_subscription(subscription_id):
