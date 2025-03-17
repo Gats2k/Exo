@@ -598,10 +598,17 @@ def update_model_settings():
         global CURRENT_MODEL
         CURRENT_MODEL = model
 
-        # You might want to persist this setting in a database
-        # For now, we're just using a global variable
+        # Notify all connected clients about the model change
+        socketio.emit('ai_model_changed', {
+            'model': model,
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        }, broadcast=True)
 
-        return jsonify({'success': True, 'message': 'Model updated successfully'})
+        return jsonify({
+            'success': True, 
+            'message': 'Model updated successfully',
+            'model': model
+        })
     except Exception as e:
         logger.error(f"Error updating model settings: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

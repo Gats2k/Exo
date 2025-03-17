@@ -1,0 +1,89 @@
+/* Model change notification styles */
+.model-change-notification {
+    padding: 10px;
+    margin: 10px auto;
+    max-width: 80%;
+    text-align: center;
+}
+
+.notification-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 123, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    color: #0056b3;
+}
+
+.notification-content i {
+    font-size: 1.1em;
+}
+
+.notification-time {
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-left: 8px;
+}
+
+/* System message styles */
+.system-message {
+    text-align: center;
+    margin: 15px 0;
+}
+
+.system-message .message-content {
+    display: inline-block;
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    padding: 8px 16px;
+    border-radius: 15px;
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+/* Message container adjustments */
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.message {
+    max-width: 80%;
+    margin: 5px 0;
+}
+
+.user-message {
+    align-self: flex-end;
+}
+
+.assistant-message {
+    align-self: flex-start;
+}
+
+.message-content {
+    padding: 10px 15px;
+    border-radius: 15px;
+    background: #f8f9fa;
+}
+
+.user-message .message-content {
+    background: #007bff;
+    color: white;
+}
+
+.assistant-message .message-content {
+    background: #e9ecef;
+    color: #212529;
+}
+
+/* Image in chat styles */
+.chat-image {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
