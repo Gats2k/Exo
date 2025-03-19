@@ -99,29 +99,11 @@ window.handleTitleKeydown = function(event, id) {
 window.deleteConversation = function(id, event) {
     event.preventDefault();
     event.stopPropagation();
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action est irréversible.')) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
         window.socket.emit('delete_conversation', { id: id });
         // Remove the conversation item immediately from UI
         const item = document.querySelector(`.history-item[onclick*="${id}"]`);
-        if (item) {
-            item.remove();
-            // If this was the active conversation, clear the chat area
-            const titleElement = document.querySelector('.conversation-title');
-            if (titleElement.textContent.includes(item.querySelector('.history-title').textContent)) {
-                // Clear messages
-                document.querySelector('.chat-messages').innerHTML = '';
-                // Reset title
-                titleElement.textContent = "Nouvelle conversation";
-                // Reset UI state
-                document.querySelector('.input-container').classList.add('centered');
-                document.querySelector('.response-time').classList.add('centered');
-                document.querySelector('.welcome-container').classList.add('visible');
-                document.querySelector('.suggestions-container').classList.add('visible');
-                window.isFirstMessage = true;
-                // Clear any existing session
-                window.socket.emit('clear_session');
-            }
-        }
+        item.remove();
     }
 };
 
@@ -357,9 +339,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.on('conversation_deleted', function(data) {
         if (data.success) {
+            // UI already updated in deleteConversation
             console.log('Conversation deleted successfully');
-        } else {
-            alert('Error deleting conversation: ' + (data.error || 'Unknown error'));
         }
     });
 
