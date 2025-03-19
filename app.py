@@ -650,11 +650,43 @@ def update_model_settings():
         global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS
         CURRENT_MODEL = model
 
+        # Update environment variables for persistence
+        os.environ['CURRENT_MODEL'] = model
+
         # Update instructions if provided and model is deepseek or deepseek-reasoner
         if model == 'deepseek' and instructions:
             DEEPSEEK_INSTRUCTIONS = instructions
+            os.environ['DEEPSEEK_INSTRUCTIONS'] = instructions
         elif model == 'deepseek-reasoner' and instructions:
             DEEPSEEK_REASONER_INSTRUCTIONS = instructions
+            os.environ['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+
+        # Write to .env file for persistence
+        env_path = '.env'
+        env_vars = {}
+
+        # Read existing variables
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as f:
+                for line in f:
+                    if '=' in line:
+                        key, value = line.strip().split('=', 1)
+                        env_vars[key] = value
+
+        # Update with new values
+        env_vars['CURRENT_MODEL'] = model
+        if model == 'deepseek' and instructions:
+            env_vars['DEEPSEEK_INSTRUCTIONS'] = instructions
+        elif model == 'deepseek-reasoner' and instructions:
+            env_vars['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+
+        # Write back to .env
+        with open(env_path, 'w') as f:
+            for key, value in env_vars.items():
+                f.write(f"{key}={value}\n")
+
+        # Reload environment variables
+        load_dotenv()
 
         return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:
