@@ -2,35 +2,32 @@
 
 {% block content %}
 <div class="sidebar">
-    <div class="sidebar-header">
-        <div class="sidebar-title">Môjo Admin</div>
-        <div class="sidebar-subtitle">Tableau de bord</div>
+    <div class="sidebar-content">
+        <div class="sidebar-section">
+            <a href="#" class="nav-item" data-section="dashboard">
+                <i class="bi bi-speedometer2"></i>
+                <span>Tableau de bord</span>
+            </a>
+            <a href="#" class="nav-item" data-section="users">
+                <i class="bi bi-people"></i>
+                <span>Utilisateurs</span>
+            </a>
+            <a href="#" class="nav-item" data-section="conversations">
+                <i class="bi bi-chat-dots"></i>
+                <span>Conversations</span>
+            </a>
+            <a href="#" class="nav-item" data-section="subscriptions">
+                <i class="bi bi-credit-card"></i>
+                <span>Abonnements</span>
+            </a>
+            <a href="#" class="nav-item" data-section="settings">
+                <i class="bi bi-gear"></i>
+                <span>Paramètres</span>
+            </a>
+        </div>
     </div>
 
-    <div class="sidebar-section">
-        <a href="#" class="nav-item" data-section="dashboard">
-            <i class="bi bi-speedometer2"></i>
-            Tableau de bord
-        </a>
-        <a href="#" class="nav-item" data-section="users">
-            <i class="bi bi-people"></i>
-            Utilisateurs
-        </a>
-        <a href="#" class="nav-item" data-section="conversations">
-            <i class="bi bi-chat-dots"></i>
-            Conversations
-        </a>
-        <a href="#" class="nav-item" data-section="subscriptions">
-            <i class="bi bi-credit-card"></i>
-            Abonnements
-        </a>
-        <a href="#" class="nav-item" data-section="settings">
-            <i class="bi bi-gear"></i>
-            Paramètres
-        </a>
-    </div>
-
-    <div class="sidebar-section">
+    <div class="sidebar-footer">
         <div class="admin-profile">
             <div class="admin-avatar">A</div>
             <div class="admin-info">
@@ -43,6 +40,11 @@
 
 <div class="main-content">
     <div class="top-nav">
+        <div class="top-nav-title">
+            <div class="sidebar-title">Exô Admin</div>
+            <div class="sidebar-subtitle">Tableau de bord</div>
+        </div>
+        <div style="margin-left: auto;"></div>
         <div class="web-selector-container">
             <div class="web-selector" onclick="toggleDropdown()">
                 <i class="bi bi-globe" id="platform-icon"></i>
