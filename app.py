@@ -469,11 +469,24 @@ def handle_delete(data):
         if conversation:
             # Delete associated messages first
             Message.query.filter_by(conversation_id=conversation.id).delete()
+            # Delete the conversation
             db.session.delete(conversation)
             db.session.commit()
-            emit('conversation_deleted', {'success': True})
+            emit('conversation_deleted', {
+                'success': True,
+                'message': 'Conversation successfully deleted'
+            })
+        else:
+            emit('conversation_deleted', {
+                'success': False,
+                'error': 'Conversation not found'
+            })
     except Exception as e:
-        emit('conversation_deleted', {'success': False, 'error': str(e)})
+        logger.error(f"Error in handle_delete: {str(e)}")
+        emit('conversation_deleted', {
+            'success': False,
+            'error': 'An error occurred while deleting the conversation'
+        })
 
 
 @socketio.on('open_conversation')
