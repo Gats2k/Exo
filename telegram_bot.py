@@ -6,6 +6,8 @@ import os
 import logging
 import asyncio
 import time
+import json
+import threading
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
@@ -19,6 +21,11 @@ import requests
 from contextlib import contextmanager
 from mathpix_utils import process_image_with_mathpix
 
+# Configuration file path for model settings synchronization
+CONFIG_FILE = 'bot_config.json'
+# Variable to track the current model used by the bot
+TELEGRAM_BOT_MODEL = None
+
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
@@ -27,9 +34,7 @@ from app import (
     get_ai_client, 
     get_model_name, 
     get_system_instructions,
-    call_gemini_api,
-    app,  # Import the app instance to access its context
-    socketio  # Import socketio for real-time updates
+    call_gemini_api
 )
 
 # Define getter functions that always access the latest values
@@ -624,6 +629,45 @@ async def download_telegram_image(file_url):
         logger.error(f"Error downloading image: {str(e)}")
         return None
 
+# Fichier de configuration pour synchronisation entre processus
+CONFIG_FILE = ".bot_config.json"
+
+# Variables globales pour stocker les modèles synchronisés
+TELEGRAM_BOT_MODEL = os.environ.get("CURRENT_MODEL", "openai")
+TELEGRAM_BOT_INSTRUCTIONS = {}
+
+# Fonction pour vérifier périodiquement les modifications de configuration
+def check_config_updates():
+    """
+    Vérifier périodiquement les changements dans le fichier de configuration
+    Si le fichier existe et contient des données différentes, mettre à jour les variables
+    """
+    global TELEGRAM_BOT_MODEL
+    
+    try:
+        # Vérifier si le fichier de configuration existe
+        if os.path.exists(CONFIG_FILE):
+            try:
+                # Lire la configuration actuelle
+                with open(CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                    if 'model' in config and config['model'] != TELEGRAM_BOT_MODEL:
+                        logger.info(f"Configuration update detected: model={config['model']}")
+                        TELEGRAM_BOT_MODEL = config['model']
+                        
+                        # Force reload of dynamic module values for immediate effect
+                        import importlib
+                        import app as app_module
+                        importlib.reload(app_module)
+                        logger.info(f"Model configuration updated to: {get_current_model()}")
+            except Exception as e:
+                logger.error(f"Error reading configuration file: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error checking config updates: {str(e)}")
+    
+    # Programmer la prochaine vérification dans 5 secondes
+    threading.Timer(5.0, check_config_updates).start()
+
 def setup_telegram_bot():
     """Initialize and setup the Telegram bot."""
     try:
@@ -661,6 +705,20 @@ def run_telegram_bot():
         current_model = get_current_model()  # Get latest model setting
         logger.info(f"Telegram bot starting with model: {current_model}")
         logger.info(f"System instructions: {get_system_instructions()}")
+
+        # Start config checker thread for model synchronization
+        try:
+            logger.info("Starting config monitoring thread for model updates...")
+            # Créer un fichier de configuration initial
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump({'model': current_model}, f)
+            # Démarrer la vérification périodique
+            check_config_updates()
+            logger.info("Config monitoring thread started")
+        except Exception as config_error:
+            logger.error(f"Error starting config monitoring: {str(config_error)}")
+            logger.warning("Model updates will not be synchronized in real-time")
+            # Continue anyway, we'll use the direct module import as fallback
 
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
