@@ -1468,5 +1468,5 @@ if __name__ == '__main__':
     scheduler.add_job(func=cleanup_uploads, trigger="interval", hours=1)
     scheduler.start()
 
-    # Start the Socket.IO server
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    # Start the Flask server
+    app.run(host='0.0.0.0', port=5000, debug=True)
