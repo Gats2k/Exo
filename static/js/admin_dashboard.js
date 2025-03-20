@@ -1100,12 +1100,14 @@ document.getElementById('ai-model').addEventListener('change', function(e) {
     const deepseekSettings = document.getElementById('deepseek-settings');
     const deepseekReasonerSettings = document.getElementById('deepseek-reasoner-settings');
     const qwenSettings = document.getElementById('qwen-settings');
+    const geminiSettings = document.getElementById('gemini-settings');
 
     // Update visibility of settings panels
     openaiSettings.style.display = selectedModel === 'openai' ? 'block' : 'none';
     deepseekSettings.style.display = selectedModel === 'deepseek' ? 'block' : 'none';
     deepseekReasonerSettings.style.display = selectedModel === 'deepseek-reasoner' ? 'block' : 'none';
     qwenSettings.style.display = selectedModel === 'qwen' ? 'block' : 'none';
+    geminiSettings.style.display = selectedModel === 'gemini' ? 'block' : 'none';
 });
 
 // Save AI Model Settings
@@ -1124,6 +1126,9 @@ document.getElementById('save-ai-settings').addEventListener('click', function()
         data.instructions = instructions;
     } else if (selectedModel === 'qwen') {
         const instructions = document.getElementById('qwen-instructions').value;
+        data.instructions = instructions;
+    } else if (selectedModel === 'gemini') {
+        const instructions = document.getElementById('gemini-instructions').value;
         data.instructions = instructions;
     }
 

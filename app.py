@@ -757,7 +757,7 @@ def update_model_settings():
             os.environ['QWEN_INSTRUCTIONS'] = instructions
         elif model == 'gemini' and instructions:
             GEMINI_INSTRUCTIONS = instructions
-            os.environ['GEMINI_INSTRUCTIONS'] = instructions
+            os.environ['GEMINI_INSTRUCTIONS'] = instructions = instructions
 
         # Write to .env file for persistence
         env_path = '.env'
