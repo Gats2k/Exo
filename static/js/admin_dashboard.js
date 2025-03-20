@@ -1185,7 +1185,6 @@ platforms.forEach(platform => {
         });
     }
 });
-});
 
 // Helper function to show notifications
 function showNotification(message, type) {
