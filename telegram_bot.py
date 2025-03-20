@@ -598,13 +598,17 @@ def run_telegram_bot():
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
+        # Log current configuration
+        logger.info(f"Telegram bot starting with model: {CURRENT_MODEL}")
+        logger.info(f"System instructions: {get_system_instructions()}")
+
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         application = setup_telegram_bot()
         logger.info("Starting Telegram bot polling...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
         raise
