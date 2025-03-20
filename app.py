@@ -1,10 +1,13 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from dotenv import load_dotenv
 # Load environment variables before any other imports
 load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
-import json  # For working with configuration files instead
+from flask_socketio import SocketIO, emit
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 import base64
@@ -50,10 +53,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 from database import db
 db.init_app(app)
 
-# Création d'un dictionnaire pour stocker l'état global
-app_state = {
-    'last_model_update': datetime.utcnow().isoformat()
-}
+# Initialize SocketIO with eventlet
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -314,9 +315,8 @@ def get_interleaved_messages(conversation_id, current_message=None):
 
     return formatted_messages
 
-@app.route('/api/send_message', methods=['POST'])
-def handle_message():
-    data = request.json
+@socketio.on('send_message')
+def handle_message(data):
     try:
         # Get current conversation or create a new one
         thread_id = session.get('thread_id')
@@ -421,10 +421,8 @@ def handle_message():
 
                     while True:
                         if time.time() - start_time > timeout:
-                            return jsonify({
-                                'success': False,
-                                'message': 'Request timed out.'
-                            }), 408
+                            emit('receive_message', {'message': 'Request timed out.'})
+                            return
 
                         run_status = ai_client.beta.threads.runs.retrieve(
                             thread_id=conversation.thread_id,
@@ -434,10 +432,8 @@ def handle_message():
                         if run_status.status == 'completed':
                             break
                         elif run_status.status == 'failed':
-                            return jsonify({
-                                'success': False,
-                                'message': 'Sorry, there was an error processing your request.'
-                            }), 500
+                            emit('receive_message', {'message': 'Sorry, there was an error.'})
+                            return
 
                         eventlet.sleep(1)
 
@@ -507,10 +503,8 @@ def handle_message():
 
                 while True:
                     if time.time() - start_time > timeout:
-                        return jsonify({
-                            'success': False,
-                            'message': 'Request timed out.'
-                        }), 408
+                        emit('receive_message', {'message': 'Request timed out.'})
+                        return
 
                     run_status = ai_client.beta.threads.runs.retrieve(
                         thread_id=conversation.thread_id,
@@ -520,10 +514,8 @@ def handle_message():
                     if run_status.status == 'completed':
                         break
                     elif run_status.status == 'failed':
-                        return jsonify({
-                            'success': False,
-                            'message': 'Sorry, there was an error processing your request.'
-                        }), 500
+                        emit('receive_message', {'message': 'Sorry, there was an error.'})
+                        return
 
                     eventlet.sleep(1)
 
@@ -547,46 +539,40 @@ def handle_message():
             conversation.title = title
             db.session.commit()
 
-            # Log the new conversation
-            logger.info(f"New conversation created: {conversation.id} - {conversation.title}")
-
-        db.session.commit()
-
-        # Return response to client
-        return jsonify({
-            'message': assistant_message,
-            'conversation': {
+            # Emit the new conversation to all clients
+            emit('new_conversation', {
                 'id': conversation.id,
                 'title': conversation.title,
                 'subject': 'Général',
                 'time': conversation.created_at.strftime('%H:%M')
-            } if not conversation.title else None
-        })
+            }, broadcast=True)
+
+        db.session.commit()
+
+        # Send response to client
+        emit('receive_message', {'message': assistant_message})
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}")
         error_message = str(e)
         if "image" in error_message.lower():
-            return jsonify({'error': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.'}), 400
+            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.'})
         else:
-            return jsonify({'error': f'An error occurred while processing your message. Please try again.'}), 500
+            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.'})
 
-@app.route('/api/rename_conversation', methods=['POST'])
-def handle_rename():
-    data = request.json
+@socketio.on('rename_conversation')
+def handle_rename(data):
     try:
         conversation = Conversation.query.get(data['id'])
         if conversation:
             conversation.title = data['title']
             db.session.commit()
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Conversation not found'}), 404
+            emit('conversation_updated', {'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        emit('conversation_updated', {'success': False, 'error': str(e)})
 
-@app.route('/api/delete_conversation', methods=['POST'])
-def handle_delete():
-    data = request.json
+@socketio.on('delete_conversation')
+def handle_delete(data):
     try:
         conversation = Conversation.query.get(data['id'])
         if conversation:
@@ -594,15 +580,13 @@ def handle_delete():
             Message.query.filter_by(conversation_id=conversation.id).delete()
             db.session.delete(conversation)
             db.session.commit()
-            return jsonify({'success': True})
-        return jsonify({'success': False, 'error': 'Conversation not found'}), 404
+            emit('conversation_deleted', {'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        emit('conversation_deleted', {'success': False, 'error': str(e)})
 
 
-@app.route('/api/open_conversation', methods=['POST'])
-def handle_open_conversation():
-    data = request.json
+@socketio.on('open_conversation')
+def handle_open_conversation(data):
     try:
         conversation = Conversation.query.get(data['id'])
         if conversation:
@@ -619,52 +603,23 @@ def handle_open_conversation():
                 } for msg in messages
             ]
 
-            return jsonify({
+            emit('conversation_opened', {
                 'success': True,
                 'messages': messages_data,
                 'conversation_id': conversation.id,
                 'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
             })
-        return jsonify({'success': False, 'error': 'Conversation not found'}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        emit('conversation_opened', {
+            'success': False,
+            'error': str(e)
+        })
 
-@app.route('/api/clear_session', methods=['POST'])
+@socketio.on('clear_session')
 def handle_clear_session():
     # Clear the thread_id from session
     session.pop('thread_id', None)
-    return jsonify({'success': True})
-
-@app.route('/api/conversations', methods=['GET'])
-def get_conversations():
-    """Get all conversations for the current user"""
-    if not current_user.is_authenticated:
-        return jsonify({'success': False, 'error': 'Not logged in'}), 401
-    
-    try:
-        user_id = current_user.id
-        conversations = Conversation.query.filter_by(deleted=False).all()
-        
-        conversation_list = []
-        for conv in conversations:
-            # Get the last message for preview
-            last_message = Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first()
-            last_message_content = last_message.content if last_message else ""
-            if len(last_message_content) > 50:
-                last_message_content = last_message_content[:47] + "..."
-                
-            conversation_list.append({
-                'id': conv.id,
-                'title': conv.title or "Nouvelle conversation",
-                'last_message': last_message_content,
-                'subject': "",  # Not used in this version but included for UI
-                'time': conv.updated_at.strftime('%H:%M')
-            })
-            
-        return jsonify({'success': True, 'conversations': conversation_list})
-    except Exception as e:
-        logger.error(f"Error retrieving conversations: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    emit('session_cleared', {'success': True})
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -823,21 +778,11 @@ def update_model_settings():
             GEMINI_INSTRUCTIONS = instructions
             os.environ['GEMINI_INSTRUCTIONS'] = instructions
             
-        # Update app state
-        app_state['last_model_update'] = datetime.utcnow().isoformat()
-        
-        # Write to bot_config.json file for Telegram bot synchronization
-        try:
-            bot_config_path = 'bot_config.json'
-            with open(bot_config_path, 'w') as f:
-                json.dump({
-                    'model': model,
-                    'timestamp': datetime.utcnow().isoformat(),
-                    'instructions': instructions
-                }, f)
-            logger.info(f"Wrote model configuration to {bot_config_path} for Telegram bot synchronization")
-        except Exception as e:
-            logger.error(f"Error writing bot configuration file: {str(e)}")
+        # Broadcast model settings changed event to all connected clients
+        socketio.emit('model_settings_updated', {
+            'model': model,
+            'timestamp': datetime.utcnow().isoformat()
+        })
 
         # Write to .env file for persistence
         env_path = '.env'
@@ -1464,5 +1409,5 @@ if __name__ == '__main__':
     scheduler.add_job(func=cleanup_uploads, trigger="interval", hours=1)
     scheduler.start()
 
-    # Start the Flask server
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Start the Socket.IO server
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
