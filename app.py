@@ -639,6 +639,37 @@ def handle_clear_session():
     session.pop('thread_id', None)
     return jsonify({'success': True})
 
+@app.route('/api/conversations', methods=['GET'])
+def get_conversations():
+    """Get all conversations for the current user"""
+    if not current_user.is_authenticated:
+        return jsonify({'success': False, 'error': 'Not logged in'}), 401
+    
+    try:
+        user_id = current_user.id
+        conversations = Conversation.query.filter_by(deleted=False).all()
+        
+        conversation_list = []
+        for conv in conversations:
+            # Get the last message for preview
+            last_message = Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first()
+            last_message_content = last_message.content if last_message else ""
+            if len(last_message_content) > 50:
+                last_message_content = last_message_content[:47] + "..."
+                
+            conversation_list.append({
+                'id': conv.id,
+                'title': conv.title or "Nouvelle conversation",
+                'last_message': last_message_content,
+                'subject': "",  # Not used in this version but included for UI
+                'time': conv.updated_at.strftime('%H:%M')
+            })
+            
+        return jsonify({'success': True, 'conversations': conversation_list})
+    except Exception as e:
+        logger.error(f"Error retrieving conversations: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

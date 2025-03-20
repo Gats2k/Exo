@@ -77,7 +77,21 @@ window.handleTitleKeydown = function(event, id) {
         const newTitle = input.value.trim();
 
         if (newTitle) {
-            window.socket.emit('rename_conversation', { id: id, title: newTitle });
+            // Use fetch API instead of socket
+            fetch('/api/rename_conversation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id: id, title: newTitle })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Rename success:', data);
+            })
+            .catch(error => {
+                console.error('Error renaming conversation:', error);
+            });
 
             // Update UI immediately
             const titleElement = document.getElementById(`title-${id}`);
@@ -100,7 +114,22 @@ window.deleteConversation = function(id, event) {
     event.preventDefault();
     event.stopPropagation();
     if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
-        window.socket.emit('delete_conversation', { id: id });
+        // Use fetch API instead of socket
+        fetch('/api/delete_conversation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Delete success:', data);
+        })
+        .catch(error => {
+            console.error('Error deleting conversation:', error);
+        });
+        
         // Remove the conversation item immediately from UI
         const item = document.querySelector(`.history-item[onclick*="${id}"]`);
         item.remove();
@@ -109,15 +138,59 @@ window.deleteConversation = function(id, event) {
 
 window.openConversation = function(id, event) {
     if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
-        window.socket.emit('open_conversation', { id: id });
+        // Use fetch API instead of socket
+        fetch('/api/open_conversation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ id: id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Clear current messages
+                const chatMessages = document.querySelector('.chat-messages');
+                chatMessages.innerHTML = '';
+
+                // Update the conversation title in header
+                const titleElement = document.querySelector('.conversation-title');
+                titleElement.textContent = data.title || "Nouvelle conversation";
+
+                // Add each message from the conversation history
+                data.messages.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${msg.role}`;
+
+                    let content = '';
+                    if (msg.image_url) {
+                        content += `<img src="${msg.image_url}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
+                    }
+                    content += msg.content.replace(/\n/g, '<br>');
+
+                    messageDiv.innerHTML = `
+                        <div class="message-content">
+                            ${content}
+                        </div>
+                    `;
+                    chatMessages.appendChild(messageDiv);
+                });
+
+                // Update UI for existing conversation
+                if (typeof moveInputToBottom === 'function') {
+                    moveInputToBottom();
+                }
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        })
+        .catch(error => {
+            console.error('Error opening conversation:', error);
+        });
     }
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Socket.IO
-    const socket = io();
-    // Make socket available globally for our conversation functions
-    window.socket = socket;
+    // No need for Socket.IO anymore, using REST API instead
 
     // Get all necessary elements
     const sidebar = document.querySelector('.sidebar');
@@ -293,10 +366,64 @@ document.addEventListener('DOMContentLoaded', function() {
             moveInputToBottom();
             addLoadingIndicator();
 
-            // Send both message and image to the server
-            socket.emit('send_message', {
-                message: message,
-                image: currentImage
+            // Send both message and image to the server using fetch API
+            fetch('/api/send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    image: currentImage
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Handle response from the server
+                removeLoadingIndicator();
+                if (data.success) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message assistant';
+                    let content = '';
+                    if (data.image) {
+                        content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
+                    }
+                    content += data.message.replace(/\n/g, '<br>');
+
+                    messageDiv.innerHTML = `
+                        <div class="message-content">
+                            ${content}
+                        </div>
+                    `;
+                    chatMessages.appendChild(messageDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    console.error('Error from server:', data.error);
+                    // Display error message to user
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'message error';
+                    errorDiv.innerHTML = `
+                        <div class="message-content">
+                            Une erreur est survenue. Veuillez réessayer.
+                        </div>
+                    `;
+                    chatMessages.appendChild(errorDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            })
+            .catch(error => {
+                removeLoadingIndicator();
+                console.error('Error sending message:', error);
+                // Display error message to user
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'message error';
+                errorDiv.innerHTML = `
+                    <div class="message-content">
+                        Une erreur est survenue. Veuillez réessayer.
+                    </div>
+                `;
+                chatMessages.appendChild(errorDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             });
 
             // Clear input and image
@@ -310,122 +437,56 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    socket.on('receive_message', function(data) {
-        removeLoadingIndicator();
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message assistant';
-        let content = '';
-        if (data.image) {
-            content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
-        }
-        content += data.message.replace(/\n/g, '<br>');
-
-        messageDiv.innerHTML = `
-            <div class="message-content">
-                ${content}
-            </div>
-        `;
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
-
-    // Listen for conversation updates
-    socket.on('conversation_updated', function(data) {
-        if (data.success) {
-            // UI already updated in handleTitleKeydown
-            console.log('Conversation renamed successfully');
-        }
-    });
-
-    socket.on('conversation_deleted', function(data) {
-        if (data.success) {
-            // UI already updated in deleteConversation
-            console.log('Conversation deleted successfully');
-        }
-    });
-
-    socket.on('conversation_opened', function(data) {
-        if (data.success) {
-            // Clear current messages
-            chatMessages.innerHTML = '';
-
-            // Update the conversation title in header
-            const titleElement = document.querySelector('.conversation-title');
-            titleElement.textContent = data.title || "Nouvelle conversation";
-
-            // Add each message from the conversation history
-            data.messages.forEach(msg => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${msg.role}`;
-
-                let content = '';
-                if (msg.image_url) {
-                    content += `<img src="${msg.image_url}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
-                }
-                content += msg.content.replace(/\n/g, '<br>');
-
-                messageDiv.innerHTML = `
-                    <div class="message-content">
-                        ${content}
+    // Fetch conversations on page load
+    fetch('/api/conversations')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.conversations) {
+            const recentHistory = document.querySelector('.recent-history');
+            
+            // Clear existing conversations
+            recentHistory.innerHTML = '';
+            
+            // Add each conversation to the sidebar
+            data.conversations.forEach(conv => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                historyItem.setAttribute('onclick', `openConversation('${conv.id}', event)`);
+                
+                historyItem.innerHTML = `
+                    <div class="history-content">
+                        <div class="history-title" id="title-${conv.id}">${conv.title || "Sans titre"}</div>
+                        <div class="history-title-edit" id="edit-${conv.id}" style="display: none;">
+                            <input type="text" class="title-input" value="${conv.title || "Sans titre"}" 
+                                onkeydown="handleTitleKeydown(event, '${conv.id}')"
+                                onclick="event.stopPropagation()">
+                        </div>
+                        <div class="history-subject">${conv.subject || ""}</div>
+                    </div>
+                    <div class="history-actions">
+                        <div class="time">${conv.time || ""}</div>
+                        <div class="dropdown">
+                            <button class="btn-icon" onclick="toggleDropdown('${conv.id}', event)">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <div id="dropdown-${conv.id}" class="dropdown-menu">
+                                <a href="#" onclick="startRename('${conv.id}', event)">
+                                    <i class="bi bi-pencil"></i> Renommer
+                                </a>
+                                <a href="#" onclick="deleteConversation('${conv.id}', event)">
+                                    <i class="bi bi-trash"></i> Supprimer
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 `;
-                chatMessages.appendChild(messageDiv);
+                
+                recentHistory.appendChild(historyItem);
             });
-
-            // Update UI for existing conversation
-            moveInputToBottom();
-            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-    });
-
-    // Add this to the existing socket event listeners
-    socket.on('new_conversation', function(data) {
-        const recentHistory = document.querySelector('.recent-history');
-        const titleElement = document.querySelector('.conversation-title');
-
-        // Update the header title with the new conversation title
-        titleElement.textContent = data.title;
-
-        // Create new history item
-        const historyItem = document.createElement('div');
-        historyItem.className = 'history-item';
-        historyItem.setAttribute('onclick', `openConversation('${data.id}', event)`);
-
-        historyItem.innerHTML = `
-            <div class="history-content">
-                <div class="history-title" id="title-${data.id}">${data.title}</div>
-                <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
-                    <input type="text" class="title-input" value="${data.title}" 
-                           onkeydown="handleTitleKeydown(event, '${data.id}')"
-                           onclick="event.stopPropagation()">
-                </div>
-                <div class="history-subject">${data.subject}</div>
-            </div>
-            <div class="history-actions">
-                <div class="time">${data.time}</div>
-                <div class="dropdown">
-                    <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
-                        <i class="bi bi-three-dots-vertical"></i>
-                    </button>
-                    <div id="dropdown-${data.id}" class="dropdown-menu">
-                        <a href="#" onclick="startRename('${data.id}', event)">
-                            <i class="bi bi-pencil"></i> Renommer
-                        </a>
-                        <a href="#" onclick="deleteConversation('${data.id}', event)">
-                            <i class="bi bi-trash"></i> Supprimer
-                        </a>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Insert at the beginning of the history
-        const firstHistoryItem = recentHistory.querySelector('.history-item');
-        if (firstHistoryItem) {
-            recentHistory.insertBefore(historyItem, firstHistoryItem);
-        } else {
-            recentHistory.appendChild(historyItem);
-        }
+    })
+    .catch(error => {
+        console.error('Error fetching conversations:', error);
     });
 
 
@@ -548,15 +609,22 @@ document.addEventListener('DOMContentLoaded', function() {
             suggestionsContainer.classList.add('visible');
             isFirstMessage = true;
 
-            // Clear any existing session
-            socket.emit('clear_session');
+            // Clear any existing session using fetch API
+            fetch('/api/clear_session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Session cleared successfully');
+                }
+            })
+            .catch(error => {
+                console.error('Error clearing session:', error);
+            });
         });
     }
-
-    // Listen for session cleared confirmation
-    socket.on('session_cleared', function(data) {
-        if (data.success) {
-            console.log('Session cleared successfully');
-        }
-    });
 });
