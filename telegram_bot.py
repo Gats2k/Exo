@@ -22,7 +22,14 @@ from mathpix_utils import process_image_with_mathpix
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
-from app import get_db_context
+from app import (
+    get_db_context, 
+    CURRENT_MODEL, 
+    get_ai_client, 
+    get_model_name, 
+    get_system_instructions,
+    call_gemini_api
+)
 
 # Set up logging
 logging.basicConfig(
