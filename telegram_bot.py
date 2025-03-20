@@ -24,12 +24,19 @@ from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
 from app import (
     get_db_context, 
-    CURRENT_MODEL, 
     get_ai_client, 
     get_model_name, 
     get_system_instructions,
-    call_gemini_api
+    call_gemini_api,
+    app  # Import the app instance to access its context
 )
+
+# Define getter functions that always access the latest values
+def get_current_model():
+    """Get the current AI model setting from the app configuration."""
+    # Always get the current value from environment or app
+    from app import CURRENT_MODEL
+    return CURRENT_MODEL
 
 # Set up logging
 logging.basicConfig(
@@ -242,12 +249,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             # Get the current model selected from dashboard
-            logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
+            current_model = get_current_model()  # Get latest model setting
+            logger.info(f"Using AI model: {current_model} with instructions: {get_system_instructions()}")
 
             # Different handling based on selected model
             assistant_message = None
 
-            if CURRENT_MODEL == 'openai':
+            if current_model == 'openai':
                 # Use OpenAI's assistant API
                 openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
@@ -285,7 +293,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 assistant_message = messages.data[0].content[0].text.value
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
-                logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
+                current_model = get_current_model()  # Get latest model setting
+                logger.info(f"Using alternative model: {current_model} with model name: {get_model_name()}")
                 
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
@@ -306,7 +315,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     })
                 
                 # Use Gemini's special call function if Gemini is selected
-                if CURRENT_MODEL == 'gemini':
+                if current_model == 'gemini':
                     try:
                         assistant_message = call_gemini_api(previous_messages)
                     except Exception as e:
@@ -325,7 +334,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         assistant_message = response.choices[0].message.content
                     except Exception as e:
-                        logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
+                        logger.error(f"Error calling AI API ({current_model}): {str(e)}")
                         raise
 
             # Store the assistant's response in our database
