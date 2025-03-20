@@ -23,32 +23,13 @@ from mathpix_utils import process_image_with_mathpix
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
 from app import (
-get_db_context, 
-get_ai_client,
-get_model_name,
-get_system_instructions,
-call_gemini_api,
-app  # Import the app instance to access its context
+    get_db_context, 
+    CURRENT_MODEL, 
+    get_ai_client, 
+    get_model_name, 
+    get_system_instructions,
+    call_gemini_api
 )
-
-# Define getter functions that always access the latest values
-def get_current_model():
-    """Get the current AI model setting from the app configuration."""
-    # Import dynamiquement à chaque appel pour toujours avoir la dernière valeur
-    import os
-    import importlib
-
-    # Recharger dynamiquement le module app pour obtenir la valeur actualisée
-    app_module = importlib.import_module('app')
-    importlib.reload(app_module)
-
-    # Vérifier d'abord dans l'environnement (prioritaire)
-    env_model = os.environ.get('CURRENT_MODEL')
-    if env_model:
-        return env_model
-
-    # Sinon utiliser la valeur du module app
-    return app_module.CURRENT_MODEL
 
 # Set up logging
 logging.basicConfig(
@@ -90,47 +71,29 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
     try:
         with db_retry_session() as session:
             logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
-            
-            # Utiliser une requête directe pour éviter les problèmes de colonnes
-            user = session.query(TelegramUser).filter(TelegramUser.telegram_id == user_id).first()
-            
+            user = TelegramUser.query.get(user_id)
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
-                try:
-                    # Essayer d'abord avec last_name
-                    user = TelegramUser(
-                        telegram_id=user_id,
-                        first_name=first_name or "---",
-                        last_name=last_name or "---"
-                    )
-                except Exception as create_error:
-                    logger.warning(f"Error creating user with last_name: {str(create_error)}")
-                    # Essayer sans last_name si ça échoue
-                    user = TelegramUser(
-                        telegram_id=user_id,
-                        first_name=first_name or "---"
-                    )
+                user = TelegramUser(
+                    telegram_id=user_id,
+                    first_name=first_name or "---",
+                    last_name=last_name or "---"
+                )
                 session.add(user)
                 session.commit()
-                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name})")
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
                 if first_name and user.first_name != first_name:
                     user.first_name = first_name
                     updated = True
-                
-                # Essayer de mettre à jour last_name de manière sécurisée
-                try:
-                    if last_name and hasattr(user, 'last_name') and user.last_name != last_name:
-                        user.last_name = last_name
-                        updated = True
-                except Exception as last_name_error:
-                    logger.warning(f"Error updating last_name: {str(last_name_error)}")
-                
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                    updated = True
                 if updated:
                     session.commit()
-                    logger.info(f"Updated user {user_id} with new information")
+                    logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
             return user
     except Exception as e:
@@ -229,8 +192,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = user_threads[user_id]
             if not thread_id:
                 # Create a new thread ID
-                current_model = get_current_model()  # Get latest model setting
-                if current_model == 'openai':
+                if CURRENT_MODEL == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
@@ -262,13 +224,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             # Get the current model selected from dashboard
-            current_model = get_current_model()  # Get latest model setting
-            logger.info(f"Using AI model: {current_model} with instructions: {get_system_instructions()}")
+            logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
 
             # Different handling based on selected model
             assistant_message = None
 
-            if current_model == 'openai':
+            if CURRENT_MODEL == 'openai':
                 # Use OpenAI's assistant API
                 openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
@@ -306,8 +267,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 assistant_message = messages.data[0].content[0].text.value
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
-                current_model = get_current_model()  # Get latest model setting
-                logger.info(f"Using alternative model: {current_model} with model name: {get_model_name()}")
+                logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
                 
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
@@ -328,7 +288,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     })
                 
                 # Use Gemini's special call function if Gemini is selected
-                if current_model == 'gemini':
+                if CURRENT_MODEL == 'gemini':
                     try:
                         assistant_message = call_gemini_api(previous_messages)
                     except Exception as e:
@@ -347,7 +307,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         assistant_message = response.choices[0].message.content
                     except Exception as e:
-                        logger.error(f"Error calling AI API ({current_model}): {str(e)}")
+                        logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
                         raise
 
             # Store the assistant's response in our database
@@ -392,8 +352,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = user_threads[user_id]
             if not thread_id:
                 # Create a new thread ID
-                current_model = get_current_model()  # Get latest model setting
-                if current_model == 'openai':
+                if CURRENT_MODEL == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
@@ -494,13 +453,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
             # Get the current model selected from dashboard
-            current_model = get_current_model()  # Get latest model setting
-            logger.info(f"Using AI model for image processing: {current_model}")
+            logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
             # Different handling based on selected model
             assistant_message = None
 
-            if current_model == 'openai':
+            if CURRENT_MODEL == 'openai':
                 # Send to OpenAI (text only, not image)
                 logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
                 openai_client.beta.threads.messages.create(
@@ -542,7 +500,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 assistant_message = messages.data[0].content[0].text.value
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
-                logger.info(f"Using alternative model for image: {current_model} with model name: {get_model_name()}")
+                logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
                 
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
@@ -572,7 +530,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     })
                 
                 # Use Gemini's special call function if Gemini is selected
-                if current_model == 'gemini':
+                if CURRENT_MODEL == 'gemini':
                     try:
                         assistant_message = call_gemini_api(previous_messages)
                     except Exception as e:
@@ -591,7 +549,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         assistant_message = response.choices[0].message.content
                     except Exception as e:
-                        logger.error(f"Error calling AI API ({current_model}) for image processing: {str(e)}")
+                        logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
                         raise
 
             # Store the assistant's response in our database
@@ -653,19 +611,17 @@ def setup_telegram_bot():
         raise
 
 def run_telegram_bot():
+    """Run the Telegram bot."""
     try:
         # Only run if explicitly enabled
         if not os.environ.get('RUN_TELEGRAM_BOT'):
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
-        # Log current configuration 
-        current_model = get_current_model()  # Get latest model setting
-        logger.info(f"Telegram bot starting with model: {current_model}")
-        
-        # Nous n'appelons pas get_system_instructions() ici car elle peut ne pas être disponible
-        # dans ce contexte (importation circulaire potentielle)
-        
+        # Log current configuration
+        logger.info(f"Telegram bot starting with model: {CURRENT_MODEL}")
+        logger.info(f"System instructions: {get_system_instructions()}")
+
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
