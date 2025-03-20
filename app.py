@@ -639,7 +639,8 @@ def admin_dashboard():
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
             current_model=CURRENT_MODEL,  # Add current model selection
             deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
-            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS # Add DeepSeek Reasoner instructions
+            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
+            qwen_instructions=QWEN_INSTRUCTIONS  # Add Qwen instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
