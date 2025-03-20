@@ -169,7 +169,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle incoming messages and respond using OpenAI Assistant."""
+    """Handle incoming messages and respond using selected AI model."""
     if not update.message or not update.message.text:
         return
 
@@ -213,45 +213,97 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 action=constants.ChatAction.TYPING
             )
 
-            openai_client.beta.threads.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=message_text
-            )
+            # Get the current model selected from dashboard
+            logger.info(f"Using AI model: {CURRENT_MODEL}")
 
-            # Run the assistant
-            run = openai_client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=ASSISTANT_ID
-            )
+            # Different handling based on selected model
+            assistant_message = None
 
-            # Wait for the run to complete while maintaining typing indication
-            while True:
-                await context.bot.send_chat_action(
-                    chat_id=update.effective_chat.id,
-                    action=constants.ChatAction.TYPING
-                )
-
-                run_status = openai_client.beta.threads.runs.retrieve(
+            if CURRENT_MODEL == 'openai':
+                # Use OpenAI's assistant API
+                openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
-                    run_id=run.id
+                    role="user",
+                    content=message_text
                 )
-                if run_status.status == 'completed':
-                    break
-                elif run_status.status in ['failed', 'cancelled', 'expired']:
-                    error_msg = f"Assistant run failed with status: {run_status.status}"
-                    logger.error(error_msg)
-                    raise Exception(error_msg)
-                await asyncio.sleep(4.5)
 
-            # Get the assistant's response
-            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-            assistant_message = messages.data[0].content[0].text.value
+                # Run the assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=ASSISTANT_ID
+                )
+
+                # Wait for the run to complete while maintaining typing indication
+                while True:
+                    await context.bot.send_chat_action(
+                        chat_id=update.effective_chat.id,
+                        action=constants.ChatAction.TYPING
+                    )
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run_status.status == 'completed':
+                        break
+                    elif run_status.status in ['failed', 'cancelled', 'expired']:
+                        error_msg = f"Assistant run failed with status: {run_status.status}"
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
+                    await asyncio.sleep(4.5)
+
+                # Get the assistant's response
+                messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+                assistant_message = messages.data[0].content[0].text.value
+            else:
+                # For other models (Gemini, Deepseek, Qwen), use direct API calls
+                logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
+                
+                # Get previous messages for context (limit to last 10)
+                previous_messages = []
+                with db_retry_session() as sess:
+                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
+                    for msg in reversed(messages_query):
+                        previous_messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
+
+                # Add system instruction
+                system_instructions = get_system_instructions()
+                if system_instructions:
+                    previous_messages.insert(0, {
+                        "role": "system",
+                        "content": system_instructions
+                    })
+                
+                # Use Gemini's special call function if Gemini is selected
+                if CURRENT_MODEL == 'gemini':
+                    try:
+                        assistant_message = call_gemini_api(previous_messages)
+                    except Exception as e:
+                        logger.error(f"Error calling Gemini API: {str(e)}")
+                        raise
+                else:
+                    # For DeepSeek and Qwen models
+                    ai_client = get_ai_client()
+                    model = get_model_name()
+                    
+                    try:
+                        # Format messages for the API call
+                        response = ai_client.chat.completions.create(
+                            model=model,
+                            messages=previous_messages
+                        )
+                        assistant_message = response.choices[0].message.content
+                    except Exception as e:
+                        logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
+                        raise
 
             # Store the assistant's response in our database
             await add_telegram_message(conversation.id, 'assistant', assistant_message)
 
-            logger.info(f"Sending response to user {user_id}: {assistant_message}")
+            logger.info(f"Sending response to user {user_id}: {assistant_message[:100]}...")
             await update.message.reply_text(assistant_message)
 
     except OpenAIError as openai_error:
@@ -380,45 +432,105 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Store the user's message in our database
             await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
-            # Send to OpenAI (text only, not image)
-            logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
-            openai_client.beta.threads.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=message_for_assistant
-            )
-            logger.info("Message sent to OpenAI")
+            # Get the current model selected from dashboard
+            logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
-            # Run the assistant
-            run = openai_client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=ASSISTANT_ID
-            )
-            logger.info("Assistant run created")
+            # Different handling based on selected model
+            assistant_message = None
 
-            # Wait for completion
-            while True:
-                await context.bot.send_chat_action(
-                    chat_id=update.effective_chat.id,
-                    action=constants.ChatAction.TYPING
-                )
-
-                run_status = openai_client.beta.threads.runs.retrieve(
+            if CURRENT_MODEL == 'openai':
+                # Send to OpenAI (text only, not image)
+                logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
+                openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
-                    run_id=run.id
+                    role="user",
+                    content=message_for_assistant
                 )
-                if run_status.status == 'completed':
-                    logger.info("Assistant run completed")
-                    break
-                elif run_status.status in ['failed', 'cancelled', 'expired']:
-                    error_msg = f"Assistant run failed with status: {run_status.status}"
-                    logger.error(error_msg)
-                    raise Exception(error_msg)
-                await asyncio.sleep(4.5)
+                logger.info("Message sent to OpenAI")
 
-            # Get and send response
-            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-            assistant_message = messages.data[0].content[0].text.value
+                # Run the assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=ASSISTANT_ID
+                )
+                logger.info("Assistant run created")
+
+                # Wait for completion
+                while True:
+                    await context.bot.send_chat_action(
+                        chat_id=update.effective_chat.id,
+                        action=constants.ChatAction.TYPING
+                    )
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run_status.status == 'completed':
+                        logger.info("Assistant run completed")
+                        break
+                    elif run_status.status in ['failed', 'cancelled', 'expired']:
+                        error_msg = f"Assistant run failed with status: {run_status.status}"
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
+                    await asyncio.sleep(4.5)
+
+                # Get the assistant's response
+                messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+                assistant_message = messages.data[0].content[0].text.value
+            else:
+                # For other models (Gemini, Deepseek, Qwen), use direct API calls
+                logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
+                
+                # Get previous messages for context (limit to last 10)
+                previous_messages = []
+                with db_retry_session() as sess:
+                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
+                    for msg in reversed(messages_query):
+                        if msg.role == 'user' and msg.content == user_store_content:
+                            # Skip this message as we're adding it below
+                            continue
+                        previous_messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
+                
+                # Add the current message
+                previous_messages.append({
+                    "role": "user", 
+                    "content": message_for_assistant
+                })
+
+                # Add system instruction
+                system_instructions = get_system_instructions()
+                if system_instructions:
+                    previous_messages.insert(0, {
+                        "role": "system",
+                        "content": system_instructions
+                    })
+                
+                # Use Gemini's special call function if Gemini is selected
+                if CURRENT_MODEL == 'gemini':
+                    try:
+                        assistant_message = call_gemini_api(previous_messages)
+                    except Exception as e:
+                        logger.error(f"Error calling Gemini API for image processing: {str(e)}")
+                        raise
+                else:
+                    # For DeepSeek and Qwen models
+                    ai_client = get_ai_client()
+                    model = get_model_name()
+                    
+                    try:
+                        # Format messages for the API call
+                        response = ai_client.chat.completions.create(
+                            model=model,
+                            messages=previous_messages
+                        )
+                        assistant_message = response.choices[0].message.content
+                    except Exception as e:
+                        logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
+                        raise
 
             # Store the assistant's response in our database
             await add_telegram_message(conversation.id, 'assistant', assistant_message)
