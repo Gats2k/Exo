@@ -67,11 +67,16 @@ qwen_client = OpenAI(
     base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 )
 
+# Le client Gemini ne peut pas utiliser OpenAI directement (APIs incompatibles)
+# Nous utiliserons une fonction spéciale pour gérer les requêtes Gemini
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
 DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
 DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
 QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
+GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -100,7 +105,69 @@ def get_system_instructions():
         return DEEPSEEK_REASONER_INSTRUCTIONS
     elif CURRENT_MODEL == 'qwen':
         return QWEN_INSTRUCTIONS
+    elif CURRENT_MODEL == 'gemini':
+        return GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
+
+def call_gemini_api(messages):
+    """
+    Call the Gemini API with the provided messages.
+    
+    Args:
+        messages: List of message dictionaries with 'role' and 'content'
+        
+    Returns:
+        The assistant's response content
+    """
+    import json
+    import requests
+    
+    # Format messages for Gemini API
+    gemini_messages = []
+    
+    # Extract the system message if it exists
+    system_content = None
+    for msg in messages:
+        if msg['role'] == 'system':
+            system_content = msg['content']
+            break
+    
+    # Process the conversation messages (excluding system message)
+    contents = []
+    for msg in messages:
+        if msg['role'] != 'system':
+            role = "user" if msg['role'] == 'user' else "model"
+            contents.append({
+                "parts": [{"text": msg['content']}],
+                "role": role
+            })
+    
+    # Add system message as a special prefix to the first user message if it exists
+    if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
+        contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
+        
+    # Prepare the API request
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    data = {"contents": contents}
+    
+    # Make the API request
+    response = requests.post(api_url, headers=headers, json=data)
+    
+    if response.status_code != 200:
+        logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+        raise Exception(f"Error from Gemini API: {response.status_code}")
+    
+    # Parse the response
+    response_json = response.json()
+    
+    # Extract the generated text from the response
+    if 'candidates' in response_json and len(response_json['candidates']) > 0:
+        candidate = response_json['candidates'][0]
+        if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+            return candidate['content']['parts'][0]['text']
+    
+    raise Exception("Failed to get a valid response from Gemini API")
 
 # Initialize LoginManager
 login_manager = LoginManager()
