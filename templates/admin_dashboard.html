@@ -343,31 +343,46 @@
         <!-- Settings Section -->
         <div class="section" id="settings-section" style="display: none;">
             <h1 class="section-title">Configuration du Modèle IA</h1>
-            <p class="section-description">Sélectionnez et configurez le modèle d'intelligence artificielle utilisé par le chatbot.</p>
+            <p class="section-description">Sélectionnez et configurez les modèles d'intelligence artificielle pour chaque plateforme.</p>
 
-            <!-- AI Model Configuration -->
-            <div class="ai-config-card">
+            <!-- Platform Tabs -->
+            <div class="platform-tabs">
+                <div class="platform-tab active" data-platform="web">
+                    <i class="bi bi-globe"></i> Web
+                </div>
+                <div class="platform-tab" data-platform="telegram">
+                    <i class="bi bi-telegram"></i> Telegram
+                </div>
+                <div class="platform-tab" data-platform="whatsapp">
+                    <i class="bi bi-whatsapp"></i> WhatsApp
+                </div>
+            </div>
 
+            <!-- Web Configuration -->
+            <div class="ai-config-card platform-web active">
+                <div class="platform-header">
+                    <h2><i class="bi bi-globe"></i> Configuration Web</h2>
+                </div>
                 <div class="ai-config-content">
                     <div class="model-selector">
-                        <label for="ai-model">Modèle actuel</label>
-                        <select id="ai-model" class="ai-config-select">
-                            <option value="openai" {% if current_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
-                            <option value="deepseek" {% if current_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
-                            <option value="deepseek-reasoner" {% if current_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
-                            <option value="qwen" {% if current_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
-                            <option value="gemini" {% if current_model == 'gemini' %}selected{% endif %}>Google Gemini 2.0 Flash</option>
+                        <label for="web-ai-model">Modèle pour Web</label>
+                        <select id="web-ai-model" class="ai-config-select" data-platform="web">
+                            <option value="openai" {% if web_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
+                            <option value="deepseek" {% if web_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
+                            <option value="deepseek-reasoner" {% if web_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
+                            <option value="qwen" {% if web_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
+                            <option value="gemini" {% if web_model == 'gemini' %}selected{% endif %}>Google Gemini 2.0 Flash</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
                     </div>
 
-                    <!-- OpenAI Settings -->
-                    <div id="openai-settings" class="model-settings" {% if current_model != 'openai' %}style="display: none;"{% endif %}>
+                    <!-- OpenAI Settings for Web -->
+                    <div id="web-openai-settings" class="model-settings" {% if web_model != 'openai' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Assistant ID</label>
-                            <input type="text" id="openai-assistant-id" class="ai-config-input" 
+                            <input type="text" id="web-openai-assistant-id" class="ai-config-input" 
                                    value="{{ openai_assistant_id }}" readonly>
-                            <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour le chat.</p>
+                            <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour le chat Web.</p>
                         </div>
 
                         <div class="ai-config-group">
@@ -379,18 +394,12 @@
                         </div>
                     </div>
 
-                    <!-- DeepSeek Settings -->
-                    <div id="deepseek-settings" class="model-settings" {% if current_model != 'deepseek' %}style="display: none;"{% endif %}>
-                        <div class="ai-config-group">
-                            <label>Modèle</label>
-                            <input type="text" class="ai-config-input" value="deepseek-chat" readonly>
-                            <p class="ai-config-help">Le modèle DeepSeek utilisé pour le chat.</p>
-                        </div>
-
+                    <!-- DeepSeek Settings for Web -->
+                    <div id="web-deepseek-settings" class="model-settings" {% if web_model != 'deepseek' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Instructions personnalisées</label>
-                            <textarea id="deepseek-instructions" class="ai-config-input" rows="4" 
-                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ deepseek_instructions }}</textarea>
+                            <textarea id="web-deepseek-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.web.deepseek }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
@@ -403,18 +412,12 @@
                         </div>
                     </div>
 
-                    <!-- DeepSeek Reasoner Settings -->
-                    <div id="deepseek-reasoner-settings" class="model-settings" {% if current_model != 'deepseek-reasoner' %}style="display: none;"{% endif %}>
-                        <div class="ai-config-group">
-                            <label>Modèle</label>
-                            <input type="text" class="ai-config-input" value="deepseek-reasoner" readonly>
-                            <p class="ai-config-help">Le modèle DeepSeek Reasoner, optimisé pour le raisonnement.</p>
-                        </div>
-
+                    <!-- DeepSeek Reasoner Settings for Web -->
+                    <div id="web-deepseek-reasoner-settings" class="model-settings" {% if web_model != 'deepseek-reasoner' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Instructions personnalisées</label>
-                            <textarea id="deepseek-reasoner-instructions" class="ai-config-input" rows="4" 
-                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ deepseek_reasoner_instructions }}</textarea>
+                            <textarea id="web-deepseek-reasoner-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.web.deepseek_reasoner }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
@@ -427,18 +430,12 @@
                         </div>
                     </div>
 
-                    <!-- Qwen Max Settings -->
-                    <div id="qwen-settings" class="model-settings" {% if current_model != 'qwen' %}style="display: none;"{% endif %}>
-                        <div class="ai-config-group">
-                            <label>Modèle</label>
-                            <input type="text" class="ai-config-input" value="qwen-max" readonly>
-                            <p class="ai-config-help">Le modèle Qwen Max d'Alibaba Cloud, offrant des performances avancées.</p>
-                        </div>
-
+                    <!-- Qwen Settings for Web -->
+                    <div id="web-qwen-settings" class="model-settings" {% if web_model != 'qwen' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Instructions personnalisées</label>
-                            <textarea id="qwen-instructions" class="ai-config-input" rows="4" 
-                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ qwen_instructions }}</textarea>
+                            <textarea id="web-qwen-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.web.qwen }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
@@ -450,19 +447,13 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Gemini Settings -->
-                    <div id="gemini-settings" class="model-settings" {% if current_model != 'gemini' %}style="display: none;"{% endif %}>
-                        <div class="ai-config-group">
-                            <label>Modèle</label>
-                            <input type="text" class="ai-config-input" value="gemini-2.0-flash" readonly>
-                            <p class="ai-config-help">Le modèle Gemini 2.0 Flash de Google, rapide et efficace.</p>
-                        </div>
 
+                    <!-- Gemini Settings for Web -->
+                    <div id="web-gemini-settings" class="model-settings" {% if web_model != 'gemini' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Instructions personnalisées</label>
-                            <textarea id="gemini-instructions" class="ai-config-input" rows="4" 
-                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ gemini_instructions }}</textarea>
+                            <textarea id="web-gemini-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.web.gemini }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
@@ -473,14 +464,242 @@
                                 <span class="status-text">Connecté</span>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="save-settings">
+                        <button id="save-web-settings" class="save-button" data-platform="web">
+                            <i class="bi bi-check-circle"></i> Enregistrer les modifications
+                        </button>
                     </div>
                 </div>
+            </div>
 
-                <div class="ai-config-footer">
-                    <button id="save-ai-settings" class="ai-config-button">
-                        <i class="bi bi-check2"></i>
-                        Sauvegarder les modifications
-                    </button>
+            <!-- Telegram Configuration -->
+            <div class="ai-config-card platform-telegram">
+                <div class="platform-header">
+                    <h2><i class="bi bi-telegram"></i> Configuration Telegram</h2>
+                </div>
+                <div class="ai-config-content">
+                    <div class="model-selector">
+                        <label for="telegram-ai-model">Modèle pour Telegram</label>
+                        <select id="telegram-ai-model" class="ai-config-select" data-platform="telegram">
+                            <option value="openai" {% if telegram_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
+                            <option value="deepseek" {% if telegram_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
+                            <option value="deepseek-reasoner" {% if telegram_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
+                            <option value="qwen" {% if telegram_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
+                            <option value="gemini" {% if telegram_model == 'gemini' %}selected{% endif %}>Google Gemini 2.0 Flash</option>
+                            <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
+                        </select>
+                    </div>
+
+                    <!-- Model settings containers for Telegram -->
+                    <div id="telegram-openai-settings" class="model-settings" {% if telegram_model != 'openai' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Assistant ID</label>
+                            <input type="text" id="telegram-openai-assistant-id" class="ai-config-input" 
+                                   value="{{ openai_assistant_id }}" readonly>
+                            <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour Telegram.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DeepSeek Settings for Telegram -->
+                    <div id="telegram-deepseek-settings" class="model-settings" {% if telegram_model != 'deepseek' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="telegram-deepseek-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.telegram.deepseek }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DeepSeek Reasoner Settings for Telegram -->
+                    <div id="telegram-deepseek-reasoner-settings" class="model-settings" {% if telegram_model != 'deepseek-reasoner' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="telegram-deepseek-reasoner-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.telegram.deepseek_reasoner }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other model settings for Telegram -->
+                    <div id="telegram-qwen-settings" class="model-settings" {% if telegram_model != 'qwen' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="telegram-qwen-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.telegram.qwen }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="telegram-gemini-settings" class="model-settings" {% if telegram_model != 'gemini' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="telegram-gemini-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.telegram.gemini }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="save-settings">
+                        <button id="save-telegram-settings" class="save-button" data-platform="telegram">
+                            <i class="bi bi-check-circle"></i> Enregistrer les modifications
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp Configuration -->
+            <div class="ai-config-card platform-whatsapp">
+                <div class="platform-header">
+                    <h2><i class="bi bi-whatsapp"></i> Configuration WhatsApp</h2>
+                </div>
+                <div class="ai-config-content">
+                    <div class="model-selector">
+                        <label for="whatsapp-ai-model">Modèle pour WhatsApp</label>
+                        <select id="whatsapp-ai-model" class="ai-config-select" data-platform="whatsapp">
+                            <option value="openai" {% if whatsapp_model == 'openai' %}selected{% endif %}>OpenAI (GPT)</option>
+                            <option value="deepseek" {% if whatsapp_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
+                            <option value="deepseek-reasoner" {% if whatsapp_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
+                            <option value="qwen" {% if whatsapp_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
+                            <option value="gemini" {% if whatsapp_model == 'gemini' %}selected{% endif %}>Google Gemini 2.0 Flash</option>
+                            <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
+                        </select>
+                    </div>
+
+                    <!-- Model settings containers for WhatsApp -->
+                    <div id="whatsapp-openai-settings" class="model-settings" {% if whatsapp_model != 'openai' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Assistant ID</label>
+                            <input type="text" id="whatsapp-openai-assistant-id" class="ai-config-input" 
+                                   value="{{ openai_assistant_id }}" readonly>
+                            <p class="ai-config-help">L'ID de l'assistant OpenAI utilisé pour WhatsApp.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DeepSeek Settings for WhatsApp -->
+                    <div id="whatsapp-deepseek-settings" class="model-settings" {% if whatsapp_model != 'deepseek' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="whatsapp-deepseek-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.whatsapp.deepseek }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other model settings for WhatsApp -->
+                    <div id="whatsapp-deepseek-reasoner-settings" class="model-settings" {% if whatsapp_model != 'deepseek-reasoner' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="whatsapp-deepseek-reasoner-instructions" class="ai-config-input" rows="4" 
+                                      placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.whatsapp.deepseek_reasoner }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="whatsapp-qwen-settings" class="model-settings" {% if whatsapp_model != 'qwen' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="whatsapp-qwen-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.whatsapp.qwen }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="whatsapp-gemini-settings" class="model-settings" {% if whatsapp_model != 'gemini' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="whatsapp-gemini-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ platform_instructions.whatsapp.gemini }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="save-settings">
+                        <button id="save-whatsapp-settings" class="save-button" data-platform="whatsapp">
+                            <i class="bi bi-check-circle"></i> Enregistrer les modifications
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

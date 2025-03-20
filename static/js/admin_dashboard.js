@@ -1093,64 +1093,98 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// AI Model Settings
-document.getElementById('ai-model').addEventListener('change', function(e) {
-    const selectedModel = e.target.value;
-    const openaiSettings = document.getElementById('openai-settings');
-    const deepseekSettings = document.getElementById('deepseek-settings');
-    const deepseekReasonerSettings = document.getElementById('deepseek-reasoner-settings');
-    const qwenSettings = document.getElementById('qwen-settings');
-    const geminiSettings = document.getElementById('gemini-settings');
-
-    // Update visibility of settings panels
-    openaiSettings.style.display = selectedModel === 'openai' ? 'block' : 'none';
-    deepseekSettings.style.display = selectedModel === 'deepseek' ? 'block' : 'none';
-    deepseekReasonerSettings.style.display = selectedModel === 'deepseek-reasoner' ? 'block' : 'none';
-    qwenSettings.style.display = selectedModel === 'qwen' ? 'block' : 'none';
-    geminiSettings.style.display = selectedModel === 'gemini' ? 'block' : 'none';
+// Platform Tabs
+document.querySelectorAll('.platform-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        // Get the platform from the data attribute
+        const platform = this.getAttribute('data-platform');
+        
+        // Remove active class from all tabs
+        document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+        
+        // Add active class to the clicked tab
+        this.classList.add('active');
+        
+        // Hide all platform config cards
+        document.querySelectorAll('.ai-config-card').forEach(card => card.classList.remove('active'));
+        
+        // Show the selected platform config card
+        document.querySelector(`.platform-${platform}`).classList.add('active');
+    });
 });
 
-// Save AI Model Settings
-document.getElementById('save-ai-settings').addEventListener('click', function() {
-    const selectedModel = document.getElementById('ai-model').value;
-    let data = {
-        model: selectedModel
-    };
+// Platform-specific model settings
+const platforms = ['web', 'telegram', 'whatsapp'];
 
-    // Add instructions based on selected model
-    if (selectedModel === 'deepseek') {
-        const instructions = document.getElementById('deepseek-instructions').value;
-        data.instructions = instructions;
-    } else if (selectedModel === 'deepseek-reasoner') {
-        const instructions = document.getElementById('deepseek-reasoner-instructions').value;
-        data.instructions = instructions;
-    } else if (selectedModel === 'qwen') {
-        const instructions = document.getElementById('qwen-instructions').value;
-        data.instructions = instructions;
-    } else if (selectedModel === 'gemini') {
-        const instructions = document.getElementById('gemini-instructions').value;
-        data.instructions = instructions;
+// Add change event listeners for each platform's model selector
+platforms.forEach(platform => {
+    // Add model change event listeners
+    const modelSelector = document.getElementById(`${platform}-ai-model`);
+    if (modelSelector) {
+        modelSelector.addEventListener('change', function(e) {
+            const selectedModel = e.target.value;
+            
+            // Hide all settings panels for this platform
+            document.querySelectorAll(`[id^="${platform}-"][id$="-settings"]`).forEach(panel => {
+                panel.style.display = 'none';
+            });
+            
+            // Show the selected model's settings panel
+            const settingsPanel = document.getElementById(`${platform}-${selectedModel}-settings`);
+            if (settingsPanel) {
+                settingsPanel.style.display = 'block';
+            }
+        });
     }
-
-    fetch('/admin/settings/model', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
-        } else {
-            showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
-    });
+    
+    // Add save button event listeners
+    const saveButton = document.getElementById(`save-${platform}-settings`);
+    if (saveButton) {
+        saveButton.addEventListener('click', function() {
+            const selectedModel = document.getElementById(`${platform}-ai-model`).value;
+            let data = {
+                platform: platform,
+                model: selectedModel
+            };
+            
+            // Add instructions based on selected model
+            if (selectedModel === 'deepseek') {
+                const instructions = document.getElementById(`${platform}-deepseek-instructions`).value;
+                data.instructions = instructions;
+            } else if (selectedModel === 'deepseek-reasoner') {
+                const instructions = document.getElementById(`${platform}-deepseek-reasoner-instructions`).value;
+                data.instructions = instructions;
+            } else if (selectedModel === 'qwen') {
+                const instructions = document.getElementById(`${platform}-qwen-instructions`).value;
+                data.instructions = instructions;
+            } else if (selectedModel === 'gemini') {
+                const instructions = document.getElementById(`${platform}-gemini-instructions`).value;
+                data.instructions = instructions;
+            }
+            
+            // Send the settings to the server
+            fetch('/admin/settings/model', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(responseData => {
+                if (responseData.success) {
+                    showNotification(`Les paramètres ${platform.toUpperCase()} ont été sauvegardés avec succès`, 'success');
+                } else {
+                    showNotification(`Une erreur est survenue lors de la sauvegarde des paramètres ${platform.toUpperCase()}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification(`Une erreur est survenue lors de la sauvegarde des paramètres ${platform.toUpperCase()}`, 'error');
+            });
+        });
+    }
+});
 });
 
 // Helper function to show notifications
