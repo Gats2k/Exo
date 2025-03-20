@@ -717,7 +717,8 @@ def admin_dashboard():
             current_model=CURRENT_MODEL,  # Add current model selection
             deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
             deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
-            qwen_instructions=QWEN_INSTRUCTIONS  # Add Qwen instructions
+            qwen_instructions=QWEN_INSTRUCTIONS,  # Add Qwen instructions
+            gemini_instructions=GEMINI_INSTRUCTIONS  # Add Gemini instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
@@ -757,7 +758,7 @@ def update_model_settings():
             os.environ['QWEN_INSTRUCTIONS'] = instructions
         elif model == 'gemini' and instructions:
             GEMINI_INSTRUCTIONS = instructions
-            os.environ['GEMINI_INSTRUCTIONS'] = instructions = instructions
+            os.environ['GEMINI_INSTRUCTIONS'] = instructions
 
         # Write to .env file for persistence
         env_path = '.env'
