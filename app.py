@@ -777,6 +777,12 @@ def update_model_settings():
         elif model == 'gemini' and instructions:
             GEMINI_INSTRUCTIONS = instructions
             os.environ['GEMINI_INSTRUCTIONS'] = instructions
+            
+        # Broadcast model settings changed event to all connected clients
+        socketio.emit('model_settings_updated', {
+            'model': model,
+            'timestamp': datetime.utcnow().isoformat()
+        })
 
         # Write to .env file for persistence
         env_path = '.env'

@@ -71,29 +71,47 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
     try:
         with db_retry_session() as session:
             logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
-            user = TelegramUser.query.get(user_id)
+            
+            # Utiliser une requête directe pour éviter les problèmes de colonnes
+            user = session.query(TelegramUser).filter(TelegramUser.telegram_id == user_id).first()
+            
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
-                user = TelegramUser(
-                    telegram_id=user_id,
-                    first_name=first_name or "---",
-                    last_name=last_name or "---"
-                )
+                try:
+                    # Essayer d'abord avec last_name
+                    user = TelegramUser(
+                        telegram_id=user_id,
+                        first_name=first_name or "---",
+                        last_name=last_name or "---"
+                    )
+                except Exception as create_error:
+                    logger.warning(f"Error creating user with last_name: {str(create_error)}")
+                    # Essayer sans last_name si ça échoue
+                    user = TelegramUser(
+                        telegram_id=user_id,
+                        first_name=first_name or "---"
+                    )
                 session.add(user)
                 session.commit()
-                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name})")
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
                 if first_name and user.first_name != first_name:
                     user.first_name = first_name
                     updated = True
-                if last_name and user.last_name != last_name:
-                    user.last_name = last_name
-                    updated = True
+                
+                # Essayer de mettre à jour last_name de manière sécurisée
+                try:
+                    if last_name and hasattr(user, 'last_name') and user.last_name != last_name:
+                        user.last_name = last_name
+                        updated = True
+                except Exception as last_name_error:
+                    logger.warning(f"Error updating last_name: {str(last_name_error)}")
+                
                 if updated:
                     session.commit()
-                    logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
+                    logger.info(f"Updated user {user_id} with new information")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
             return user
     except Exception as e:
