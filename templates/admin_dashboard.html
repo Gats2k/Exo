@@ -356,6 +356,7 @@
                             <option value="deepseek" {% if current_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
                             <option value="deepseek-reasoner" {% if current_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
                             <option value="qwen" {% if current_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
+                            <option value="gemini" {% if current_model == 'gemini' %}selected{% endif %}>Google Gemini 2.0 Flash</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
                     </div>
@@ -438,6 +439,30 @@
                             <label>Instructions personnalisées</label>
                             <textarea id="qwen-instructions" class="ai-config-input" rows="4" 
                                     placeholder="Entrez des instructions personnalisées pour le modèle...">{{ qwen_instructions }}</textarea>
+                            <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Statut de l'API</label>
+                            <div class="api-status">
+                                <span class="status-indicator active"></span>
+                                <span class="status-text">Connecté</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Gemini Settings -->
+                    <div id="gemini-settings" class="model-settings" {% if current_model != 'gemini' %}style="display: none;"{% endif %}>
+                        <div class="ai-config-group">
+                            <label>Modèle</label>
+                            <input type="text" class="ai-config-input" value="gemini-2.0-flash" readonly>
+                            <p class="ai-config-help">Le modèle Gemini 2.0 Flash de Google, rapide et efficace.</p>
+                        </div>
+
+                        <div class="ai-config-group">
+                            <label>Instructions personnalisées</label>
+                            <textarea id="gemini-instructions" class="ai-config-input" rows="4" 
+                                    placeholder="Entrez des instructions personnalisées pour le modèle...">{{ gemini_instructions }}</textarea>
                             <p class="ai-config-help">Ces instructions seront utilisées comme contexte système pour guider les réponses du modèle.</p>
                         </div>
 
