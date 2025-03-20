@@ -480,12 +480,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
             # Get the current model selected from dashboard
-            logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
+            current_model = get_current_model()  # Get latest model setting
+            logger.info(f"Using AI model for image processing: {current_model}")
 
             # Different handling based on selected model
             assistant_message = None
 
-            if CURRENT_MODEL == 'openai':
+            if current_model == 'openai':
                 # Send to OpenAI (text only, not image)
                 logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
                 openai_client.beta.threads.messages.create(
@@ -527,7 +528,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 assistant_message = messages.data[0].content[0].text.value
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
-                logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
+                logger.info(f"Using alternative model for image: {current_model} with model name: {get_model_name()}")
                 
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
@@ -557,7 +558,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     })
                 
                 # Use Gemini's special call function if Gemini is selected
-                if CURRENT_MODEL == 'gemini':
+                if current_model == 'gemini':
                     try:
                         assistant_message = call_gemini_api(previous_messages)
                     except Exception as e:
@@ -576,7 +577,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         assistant_message = response.choices[0].message.content
                     except Exception as e:
-                        logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
+                        logger.error(f"Error calling AI API ({current_model}) for image processing: {str(e)}")
                         raise
 
             # Store the assistant's response in our database
@@ -646,7 +647,8 @@ def run_telegram_bot():
             return
 
         # Log current configuration
-        logger.info(f"Telegram bot starting with model: {CURRENT_MODEL}")
+        current_model = get_current_model()  # Get latest model setting
+        logger.info(f"Telegram bot starting with model: {current_model}")
         logger.info(f"System instructions: {get_system_instructions()}")
 
         # Create new event loop for this thread
