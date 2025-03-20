@@ -1,13 +1,9 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 from dotenv import load_dotenv
 # Load environment variables before any other imports
 load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
-# Removed flask_socketio import to avoid dependency conflicts
 import json  # For working with configuration files instead
 from openai import OpenAI
 from werkzeug.utils import secure_filename
@@ -54,18 +50,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 from database import db
 db.init_app(app)
 
-# Creating REST API endpoints instead of using SocketIO
-# socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 # Création d'un dictionnaire pour stocker l'état global
 app_state = {
     'last_model_update': datetime.utcnow().isoformat()
 }
-
-# Helper function for socket.io replacement
-def emit(event, data):
-    """Dummy emission function for compatibility"""
-    logger.debug(f"Would emit {event}: {data}")
-    return None
 
 # Initialize OpenAI clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -433,8 +421,10 @@ def handle_message():
 
                     while True:
                         if time.time() - start_time > timeout:
-                            emit('receive_message', {'message': 'Request timed out.'})
-                            return
+                            return jsonify({
+                                'success': False,
+                                'message': 'Request timed out.'
+                            }), 408
 
                         run_status = ai_client.beta.threads.runs.retrieve(
                             thread_id=conversation.thread_id,
@@ -444,8 +434,10 @@ def handle_message():
                         if run_status.status == 'completed':
                             break
                         elif run_status.status == 'failed':
-                            emit('receive_message', {'message': 'Sorry, there was an error.'})
-                            return
+                            return jsonify({
+                                'success': False,
+                                'message': 'Sorry, there was an error processing your request.'
+                            }), 500
 
                         eventlet.sleep(1)
 
@@ -515,8 +507,10 @@ def handle_message():
 
                 while True:
                     if time.time() - start_time > timeout:
-                        emit('receive_message', {'message': 'Request timed out.'})
-                        return
+                        return jsonify({
+                            'success': False,
+                            'message': 'Request timed out.'
+                        }), 408
 
                     run_status = ai_client.beta.threads.runs.retrieve(
                         thread_id=conversation.thread_id,
@@ -526,8 +520,10 @@ def handle_message():
                     if run_status.status == 'completed':
                         break
                     elif run_status.status == 'failed':
-                        emit('receive_message', {'message': 'Sorry, there was an error.'})
-                        return
+                        return jsonify({
+                            'success': False,
+                            'message': 'Sorry, there was an error processing your request.'
+                        }), 500
 
                     eventlet.sleep(1)
 
