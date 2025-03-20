@@ -217,7 +217,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = user_threads[user_id]
             if not thread_id:
                 # Create a new thread ID
-                if CURRENT_MODEL == 'openai':
+                current_model = get_current_model()  # Get latest model setting
+                if current_model == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
@@ -379,7 +380,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thread_id = user_threads[user_id]
             if not thread_id:
                 # Create a new thread ID
-                if CURRENT_MODEL == 'openai':
+                current_model = get_current_model()  # Get latest model setting
+                if current_model == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
