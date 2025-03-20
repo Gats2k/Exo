@@ -258,7 +258,7 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None):
+def get_or_create_conversation(thread_id=None, platform='web'):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -266,8 +266,10 @@ def get_or_create_conversation(thread_id=None):
                 return conversation
 
         # Create new thread and conversation
-        client = get_ai_client()
-        if CURRENT_MODEL == 'openai':
+        client = get_ai_client(platform)
+        model = PLATFORM_MODELS.get(platform, 'openai')
+        
+        if model == 'openai':
             # Only create thread for OpenAI
             thread = client.beta.threads.create()
             thread_id = thread.id
@@ -315,13 +317,13 @@ def chat():
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
-def get_interleaved_messages(conversation_id, current_message=None):
+def get_interleaved_messages(conversation_id, current_message=None, platform='web'):
     """Returns properly interleaved messages for DeepSeek Reasoner"""
     messages = Message.query.filter_by(conversation_id=conversation_id)\
         .order_by(Message.created_at).all()
 
-    # Start with system message
-    formatted_messages = [{"role": "system", "content": get_system_instructions()}]
+    # Start with system message based on platform
+    formatted_messages = [{"role": "system", "content": get_system_instructions(platform)}]
 
     # Process past messages ensuring alternation
     prev_role = None
@@ -358,8 +360,9 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Get the appropriate AI client based on current model setting
-        ai_client = get_ai_client()
+        # Get the appropriate AI client based on platform (web for socket.io)
+        ai_client = get_ai_client('web')
+        platform_model = PLATFORM_MODELS.get('web', 'openai')
 
         # Variables to store Mathpix results
         mathpix_result = None
@@ -401,15 +404,15 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                if platform_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
-                    if CURRENT_MODEL == 'deepseek-reasoner':
-                        messages = get_interleaved_messages(conversation.id, message_for_assistant)
+                    if platform_model == 'deepseek-reasoner':
+                        messages = get_interleaved_messages(conversation.id, message_for_assistant, 'web')
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
-                        messages = [{"role": "system", "content": get_system_instructions()}]
+                        messages = [{"role": "system", "content": get_system_instructions('web')}]
                         for msg in conversation_messages:
                             messages.append({
                                 "role": msg.role,
@@ -420,13 +423,13 @@ def handle_message(data):
                             "content": message_for_assistant
                         })
 
-                    if CURRENT_MODEL == 'gemini':
+                    if platform_model == 'gemini':
                         # Send to Gemini AI service
                         assistant_message = call_gemini_api(messages)
                     else:
                         # Send to AI service (DeepSeek or Qwen)
                         response = ai_client.chat.completions.create(
-                            model=get_model_name(),
+                            model=get_model_name('web'),
                             messages=messages,
                             stream=False
                         )
@@ -483,15 +486,15 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            if platform_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages based on model
-                if CURRENT_MODEL == 'deepseek-reasoner':
-                    messages = get_interleaved_messages(conversation.id, data.get('message', ''))
+                if platform_model == 'deepseek-reasoner':
+                    messages = get_interleaved_messages(conversation.id, data.get('message', ''), 'web')
                 else:
                     # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                     conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                         .order_by(Message.created_at).all()
-                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    messages = [{"role": "system", "content": get_system_instructions('web')}]
                     for msg in conversation_messages:
                         messages.append({
                             "role": msg.role,
@@ -502,13 +505,13 @@ def handle_message(data):
                         "content": data.get('message', '')
                     })
 
-                if CURRENT_MODEL == 'gemini':
+                if platform_model == 'gemini':
                     # Send to Gemini AI service
                     assistant_message = call_gemini_api(messages)
                 else:
                     # Send to AI service (DeepSeek or Qwen)
                     response = ai_client.chat.completions.create(
-                        model=get_model_name(),
+                        model=get_model_name('web'),
                         messages=messages,
                         stream=False
                     )
@@ -754,6 +757,33 @@ def admin_dashboard():
         # Get OpenAI Assistant ID for settings
         openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'Non configuré')
 
+        # Get platform-specific model settings
+        web_model = PLATFORM_MODELS.get('web', CURRENT_MODEL)  # Fallback to legacy CURRENT_MODEL
+        telegram_model = PLATFORM_MODELS.get('telegram', 'openai')
+        whatsapp_model = PLATFORM_MODELS.get('whatsapp', 'openai')
+
+        # Get platform-specific instructions
+        platform_instructions = {
+            'web': {
+                'deepseek': PLATFORM_INSTRUCTIONS.get('web', {}).get('deepseek', DEEPSEEK_INSTRUCTIONS),
+                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('web', {}).get('deepseek-reasoner', DEEPSEEK_REASONER_INSTRUCTIONS),
+                'qwen': PLATFORM_INSTRUCTIONS.get('web', {}).get('qwen', QWEN_INSTRUCTIONS),
+                'gemini': PLATFORM_INSTRUCTIONS.get('web', {}).get('gemini', GEMINI_INSTRUCTIONS)
+            },
+            'telegram': {
+                'deepseek': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('deepseek', ''),
+                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('deepseek-reasoner', ''),
+                'qwen': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('qwen', ''),
+                'gemini': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('gemini', '')
+            },
+            'whatsapp': {
+                'deepseek': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('deepseek', ''),
+                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('deepseek-reasoner', ''),
+                'qwen': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('qwen', ''),
+                'gemini': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('gemini', '')
+            }
+        }
+
         return render_template(
             'admin_dashboard.html',
             active_users=active_users,
@@ -762,11 +792,18 @@ def admin_dashboard():
             satisfaction_rate=satisfaction_rate,
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
-            current_model=CURRENT_MODEL,  # Add current model selection
-            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
-            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
-            qwen_instructions=QWEN_INSTRUCTIONS,  # Add Qwen instructions
-            gemini_instructions=GEMINI_INSTRUCTIONS  # Add Gemini instructions
+            # Add platform-specific model selections
+            web_model=web_model,
+            telegram_model=telegram_model,
+            whatsapp_model=whatsapp_model,
+            # Add platform-specific instructions
+            platform_instructions=platform_instructions,
+            # For backward compatibility
+            current_model=CURRENT_MODEL,
+            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,
+            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,
+            qwen_instructions=QWEN_INSTRUCTIONS,
+            gemini_instructions=GEMINI_INSTRUCTIONS
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
