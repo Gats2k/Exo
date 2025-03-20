@@ -175,7 +175,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
-    last_name = update.effective_user.last_name
+    last_name = update.effective_user.last_name or ""  # Handle None values
     logger.info(f"Processing message from user {user_id} ({first_name} {last_name})")
 
     try:
@@ -183,12 +183,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
+        # Ensure user_threads dict is initialized for this user
+        if user_id not in user_threads:
+            user_threads[user_id] = None
+
         with db_retry_session() as session:
             # Get or create thread ID for this user
             thread_id = user_threads[user_id]
             if not thread_id:
-                thread = openai_client.beta.threads.create()
-                thread_id = thread.id
+                # Create a new thread ID
+                if CURRENT_MODEL == 'openai':
+                    thread = openai_client.beta.threads.create()
+                    thread_id = thread.id
+                else:
+                    # For other models, create a unique thread ID
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
+                
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
                 # Create a new conversation in our database
@@ -214,7 +224,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             # Get the current model selected from dashboard
-            logger.info(f"Using AI model: {CURRENT_MODEL}")
+            logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
 
             # Different handling based on selected model
             assistant_message = None
@@ -321,11 +331,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
-    last_name = update.effective_user.last_name
+    last_name = update.effective_user.last_name or ""  # Handle None values
     try:
         # Get or create user first
         user = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
+
+        # Ensure user_threads dict is initialized for this user
+        if user_id not in user_threads:
+            user_threads[user_id] = None
 
         with db_retry_session() as session:
             logger.info(f"Receiving photo from user {user_id}")
@@ -337,8 +351,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Get or create thread ID for this user
             thread_id = user_threads[user_id]
             if not thread_id:
-                thread = openai_client.beta.threads.create()
-                thread_id = thread.id
+                # Create a new thread ID
+                if CURRENT_MODEL == 'openai':
+                    thread = openai_client.beta.threads.create()
+                    thread_id = thread.id
+                else:
+                    # For other models, create a unique thread ID
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
+                
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
                 # Create a new conversation in our database
