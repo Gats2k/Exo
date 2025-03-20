@@ -62,15 +62,25 @@ deepseek_client = OpenAI(
     api_key=os.getenv('DEEPSEEK_API_KEY'),
     base_url="https://api.deepseek.com"
 )
+qwen_client = OpenAI(
+    api_key=os.getenv('DASHSCOPE_API_KEY'),
+    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+)
 
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
 DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
 DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
+QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
-    return deepseek_client if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner'] else openai_client
+    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
+        return deepseek_client
+    elif CURRENT_MODEL == 'qwen':
+        return qwen_client
+    else:
+        return openai_client  # Default to OpenAI
 
 def get_model_name():
     """Returns the appropriate model name based on the current model setting"""
@@ -78,6 +88,8 @@ def get_model_name():
         return "deepseek-chat"
     elif CURRENT_MODEL == 'deepseek-reasoner':
         return "deepseek-reasoner"
+    elif CURRENT_MODEL == 'qwen':
+        return "qwen-max"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
@@ -86,6 +98,8 @@ def get_system_instructions():
         return DEEPSEEK_INSTRUCTIONS
     elif CURRENT_MODEL == 'deepseek-reasoner':
         return DEEPSEEK_REASONER_INSTRUCTIONS
+    elif CURRENT_MODEL == 'qwen':
+        return QWEN_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
 
 # Initialize LoginManager
@@ -270,12 +284,12 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen']:
                     # Get properly formatted messages based on model
                     if CURRENT_MODEL == 'deepseek-reasoner':
                         messages = get_interleaved_messages(conversation.id, message_for_assistant)
                     else:
-                        # Regular DeepSeek chat can handle all messages
+                        # Regular DeepSeek chat and Qwen can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
                         messages = [{"role": "system", "content": get_system_instructions()}]
@@ -289,7 +303,7 @@ def handle_message(data):
                             "content": message_for_assistant
                         })
 
-                    # Send to DeepSeek
+                    # Send to AI service (DeepSeek or Qwen)
                     response = ai_client.chat.completions.create(
                         model=get_model_name(),
                         messages=messages,
@@ -348,12 +362,12 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen']:
                 # Get properly formatted messages based on model
                 if CURRENT_MODEL == 'deepseek-reasoner':
                     messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                 else:
-                    # Regular DeepSeek chat can handle all messages
+                    # Regular DeepSeek chat and Qwen can handle all messages
                     conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                         .order_by(Message.created_at).all()
                     messages = [{"role": "system", "content": get_system_instructions()}]
@@ -367,7 +381,7 @@ def handle_message(data):
                         "content": data.get('message', '')
                     })
 
-                # Send to DeepSeek
+                # Send to AI service (DeepSeek or Qwen)
                 response = ai_client.chat.completions.create(
                     model=get_model_name(),
                     messages=messages,
@@ -643,23 +657,26 @@ def update_model_settings():
         model = data.get('model')
         instructions = data.get('instructions')
 
-        if model not in ['openai', 'deepseek', 'deepseek-reasoner']:
+        if model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']:
             return jsonify({'error': 'Invalid model selection'}), 400
 
         # Update the current model
-        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS
+        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS
         CURRENT_MODEL = model
 
         # Update environment variables for persistence
         os.environ['CURRENT_MODEL'] = model
 
-        # Update instructions if provided and model is deepseek or deepseek-reasoner
+        # Update instructions if provided based on the model selected
         if model == 'deepseek' and instructions:
             DEEPSEEK_INSTRUCTIONS = instructions
             os.environ['DEEPSEEK_INSTRUCTIONS'] = instructions
         elif model == 'deepseek-reasoner' and instructions:
             DEEPSEEK_REASONER_INSTRUCTIONS = instructions
             os.environ['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+        elif model == 'qwen' and instructions:
+            QWEN_INSTRUCTIONS = instructions
+            os.environ['QWEN_INSTRUCTIONS'] = instructions
 
         # Write to .env file for persistence
         env_path = '.env'
@@ -679,6 +696,8 @@ def update_model_settings():
             env_vars['DEEPSEEK_INSTRUCTIONS'] = instructions
         elif model == 'deepseek-reasoner' and instructions:
             env_vars['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+        elif model == 'qwen' and instructions:
+            env_vars['QWEN_INSTRUCTIONS'] = instructions
 
         # Write back to .env
         with open(env_path, 'w') as f:
