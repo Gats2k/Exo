@@ -89,27 +89,63 @@ def get_ai_client():
 
 def get_model_name():
     """Returns the appropriate model name based on the current model setting"""
-    if CURRENT_MODEL == 'deepseek':
+    current_model = get_current_model()  # Utiliser la fonction dynamique
+
+    if current_model == 'deepseek':
         return "deepseek-chat"
-    elif CURRENT_MODEL == 'deepseek-reasoner':
+    elif current_model == 'deepseek-reasoner':
         return "deepseek-reasoner"
-    elif CURRENT_MODEL == 'qwen':
+    elif current_model == 'qwen':
         return "qwen-max"
-    elif CURRENT_MODEL == 'gemini':
+    elif current_model == 'gemini':
         return "gemini-2.0-flash"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
     """Returns the appropriate system instructions based on the current model setting"""
-    if CURRENT_MODEL == 'deepseek':
-        return DEEPSEEK_INSTRUCTIONS
-    elif CURRENT_MODEL == 'deepseek-reasoner':
-        return DEEPSEEK_REASONER_INSTRUCTIONS
-    elif CURRENT_MODEL == 'qwen':
-        return QWEN_INSTRUCTIONS
-    elif CURRENT_MODEL == 'gemini':
-        return GEMINI_INSTRUCTIONS
+    # Import dynamiquement à chaque appel
+    import importlib
+    app_module = importlib.import_module('app')
+    importlib.reload(app_module)
+
+    current_model = get_current_model()
+
+    if current_model == 'deepseek':
+        return app_module.DEEPSEEK_INSTRUCTIONS
+    elif current_model == 'deepseek-reasoner':
+        return app_module.DEEPSEEK_REASONER_INSTRUCTIONS
+    elif current_model == 'qwen':
+        return app_module.QWEN_INSTRUCTIONS
+    elif current_model == 'gemini':
+        return app_module.GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
+
+def setup_model_change_listener():
+    """
+    Configure un écouteur pour détecter les changements de modèle en temps réel
+    Cette fonction doit être appelée au démarrage du bot
+    """
+    try:
+        from flask_socketio import SocketIO
+        import eventlet
+
+        # Créer un client SocketIO pour se connecter au serveur Flask
+        socket_client = SocketIO(message_queue='redis://')
+
+        def on_model_change(data):
+            logger.info(f"Received model change notification: {data}")
+            # Forcer le rechargement du module app
+            import importlib
+            import app
+            importlib.reload(app)
+            # Log du changement détecté
+            logger.info(f"Model changed to: {get_current_model()} with instructions: {get_system_instructions()}")
+
+        # S'abonner à l'événement de changement de modèle
+        socket_client.on('model_settings_updated', on_model_change)
+        logger.info("Model change listener configured successfully")
+    except Exception as e:
+        logger.error(f"Failed to setup model change listener: {str(e)}")
 
 def call_gemini_api(messages):
     """

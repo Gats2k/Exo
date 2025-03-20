@@ -23,20 +23,32 @@ from mathpix_utils import process_image_with_mathpix
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
 from app import (
-    get_db_context, 
-    get_ai_client, 
-    get_model_name, 
-    get_system_instructions,
-    call_gemini_api,
-    app  # Import the app instance to access its context
+get_db_context, 
+get_ai_client,
+get_model_name,
+get_system_instructions,
+call_gemini_api,
+app  # Import the app instance to access its context
 )
 
 # Define getter functions that always access the latest values
 def get_current_model():
     """Get the current AI model setting from the app configuration."""
-    # Always get the current value from environment or app
-    from app import CURRENT_MODEL
-    return CURRENT_MODEL
+    # Import dynamiquement à chaque appel pour toujours avoir la dernière valeur
+    import os
+    import importlib
+
+    # Recharger dynamiquement le module app pour obtenir la valeur actualisée
+    app_module = importlib.import_module('app')
+    importlib.reload(app_module)
+
+    # Vérifier d'abord dans l'environnement (prioritaire)
+    env_model = os.environ.get('CURRENT_MODEL')
+    if env_model:
+        return env_model
+
+    # Sinon utiliser la valeur du module app
+    return app_module.CURRENT_MODEL
 
 # Set up logging
 logging.basicConfig(
@@ -641,18 +653,19 @@ def setup_telegram_bot():
         raise
 
 def run_telegram_bot():
-    """Run the Telegram bot."""
     try:
         # Only run if explicitly enabled
         if not os.environ.get('RUN_TELEGRAM_BOT'):
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
-        # Log current configuration
+        # Log current configuration 
         current_model = get_current_model()  # Get latest model setting
         logger.info(f"Telegram bot starting with model: {current_model}")
-        logger.info(f"System instructions: {get_system_instructions()}")
-
+        
+        # Nous n'appelons pas get_system_instructions() ici car elle peut ne pas être disponible
+        # dans ce contexte (importation circulaire potentielle)
+        
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
