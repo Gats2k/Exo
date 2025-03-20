@@ -124,52 +124,70 @@ def call_gemini_api(messages):
     import json
     import requests
     
-    # Format messages for Gemini API
-    gemini_messages = []
+    logger.info(f"Calling Gemini API with {len(messages)} messages")
     
-    # Extract the system message if it exists
-    system_content = None
-    for msg in messages:
-        if msg['role'] == 'system':
-            system_content = msg['content']
-            break
-    
-    # Process the conversation messages (excluding system message)
-    contents = []
-    for msg in messages:
-        if msg['role'] != 'system':
-            role = "user" if msg['role'] == 'user' else "model"
-            contents.append({
-                "parts": [{"text": msg['content']}],
-                "role": role
-            })
-    
-    # Add system message as a special prefix to the first user message if it exists
-    if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
-        contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
+    try:
+        # Format messages for Gemini API
+        gemini_messages = []
         
-    # Prepare the API request
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    data = {"contents": contents}
+        # Extract the system message if it exists
+        system_content = None
+        for msg in messages:
+            if msg['role'] == 'system':
+                system_content = msg['content']
+                break
+        
+        # Process the conversation messages (excluding system message)
+        contents = []
+        for msg in messages:
+            if msg['role'] != 'system':
+                role = "user" if msg['role'] == 'user' else "model"
+                contents.append({
+                    "parts": [{"text": msg['content']}],
+                    "role": role
+                })
+        
+        # Add system message as a special prefix to the first user message if it exists
+        if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
+            contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
+        
+        # Make sure we have at least one message in contents
+        if not contents:
+            contents.append({
+                "parts": [{"text": "Hello"}],
+                "role": "user"
+            })
+        
+        # Prepare the API request
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {'Content-Type': 'application/json'}
+        data = {"contents": contents}
+        
+        logger.info(f"Sending request to Gemini API with {len(contents)} messages")
+        
+        # Make the API request
+        response = requests.post(api_url, headers=headers, json=data)
+        
+        if response.status_code != 200:
+            logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+            return f"I apologize, but I encountered an error communicating with my AI brain. Error: {response.status_code}"
+        
+        # Parse the response
+        response_json = response.json()
+        logger.info("Received response from Gemini API")
+        
+        # Extract the generated text from the response
+        if 'candidates' in response_json and len(response_json['candidates']) > 0:
+            candidate = response_json['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+                return candidate['content']['parts'][0]['text']
+        
+        logger.error(f"Unexpected response structure from Gemini API: {response_json}")
+        return "I apologize, but I received an unexpected response format from my AI brain."
     
-    # Make the API request
-    response = requests.post(api_url, headers=headers, json=data)
-    
-    if response.status_code != 200:
-        logger.error(f"Gemini API error: {response.status_code} - {response.text}")
-        raise Exception(f"Error from Gemini API: {response.status_code}")
-    
-    # Parse the response
-    response_json = response.json()
-    
-    # Extract the generated text from the response
-    if 'candidates' in response_json and len(response_json['candidates']) > 0:
-        candidate = response_json['candidates'][0]
-        if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
-            return candidate['content']['parts'][0]['text']
-    
-    raise Exception("Failed to get a valid response from Gemini API")
+    except Exception as e:
+        logger.error(f"Exception in call_gemini_api: {str(e)}", exc_info=True)
+        return f"I apologize, but I encountered an error processing your request. Error: {str(e)}"
 
 # Initialize LoginManager
 login_manager = LoginManager()
