@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 from app import app
 from telegram_bot import run_telegram_bot
 import threading
