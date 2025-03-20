@@ -95,6 +95,8 @@ def get_model_name():
         return "deepseek-reasoner"
     elif CURRENT_MODEL == 'qwen':
         return "qwen-max"
+    elif CURRENT_MODEL == 'gemini':
+        return "gemini-2.0-flash"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
@@ -351,12 +353,12 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen']:
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
                     if CURRENT_MODEL == 'deepseek-reasoner':
                         messages = get_interleaved_messages(conversation.id, message_for_assistant)
                     else:
-                        # Regular DeepSeek chat and Qwen can handle all messages
+                        # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
                         messages = [{"role": "system", "content": get_system_instructions()}]
@@ -370,13 +372,17 @@ def handle_message(data):
                             "content": message_for_assistant
                         })
 
-                    # Send to AI service (DeepSeek or Qwen)
-                    response = ai_client.chat.completions.create(
-                        model=get_model_name(),
-                        messages=messages,
-                        stream=False
-                    )
-                    assistant_message = response.choices[0].message.content
+                    if CURRENT_MODEL == 'gemini':
+                        # Send to Gemini AI service
+                        assistant_message = call_gemini_api(messages)
+                    else:
+                        # Send to AI service (DeepSeek or Qwen)
+                        response = ai_client.chat.completions.create(
+                            model=get_model_name(),
+                            messages=messages,
+                            stream=False
+                        )
+                        assistant_message = response.choices[0].message.content
                 else:
                     # Use OpenAI's threads API
                     ai_client.beta.threads.messages.create(
@@ -429,12 +435,12 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen']:
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages based on model
                 if CURRENT_MODEL == 'deepseek-reasoner':
                     messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                 else:
-                    # Regular DeepSeek chat and Qwen can handle all messages
+                    # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                     conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                         .order_by(Message.created_at).all()
                     messages = [{"role": "system", "content": get_system_instructions()}]
@@ -448,13 +454,17 @@ def handle_message(data):
                         "content": data.get('message', '')
                     })
 
-                # Send to AI service (DeepSeek or Qwen)
-                response = ai_client.chat.completions.create(
-                    model=get_model_name(),
-                    messages=messages,
-                    stream=False
-                )
-                assistant_message = response.choices[0].message.content
+                if CURRENT_MODEL == 'gemini':
+                    # Send to Gemini AI service
+                    assistant_message = call_gemini_api(messages)
+                else:
+                    # Send to AI service (DeepSeek or Qwen)
+                    response = ai_client.chat.completions.create(
+                        model=get_model_name(),
+                        messages=messages,
+                        stream=False
+                    )
+                    assistant_message = response.choices[0].message.content
             else:
                 # Use OpenAI's threads API
                 ai_client.beta.threads.messages.create(
@@ -725,11 +735,11 @@ def update_model_settings():
         model = data.get('model')
         instructions = data.get('instructions')
 
-        if model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']:
+        if model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
             return jsonify({'error': 'Invalid model selection'}), 400
 
         # Update the current model
-        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS
+        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
         CURRENT_MODEL = model
 
         # Update environment variables for persistence
@@ -745,6 +755,9 @@ def update_model_settings():
         elif model == 'qwen' and instructions:
             QWEN_INSTRUCTIONS = instructions
             os.environ['QWEN_INSTRUCTIONS'] = instructions
+        elif model == 'gemini' and instructions:
+            GEMINI_INSTRUCTIONS = instructions
+            os.environ['GEMINI_INSTRUCTIONS'] = instructions
 
         # Write to .env file for persistence
         env_path = '.env'
@@ -766,6 +779,8 @@ def update_model_settings():
             env_vars['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
         elif model == 'qwen' and instructions:
             env_vars['QWEN_INSTRUCTIONS'] = instructions
+        elif model == 'gemini' and instructions:
+            env_vars['GEMINI_INSTRUCTIONS'] = instructions
 
         # Write back to .env
         with open(env_path, 'w') as f:
