@@ -28,7 +28,8 @@ from app import (
     get_model_name, 
     get_system_instructions,
     call_gemini_api,
-    app  # Import the app instance to access its context
+    app,  # Import the app instance to access its context
+    socketio  # Import socketio for real-time updates
 )
 
 # Define getter functions that always access the latest values
