@@ -34,9 +34,17 @@ from app import (
 # Define getter functions that always access the latest values
 def get_current_model():
     """Get the current AI model setting from the app configuration."""
-    # Always get the current value from environment or app
-    from app import CURRENT_MODEL
-    return CURRENT_MODEL
+    # Always get the current value from the app module directly
+    import app
+    # Access the module's current value, not the imported value
+    return app.CURRENT_MODEL
+
+def get_system_instructions():
+    """Get the current system instructions from the app configuration."""
+    # Always get the current value from the app module directly
+    import app
+    # Access the module's current value, not the imported value
+    return app.get_system_instructions()
 
 # Set up logging
 logging.basicConfig(
