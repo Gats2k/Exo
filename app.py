@@ -71,74 +71,44 @@ qwen_client = OpenAI(
 # Nous utiliserons une fonction spéciale pour gérer les requêtes Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-# Get the current AI models for each platform or default to OpenAI
-# Structure: {platform: model_name}
-PLATFORM_MODELS = {
-    'web': os.environ.get('WEB_MODEL', 'openai'),
-    'telegram': os.environ.get('TELEGRAM_MODEL', 'openai'),
-    'whatsapp': os.environ.get('WHATSAPP_MODEL', 'openai')
-}
+# Get the current AI model from environment or default to OpenAI
+CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
+DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
+QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
+GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
 
-# Store instructions for each model
-PLATFORM_INSTRUCTIONS = {
-    'web': {
-        'deepseek': os.environ.get('WEB_DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant'),
-        'deepseek-reasoner': os.environ.get('WEB_DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving'),
-        'qwen': os.environ.get('WEB_QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers'),
-        'gemini': os.environ.get('WEB_GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
-    },
-    'telegram': {
-        'deepseek': os.environ.get('TELEGRAM_DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant for Telegram'),
-        'deepseek-reasoner': os.environ.get('TELEGRAM_DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving for Telegram'),
-        'qwen': os.environ.get('TELEGRAM_QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers for Telegram'),
-        'gemini': os.environ.get('TELEGRAM_GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly for Telegram')
-    },
-    'whatsapp': {
-        'deepseek': os.environ.get('WHATSAPP_DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant for WhatsApp'),
-        'deepseek-reasoner': os.environ.get('WHATSAPP_DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving for WhatsApp'),
-        'qwen': os.environ.get('WHATSAPP_QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers for WhatsApp'),
-        'gemini': os.environ.get('WHATSAPP_GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly for WhatsApp')
-    }
-}
-
-# For backward compatibility
-CURRENT_MODEL = PLATFORM_MODELS['web']
-DEEPSEEK_INSTRUCTIONS = PLATFORM_INSTRUCTIONS['web']['deepseek']
-DEEPSEEK_REASONER_INSTRUCTIONS = PLATFORM_INSTRUCTIONS['web']['deepseek-reasoner']
-QWEN_INSTRUCTIONS = PLATFORM_INSTRUCTIONS['web']['qwen']
-GEMINI_INSTRUCTIONS = PLATFORM_INSTRUCTIONS['web']['gemini']
-
-def get_ai_client(platform='web'):
-    """Returns the appropriate AI client based on the platform and its model setting"""
-    model = PLATFORM_MODELS.get(platform, 'openai')
-    
-    if model in ['deepseek', 'deepseek-reasoner']:
+def get_ai_client():
+    """Returns the appropriate AI client based on the current model setting"""
+    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
         return deepseek_client
-    elif model == 'qwen':
+    elif CURRENT_MODEL == 'qwen':
         return qwen_client
     else:
         return openai_client  # Default to OpenAI
 
-def get_model_name(platform='web'):
-    """Returns the appropriate model name based on the platform and its model setting"""
-    model = PLATFORM_MODELS.get(platform, 'openai')
-    
-    if model == 'deepseek':
+def get_model_name():
+    """Returns the appropriate model name based on the current model setting"""
+    if CURRENT_MODEL == 'deepseek':
         return "deepseek-chat"
-    elif model == 'deepseek-reasoner':
+    elif CURRENT_MODEL == 'deepseek-reasoner':
         return "deepseek-reasoner"
-    elif model == 'qwen':
+    elif CURRENT_MODEL == 'qwen':
         return "qwen-max"
-    elif model == 'gemini':
+    elif CURRENT_MODEL == 'gemini':
         return "gemini-2.0-flash"
     return None  # For OpenAI, model is determined by assistant
 
-def get_system_instructions(platform='web'):
-    """Returns the appropriate system instructions based on the platform and its model setting"""
-    model = PLATFORM_MODELS.get(platform, 'openai')
-    
-    if model in PLATFORM_INSTRUCTIONS.get(platform, {}):
-        return PLATFORM_INSTRUCTIONS[platform][model]
+def get_system_instructions():
+    """Returns the appropriate system instructions based on the current model setting"""
+    if CURRENT_MODEL == 'deepseek':
+        return DEEPSEEK_INSTRUCTIONS
+    elif CURRENT_MODEL == 'deepseek-reasoner':
+        return DEEPSEEK_REASONER_INSTRUCTIONS
+    elif CURRENT_MODEL == 'qwen':
+        return QWEN_INSTRUCTIONS
+    elif CURRENT_MODEL == 'gemini':
+        return GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
 
 def call_gemini_api(messages):
@@ -258,7 +228,7 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None, platform='web'):
+def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -266,10 +236,8 @@ def get_or_create_conversation(thread_id=None, platform='web'):
                 return conversation
 
         # Create new thread and conversation
-        client = get_ai_client(platform)
-        model = PLATFORM_MODELS.get(platform, 'openai')
-        
-        if model == 'openai':
+        client = get_ai_client()
+        if CURRENT_MODEL == 'openai':
             # Only create thread for OpenAI
             thread = client.beta.threads.create()
             thread_id = thread.id
@@ -317,13 +285,13 @@ def chat():
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
-def get_interleaved_messages(conversation_id, current_message=None, platform='web'):
+def get_interleaved_messages(conversation_id, current_message=None):
     """Returns properly interleaved messages for DeepSeek Reasoner"""
     messages = Message.query.filter_by(conversation_id=conversation_id)\
         .order_by(Message.created_at).all()
 
-    # Start with system message based on platform
-    formatted_messages = [{"role": "system", "content": get_system_instructions(platform)}]
+    # Start with system message
+    formatted_messages = [{"role": "system", "content": get_system_instructions()}]
 
     # Process past messages ensuring alternation
     prev_role = None
@@ -360,9 +328,8 @@ def handle_message(data):
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
 
-        # Get the appropriate AI client based on platform (web for socket.io)
-        ai_client = get_ai_client('web')
-        platform_model = PLATFORM_MODELS.get('web', 'openai')
+        # Get the appropriate AI client based on current model setting
+        ai_client = get_ai_client()
 
         # Variables to store Mathpix results
         mathpix_result = None
@@ -404,15 +371,15 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                 message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                if platform_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
-                    if platform_model == 'deepseek-reasoner':
-                        messages = get_interleaved_messages(conversation.id, message_for_assistant, 'web')
+                    if CURRENT_MODEL == 'deepseek-reasoner':
+                        messages = get_interleaved_messages(conversation.id, message_for_assistant)
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
-                        messages = [{"role": "system", "content": get_system_instructions('web')}]
+                        messages = [{"role": "system", "content": get_system_instructions()}]
                         for msg in conversation_messages:
                             messages.append({
                                 "role": msg.role,
@@ -423,13 +390,13 @@ def handle_message(data):
                             "content": message_for_assistant
                         })
 
-                    if platform_model == 'gemini':
+                    if CURRENT_MODEL == 'gemini':
                         # Send to Gemini AI service
                         assistant_message = call_gemini_api(messages)
                     else:
                         # Send to AI service (DeepSeek or Qwen)
                         response = ai_client.chat.completions.create(
-                            model=get_model_name('web'),
+                            model=get_model_name(),
                             messages=messages,
                             stream=False
                         )
@@ -486,15 +453,15 @@ def handle_message(data):
             )
             db.session.add(user_message)
 
-            if platform_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages based on model
-                if platform_model == 'deepseek-reasoner':
-                    messages = get_interleaved_messages(conversation.id, data.get('message', ''), 'web')
+                if CURRENT_MODEL == 'deepseek-reasoner':
+                    messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                 else:
                     # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                     conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                         .order_by(Message.created_at).all()
-                    messages = [{"role": "system", "content": get_system_instructions('web')}]
+                    messages = [{"role": "system", "content": get_system_instructions()}]
                     for msg in conversation_messages:
                         messages.append({
                             "role": msg.role,
@@ -505,13 +472,13 @@ def handle_message(data):
                         "content": data.get('message', '')
                     })
 
-                if platform_model == 'gemini':
+                if CURRENT_MODEL == 'gemini':
                     # Send to Gemini AI service
                     assistant_message = call_gemini_api(messages)
                 else:
                     # Send to AI service (DeepSeek or Qwen)
                     response = ai_client.chat.completions.create(
-                        model=get_model_name('web'),
+                        model=get_model_name(),
                         messages=messages,
                         stream=False
                     )
@@ -757,33 +724,6 @@ def admin_dashboard():
         # Get OpenAI Assistant ID for settings
         openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'Non configuré')
 
-        # Get platform-specific model settings
-        web_model = PLATFORM_MODELS.get('web', CURRENT_MODEL)  # Fallback to legacy CURRENT_MODEL
-        telegram_model = PLATFORM_MODELS.get('telegram', 'openai')
-        whatsapp_model = PLATFORM_MODELS.get('whatsapp', 'openai')
-
-        # Get platform-specific instructions
-        platform_instructions = {
-            'web': {
-                'deepseek': PLATFORM_INSTRUCTIONS.get('web', {}).get('deepseek', DEEPSEEK_INSTRUCTIONS),
-                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('web', {}).get('deepseek-reasoner', DEEPSEEK_REASONER_INSTRUCTIONS),
-                'qwen': PLATFORM_INSTRUCTIONS.get('web', {}).get('qwen', QWEN_INSTRUCTIONS),
-                'gemini': PLATFORM_INSTRUCTIONS.get('web', {}).get('gemini', GEMINI_INSTRUCTIONS)
-            },
-            'telegram': {
-                'deepseek': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('deepseek', ''),
-                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('deepseek-reasoner', ''),
-                'qwen': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('qwen', ''),
-                'gemini': PLATFORM_INSTRUCTIONS.get('telegram', {}).get('gemini', '')
-            },
-            'whatsapp': {
-                'deepseek': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('deepseek', ''),
-                'deepseek-reasoner': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('deepseek-reasoner', ''),
-                'qwen': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('qwen', ''),
-                'gemini': PLATFORM_INSTRUCTIONS.get('whatsapp', {}).get('gemini', '')
-            }
-        }
-
         return render_template(
             'admin_dashboard.html',
             active_users=active_users,
@@ -792,83 +732,51 @@ def admin_dashboard():
             satisfaction_rate=satisfaction_rate,
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
-            # Add platform-specific model selections
-            web_model=web_model,
-            telegram_model=telegram_model,
-            whatsapp_model=whatsapp_model,
-            # Add platform-specific instructions
-            platform_instructions=platform_instructions,
-            # For backward compatibility
-            current_model=CURRENT_MODEL,
-            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,
-            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,
-            qwen_instructions=QWEN_INSTRUCTIONS,
-            gemini_instructions=GEMINI_INSTRUCTIONS
+            current_model=CURRENT_MODEL,  # Add current model selection
+            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
+            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
+            qwen_instructions=QWEN_INSTRUCTIONS,  # Add Qwen instructions
+            gemini_instructions=GEMINI_INSTRUCTIONS  # Add Gemini instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
 
-@app.route('/admin/settings/model', methods=['GET', 'POST'])
+@app.route('/admin/settings/model', methods=['POST'])
 def update_model_settings():
-    """Update AI model settings for specific platform"""
+    """Update AI model settings"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 403
-        
-    # GET request to retrieve current settings
-    if request.method == 'GET':
-        return jsonify({
-            'success': True,
-            'platform_models': PLATFORM_MODELS,
-            'platform_instructions': PLATFORM_INSTRUCTIONS
-        })
 
     try:
         data = request.get_json()
         model = data.get('model')
         instructions = data.get('instructions')
-        platform = data.get('platform', 'web')  # Default to web if not specified
 
         if model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
             return jsonify({'error': 'Invalid model selection'}), 400
 
-        if platform not in ['web', 'telegram', 'whatsapp']:
-            return jsonify({'error': 'Invalid platform selection'}), 400
+        # Update the current model
+        global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
+        CURRENT_MODEL = model
 
-        # Update the global variables
-        global PLATFORM_MODELS, PLATFORM_INSTRUCTIONS, CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
-        
-        # Update platform specific model
-        PLATFORM_MODELS[platform] = model
-        
         # Update environment variables for persistence
-        platform_upper = platform.upper()
-        os.environ[f'{platform_upper}_MODEL'] = model
+        os.environ['CURRENT_MODEL'] = model
 
-        # Update instructions if provided based on the model and platform
-        if model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini'] and instructions:
-            # Ensure the platform exists in the instructions dict
-            if platform not in PLATFORM_INSTRUCTIONS:
-                PLATFORM_INSTRUCTIONS[platform] = {}
-                
-            # Store instructions in platform-specific dictionary
-            PLATFORM_INSTRUCTIONS[platform][model] = instructions
-            # Set environment variable with platform prefix
-            env_var_key = f'{platform_upper}_{model.upper().replace("-", "_")}_INSTRUCTIONS'
-            os.environ[env_var_key] = instructions
-            
-            # Update global variables for backward compatibility if web platform is selected
-            if platform == 'web':
-                if model == 'deepseek':
-                    DEEPSEEK_INSTRUCTIONS = instructions
-                elif model == 'deepseek-reasoner':
-                    DEEPSEEK_REASONER_INSTRUCTIONS = instructions
-                elif model == 'qwen':
-                    QWEN_INSTRUCTIONS = instructions
-                elif model == 'gemini':
-                    GEMINI_INSTRUCTIONS = instructions
-                CURRENT_MODEL = model
+        # Update instructions if provided based on the model selected
+        if model == 'deepseek' and instructions:
+            DEEPSEEK_INSTRUCTIONS = instructions
+            os.environ['DEEPSEEK_INSTRUCTIONS'] = instructions
+        elif model == 'deepseek-reasoner' and instructions:
+            DEEPSEEK_REASONER_INSTRUCTIONS = instructions
+            os.environ['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+        elif model == 'qwen' and instructions:
+            QWEN_INSTRUCTIONS = instructions
+            os.environ['QWEN_INSTRUCTIONS'] = instructions
+        elif model == 'gemini' and instructions:
+            GEMINI_INSTRUCTIONS = instructions
+            os.environ['GEMINI_INSTRUCTIONS'] = instructions
 
         # Write to .env file for persistence
         env_path = '.env'
@@ -882,25 +790,16 @@ def update_model_settings():
                         key, value = line.strip().split('=', 1)
                         env_vars[key] = value
 
-        # Update with new values for platform-specific model
-        env_vars[f'{platform_upper}_MODEL'] = model
-        
-        # Update instructions if provided
-        if model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini'] and instructions:
-            env_var_key = f'{platform_upper}_{model.upper().replace("-", "_")}_INSTRUCTIONS'
-            env_vars[env_var_key] = instructions
-            
-            # Update global variables for backward compatibility
-            if platform == 'web':
-                env_vars['CURRENT_MODEL'] = model
-                if model == 'deepseek':
-                    env_vars['DEEPSEEK_INSTRUCTIONS'] = instructions
-                elif model == 'deepseek-reasoner':
-                    env_vars['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
-                elif model == 'qwen':
-                    env_vars['QWEN_INSTRUCTIONS'] = instructions
-                elif model == 'gemini':
-                    env_vars['GEMINI_INSTRUCTIONS'] = instructions
+        # Update with new values
+        env_vars['CURRENT_MODEL'] = model
+        if model == 'deepseek' and instructions:
+            env_vars['DEEPSEEK_INSTRUCTIONS'] = instructions
+        elif model == 'deepseek-reasoner' and instructions:
+            env_vars['DEEPSEEK_REASONER_INSTRUCTIONS'] = instructions
+        elif model == 'qwen' and instructions:
+            env_vars['QWEN_INSTRUCTIONS'] = instructions
+        elif model == 'gemini' and instructions:
+            env_vars['GEMINI_INSTRUCTIONS'] = instructions
 
         # Write back to .env
         with open(env_path, 'w') as f:
