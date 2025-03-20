@@ -810,11 +810,19 @@ def admin_dashboard():
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
 
-@app.route('/admin/settings/model', methods=['POST'])
+@app.route('/admin/settings/model', methods=['GET', 'POST'])
 def update_model_settings():
     """Update AI model settings for specific platform"""
     if not session.get('is_admin'):
         return jsonify({'error': 'Unauthorized'}), 403
+        
+    # GET request to retrieve current settings
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'platform_models': PLATFORM_MODELS,
+            'platform_instructions': PLATFORM_INSTRUCTIONS
+        })
 
     try:
         data = request.get_json()
@@ -840,6 +848,10 @@ def update_model_settings():
 
         # Update instructions if provided based on the model and platform
         if model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini'] and instructions:
+            # Ensure the platform exists in the instructions dict
+            if platform not in PLATFORM_INSTRUCTIONS:
+                PLATFORM_INSTRUCTIONS[platform] = {}
+                
             # Store instructions in platform-specific dictionary
             PLATFORM_INSTRUCTIONS[platform][model] = instructions
             # Set environment variable with platform prefix
