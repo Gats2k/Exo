@@ -196,7 +196,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # Import models after db initialization to avoid circular imports
-from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage, Subscription
+from models import Conversation, Message, User, TelegramUser, TelegramConversation, TelegramMessage, Subscription, MessageFeedback
 from whatsapp_bot import whatsapp, WhatsAppMessage
 
 # Create tables within application context
