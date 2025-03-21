@@ -1377,47 +1377,81 @@ function updateScrollIndicators(container) {
  * Configure Socket.IO pour recevoir les mises à jour en temps réel des statistiques
  */
 function setupRealtimeUpdates() {
-    // Vérifier si la variable socket existe déjà (peut être créée dans main.js)
-    if (typeof io !== 'undefined') {
-        // Si la variable io existe, initialiser socket
+    try {
+        // Vérifier si la bibliothèque Socket.IO est chargée
+        if (typeof io === 'undefined') {
+            console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est correctement chargée.");
+            return;
+        }
+
+        // Initialiser la connexion Socket.IO
         const socket = io();
-        
+
+        // Vérifier que la connexion est établie
+        socket.on('connect', function() {
+            console.log('Socket.IO connecté avec succès, prêt à recevoir des mises à jour en temps réel');
+        });
+
+        socket.on('connect_error', function(error) {
+            console.error('Erreur de connexion Socket.IO:', error);
+        });
+
         // Écouter l'événement de mise à jour des statistiques de feedback
         socket.on('feedback_stats_updated', function(data) {
             console.log('Received real-time feedback stats update:', data);
-            
+
             // Mettre à jour uniquement la statistique de satisfaction
             if (data.satisfaction_rate !== undefined) {
-                // Mettre à jour l'affichage du taux de satisfaction
-                document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-                
-                // Ajouter une animation pour attirer l'attention sur la mise à jour
-                const satisfactionElement = document.querySelectorAll('.stat-card')[2];
-                satisfactionElement.classList.add('highlight-update');
-                
-                // Supprimer la classe d'animation après un court délai
-                setTimeout(() => {
-                    satisfactionElement.classList.remove('highlight-update');
-                }, 2000);
-                
-                // Afficher une notification si la fonction existe
-                if (typeof showNotification === 'function') {
-                    showNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
+                try {
+                    // Sélectionner l'élément de statistique de satisfaction
+                    const statElements = document.querySelectorAll('.stat-value');
+                    if (statElements.length >= 3) {
+                        // Mettre à jour l'affichage du taux de satisfaction
+                        statElements[2].textContent = `${data.satisfaction_rate}%`;
+
+                        // Ajouter une animation pour attirer l'attention sur la mise à jour
+                        const satisfactionElement = document.querySelectorAll('.stat-card')[2];
+                        satisfactionElement.classList.add('highlight-update');
+
+                        // Supprimer la classe d'animation après un court délai
+                        setTimeout(() => {
+                            satisfactionElement.classList.remove('highlight-update');
+                        }, 2000);
+
+                        // Afficher une notification si la fonction existe
+                        if (typeof showNotification === 'function') {
+                            showNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
+                        }
+                    } else {
+                        console.warn('Les éléments de statistiques n\'ont pas été trouvés dans le DOM');
+                    }
+                } catch (domError) {
+                    console.error('Erreur lors de la mise à jour du DOM:', domError);
                 }
             }
         });
-    } else {
-        console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation des mises à jour en temps réel:', error);
     }
 }
 
 // Exécuter au chargement et lors du redimensionnement
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initialisation du tableau de bord administrateur...');
+
     // Configurer les tableaux responsive
     setupResponsiveTables();
-    
+
     // Configurer les mises à jour en temps réel pour les statistiques de feedback
     setupRealtimeUpdates();
+
+    // Pour être sûr que la connexion Socket.IO est établie, nous pouvons également l'initialiser après un court délai
+    setTimeout(() => {
+        if (typeof io !== 'undefined' && typeof setupRealtimeUpdates === 'function') {
+            console.log('Réinitialisation des mises à jour en temps réel après délai...');
+            setupRealtimeUpdates();
+        }
+    }, 2000);
 
     // Reconfigurer les tableaux si la fenêtre est redimensionnée
     window.addEventListener('resize', function() {
@@ -1437,3 +1471,13 @@ document.addEventListener('DOMContentLoaded', function() {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 });
+
+// Ajouter cette fonction pour valider les données avant l'envoi
+function validateMessageId(id) {
+    // Vérifier que l'ID est présent et est un nombre
+    if (!id || id === 'undefined' || isNaN(parseInt(id))) {
+        console.error('ID de message invalide:', id);
+        return false;
+    }
+    return true;
+}

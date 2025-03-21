@@ -603,22 +603,31 @@ document.addEventListener('DOMContentLoaded', function() {
             event.preventDefault();
             const messageId = feedbackBtn.dataset.messageId;
             const feedbackType = feedbackBtn.dataset.feedbackType;
-            
+
+            // Valider l'ID du message avant de l'envoyer
+            if (!validateMessageId(messageId)) {
+                console.error('Impossible d\'envoyer le feedback: ID de message invalide');
+                return;
+            }
+
             // Remove active class from both buttons in this message
             const messageFeedback = feedbackBtn.closest('.message-feedback');
             messageFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Add active class to the clicked button
             feedbackBtn.classList.add('active');
-            
-            // Send feedback to server
+
+            // Convertir l'ID en nombre avant l'envoi
+            const numericMessageId = parseInt(messageId);
+
+            // Send feedback to server with validated data
             socket.emit('submit_feedback', {
-                message_id: messageId,
+                message_id: numericMessageId,
                 feedback_type: feedbackType
             });
-            
+
             // Show visual confirmation
             const confirmation = document.createElement('div');
             confirmation.className = 'feedback-confirmation';
@@ -628,9 +637,9 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmation.style.fontSize = '0.8rem';
             confirmation.style.opacity = '0';
             confirmation.style.transition = 'opacity 0.3s ease';
-            
+
             messageFeedback.appendChild(confirmation);
-            
+
             // Fade in and out
             setTimeout(() => {
                 confirmation.style.opacity = '1';

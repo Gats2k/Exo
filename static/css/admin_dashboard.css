@@ -287,20 +287,6 @@ body {
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Animation pour la mise à jour des statistiques */
-.stat-card.highlight-update {
-  animation: highlight-update 2s ease-in-out;
-}
-
-@keyframes highlight-update {
-  0% { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }
-  30% { box-shadow: 0 0 15px rgba(74, 222, 128, 0.5); background-color: rgba(74, 222, 128, 0.1); }
-  100% { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }
 }
 
 .stat-card-header {
@@ -1165,6 +1151,16 @@ body {
     margin-top: -15px;
     margin-bottom: 25px;
     font-size: 1em;
+}
+
+@keyframes highlight-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 215, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
+.highlight-update {
+    animation: highlight-pulse 2s ease-out;
 }
 
 /* À AJOUTER */
