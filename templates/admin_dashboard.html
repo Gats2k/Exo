@@ -499,5 +499,12 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script src="{{ url_for('static', filename='js/admin_dashboard.js') }}"></script>
+<script>
+    // Notification d'événements en temps réel
+    const notifications = {
+        feedback_stats_updated: "Les statistiques de satisfaction ont été mises à jour"
+    };
+</script>
 {% endblock %}
