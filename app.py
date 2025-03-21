@@ -1076,25 +1076,35 @@ def delete_user(user_id):
             if user:
                 logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
                 
-                # Étape 1: Log information about the user's conversations
-                user_conversations = Conversation.query.filter_by(user_id=user.id).all()
-                logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
-                
-                # Étape 2: Suppression des abonnements associés
+                # Commencer une transaction pour garantir l'intégrité
                 try:
-                    sub_count = Subscription.query.filter_by(user_id=user.id).count()
-                    if sub_count > 0:
-                        logger.info(f"Deleting {sub_count} subscriptions for user {user.id}")
-                        Subscription.query.filter_by(user_id=user.id).delete()
-                        session.flush()
-                except Exception as sub_error:
-                    logger.warning(f"Error deleting subscriptions for user {user_id}: {str(sub_error)}")
-                    # Continue with deletion despite this error
+                    # Étape 1: Log information about the user's conversations
+                    user_conversations = Conversation.query.filter_by(user_id=user.id).all()
+                    logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
+                    
+                    # Étape 2: Suppression des abonnements associés (utiliser user_subscription)
+                    try:
+                        # Vérifier si la table user_subscription existe et contient des enregistrements pour cet utilisateur
+                        # Utiliser SQL brut pour éviter les problèmes de mappage objet-relationnel
+                        result = session.execute(
+                            "SELECT COUNT(*) FROM user_subscription WHERE user_id = :user_id",
+                            {"user_id": user.id}
+                        ).scalar()
+                        
+                        if result and result > 0:
+                            logger.info(f"Deleting {result} subscription relationships for user {user.id}")
+                            session.execute(
+                                "DELETE FROM user_subscription WHERE user_id = :user_id",
+                                {"user_id": user.id}
+                            )
+                            session.flush()
+                    except Exception as sub_error:
+                        logger.warning(f"Error deleting user_subscription entries for user {user_id}: {str(sub_error)}")
+                        # On ne lève pas d'exception ici pour permettre la poursuite de la suppression
 
-                # Étape 3: Delete the user (cascading should take care of related records)
-                # La suppression en cascade grâce à la contrainte fk_user_conversation s'occupera de supprimer
-                # automatiquement toutes les conversations associées à l'utilisateur
-                try:
+                    # Étape 3: Delete the user (cascading should take care of related records)
+                    # La suppression en cascade grâce à la contrainte fk_user_conversation s'occupera de supprimer
+                    # automatiquement toutes les conversations associées à l'utilisateur
                     logger.info(f"Deleting web user {user.id}")
                     session.delete(user)
                     session.commit()
