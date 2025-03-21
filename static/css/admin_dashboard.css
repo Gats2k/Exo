@@ -1305,35 +1305,6 @@ body {
     font-size: 1em;
 }
 
-@keyframes highlightUpdate {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(0, 123, 255, 0);
-  }
-  25% {
-    transform: scale(1.03);
-    box-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
-  }
-  50% {
-    transform: scale(1);
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
-  }
-  75% {
-    transform: scale(1.02);
-    box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(0, 123, 255, 0);
-  }
-}
-
-/* Classe qui sera appliquée aux éléments mis à jour */
-.highlight-update {
-  animation: highlightUpdate 1.5s ease-in-out;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
 /* À AJOUTER */
 @media (max-width: 768px) {
     .top-nav-title {

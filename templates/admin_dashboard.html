@@ -523,27 +523,5 @@
     const notifications = {
         feedback_stats_updated: "Les statistiques de satisfaction ont été mises à jour"
     };
-
-    // Initialisation explicite de Socket.IO
-    document.addEventListener('DOMContentLoaded', function() {
-        // S'assurer que Socket.IO est bien chargé
-        if (typeof io !== 'undefined') {
-            console.log('Socket.IO disponible, initialisation des écouteurs...');
-            setupRealtimeUpdates();
-        } else {
-            console.error('Socket.IO non disponible!');
-        }
-
-        // Tester manuellement la connexion après un court délai
-        setTimeout(function() {
-            if (socketInstance && socketInstance.connected) {
-                console.log('Socket.IO connecté avec succès');
-            } else {
-                console.error('Socket.IO non connecté après 3 secondes');
-                // Tentative de reconnexion
-                setupRealtimeUpdates();
-            }
-        }, 3000);
-    });
 </script>
 {% endblock %}

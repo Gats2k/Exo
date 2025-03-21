@@ -18,8 +18,6 @@ import base64
 import requests
 from contextlib import contextmanager
 from mathpix_utils import process_image_with_mathpix
-from app import get_db_context, db_retry_session
-import sys
 
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
@@ -88,31 +86,6 @@ except Exception as e:
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
 
-# Importer socketio de manière sécurisée avec gestion d'erreur
-try:
-    from app import socketio
-    SOCKETIO_AVAILABLE = True
-    print("Socket.IO importé avec succès dans le bot Telegram", file=sys.stderr)
-except (ImportError, AttributeError) as e:
-    SOCKETIO_AVAILABLE = False
-    print(f"ATTENTION: Impossible d'importer Socket.IO: {str(e)}", file=sys.stderr)
-
-# Fonction utilitaire pour émettre des événements de manière sécurisée
-def safe_emit(event_name, data):
-    """Émet un événement Socket.IO de manière sécurisée, en vérifiant que socketio est disponible"""
-    if SOCKETIO_AVAILABLE:
-        try:
-            # Émettre l'événement à tous les clients connectés
-            socketio.emit(event_name, data)
-            print(f"Événement {event_name} émis avec succès", file=sys.stderr)
-            return True
-        except Exception as e:
-            print(f"Erreur lors de l'émission de l'événement {event_name}: {str(e)}", file=sys.stderr)
-            return False
-    else:
-        print(f"Socket.IO non disponible, impossible d'émettre l'événement {event_name}", file=sys.stderr)
-        return False
-
 @contextmanager
 def db_retry_session(max_retries=3, retry_delay=1):
     """Context manager for database operations with retry logic"""
@@ -144,16 +117,6 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                 session.add(user)
                 session.commit()
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
-
-                # Émettre un événement socket pour notifier la création d'un nouvel utilisateur Telegram
-                # Utiliser safe_emit au lieu de socketio.emit directement
-                safe_emit('telegram_user_created', {
-                    'telegram_id': user_id,
-                    'first_name': first_name or "---",
-                    'last_name': last_name or "---",
-                    'created_at': user.created_at.strftime('%d/%m/%Y')
-                })
-                logger.info(f"Émission de l'événement telegram_user_created pour l'utilisateur {user_id}")
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
@@ -185,19 +148,6 @@ async def create_telegram_conversation(user_id: int, thread_id: str) -> Telegram
             session.add(conversation)
             session.commit()
             logger.info(f"Successfully created TelegramConversation: {conversation.id}")
-
-            # Émettre un événement socket pour notifier la création d'une nouvelle conversation
-            # Utiliser safe_emit au lieu de socketio.emit directement
-            safe_emit('telegram_conversation_created', {
-                'id': conversation.id,
-                'telegram_user_id': user_id,
-                'title': conversation.title,
-                'thread_id': thread_id,
-                'created_at': conversation.created_at.strftime('%d/%m/%Y'),
-                'time': conversation.created_at.strftime('%H:%M')
-            })
-            logger.info(f"Émission de l'événement telegram_conversation_created pour la conversation {conversation.id}")
-
             return conversation
     except Exception as e:
         logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
@@ -217,21 +167,6 @@ async def add_telegram_message(conversation_id: int, role: str, content: str, im
             session.add(message)
             session.commit()
             logger.info(f"Successfully added TelegramMessage: {message.id}")
-
-            # Récupérer la conversation pour obtenir les détails de l'utilisateur
-            conversation = TelegramConversation.query.get(conversation_id)
-            if conversation:
-                # Émettre un événement socket seulement pour les nouveaux messages utilisateur
-                # car ils indiquent une activité utilisateur
-                if role == 'user':
-                    # Utiliser safe_emit au lieu de socketio.emit directement
-                    safe_emit('telegram_message_created', {
-                        'message_id': message.id,
-                        'conversation_id': conversation_id,
-                        'user_id': conversation.telegram_user_id,
-                        'created_at': message.created_at.strftime('%d/%m/%Y %H:%M')
-                    })
-                    logger.info(f"Émission de l'événement telegram_message_created pour le message {message.id}")
     except Exception as e:
         logger.error(f"Error in add_telegram_message: {str(e)}", exc_info=True)
         raise
@@ -242,12 +177,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     first_name = update.effective_user.first_name
     last_name = update.effective_user.last_name
     try:
-        # Check if the user already exists in our database
-        is_new_user = False
-        with db_retry_session() as session:
-            existing_user = TelegramUser.query.get(user_id)
-            is_new_user = (existing_user is None)
-
         # Create or get the user in our database
         await get_or_create_telegram_user(user_id, first_name, last_name)
 
@@ -259,30 +188,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Create a new conversation in our database
         await create_telegram_conversation(user_id, thread.id)
 
-        # Send initial greeting emoji
-        await update.message.reply_text('🤓')
-
-        # If this is a new user, send them their Telegram ID with instructions
-        if is_new_user:
-            # Wait briefly before sending the second message
-            await asyncio.sleep(1)
-
-            # Create a message with emphasis on the importance of the ID
-            id_message = (
-                f"⚠️ *INFORMATION IMPORTANTE* ⚠️\n\n"
-                f"🔑 Voici votre ID Telegram: `{user_id}`\n\n"
-                f"📝 *Notez précieusement cet identifiant!* Il vous permettra de vous connecter à notre plateforme web "
-                f"et d'accéder à toutes les fonctionnalités avancées.\n\n"
-                f"🌐 Pour vous connecter sur le web, utilisez cet ID comme identifiant.\n\n"
-                f"🔔 Ne partagez jamais cet ID avec personne!"
-            )
-
-            # Send with Markdown formatting
-            await update.message.reply_text(
-                id_message,
-                parse_mode=constants.ParseMode.MARKDOWN
-            )
-            logger.info(f"Sent Telegram ID information to new user {user_id}")
+        await update.message.reply_text(
+            '🤓'
+        )
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}", exc_info=True)
         await update.message.reply_text(
@@ -766,48 +674,6 @@ def run_telegram_bot():
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
-        # Option pour forcer le démarrage même si une autre instance est détectée
-        # Peut être activée via une variable d'environnement
-        force_start = os.environ.get('FORCE_TELEGRAM_BOT', 'false').lower() == 'true'
-
-        # Vérifier si une autre instance existe déjà
-        import socket
-        import time
-        import atexit
-
-        # Utiliser un port moins susceptible d'être utilisé par d'autres applications
-        lock_port = 49552
-        lock_socket = None
-
-        # Fonction de nettoyage pour libérer le socket lors de l'arrêt
-        def cleanup_socket():
-            if lock_socket:
-                try:
-                    lock_socket.close()
-                    logger.info("Socket de verrouillage libéré")
-                except:
-                    pass
-
-        # Enregistrer la fonction de nettoyage pour l'exécuter à la sortie
-        atexit.register(cleanup_socket)
-
-        # Essayer de créer un socket de verrouillage local
-        try:
-            lock_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            # Configurer le socket pour réutiliser l'adresse
-            lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # Définir un timeout court
-            lock_socket.settimeout(1)
-            # Essayer de lier le socket
-            lock_socket.bind(('localhost', lock_port))
-            logger.info(f"Aucune autre instance du bot Telegram n'est en cours d'exécution (port {lock_port})")
-        except socket.error as e:
-            if force_start:
-                logger.warning(f"Détection d'une autre instance du bot Telegram, mais démarrage forcé (erreur: {str(e)})")
-            else:
-                logger.warning(f"Une autre instance du bot Telegram est déjà en cours d'exécution. Arrêt de cette instance. (erreur: {str(e)})")
-                return
-
         # Log current configuration (without using imported values)
         config = get_app_config()
         logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
@@ -819,10 +685,6 @@ def run_telegram_bot():
 
         application = setup_telegram_bot()
         logger.info("Starting Telegram bot polling...")
-
-        # Ajouter un délai avant de démarrer pour permettre aux autres instances de s'arrêter
-        time.sleep(1)
-
         application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
