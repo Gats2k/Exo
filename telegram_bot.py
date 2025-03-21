@@ -18,12 +18,11 @@ import base64
 import requests
 from contextlib import contextmanager
 from mathpix_utils import process_image_with_mathpix
-from app import socketio
 
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
-from app import get_db_context, socketio
+from app import get_db_context
 
 def get_app_config():
     """
@@ -118,17 +117,6 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                 session.add(user)
                 session.commit()
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
-
-                # Émettre un événement pour notifier le tableau de bord
-                telegram_user_data = {
-                    'telegram_id': user.telegram_id,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'phone_number': user.phone_number,
-                    'study_level': user.study_level,
-                    'created_at': user.created_at.strftime('%d/%m/%Y')
-                }
-                socketio.emit('new_telegram_user', telegram_user_data)
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
@@ -160,20 +148,6 @@ async def create_telegram_conversation(user_id: int, thread_id: str) -> Telegram
             session.add(conversation)
             session.commit()
             logger.info(f"Successfully created TelegramConversation: {conversation.id}")
-
-            # Émettre un événement pour notifier le tableau de bord
-            conversation_data = {
-                'id': conversation.id,
-                'title': conversation.title,
-                'date': conversation.created_at.strftime('%d/%m/%Y'),
-                'time': conversation.created_at.strftime('%H:%M'),
-                'telegram_user_id': user_id,
-                'thread_id': thread_id,
-                'last_message': ''
-            }
-            socketio.emit('new_telegram_conversation', conversation_data)
-
-            return conversation
             return conversation
     except Exception as e:
         logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
@@ -193,18 +167,6 @@ async def add_telegram_message(conversation_id: int, role: str, content: str, im
             session.add(message)
             session.commit()
             logger.info(f"Successfully added TelegramMessage: {message.id}")
-
-            # Si c'est le premier message dans une conversation, mettre à jour le lastMessage
-            if role == 'user':
-                conversation = TelegramConversation.query.get(conversation_id)
-                if conversation:
-                    # Émettre un événement de mise à jour pour la dernière activité
-                    update_data = {
-                        'conversation_id': conversation_id,
-                        'last_message': content[:50] + ('...' if len(content) > 50 else ''),
-                        'telegram_user_id': conversation.telegram_user_id
-                    }
-                    socketio.emit('telegram_message_update', update_data)
     except Exception as e:
         logger.error(f"Error in add_telegram_message: {str(e)}", exc_info=True)
         raise

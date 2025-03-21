@@ -1532,83 +1532,23 @@ function setupRealtimeUpdates() {
             // Ajouter un écouteur d'événement une seule fois
             socketInstance.on('feedback_stats_updated', function(data) {
                 console.log('Received real-time feedback stats update:', data);
-
+                
                 // Mettre à jour uniquement la statistique de satisfaction
                 if (data.satisfaction_rate !== undefined) {
                     // Mettre à jour l'affichage du taux de satisfaction
                     document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-
+                    
                     // Ajouter une animation pour attirer l'attention sur la mise à jour
                     const satisfactionElement = document.querySelectorAll('.stat-card')[2];
                     satisfactionElement.classList.add('highlight-update');
-
+                    
                     // Supprimer la classe d'animation après un court délai
                     setTimeout(() => {
                         satisfactionElement.classList.remove('highlight-update');
                     }, 2000);
-
+                    
                     // Ajouter une notification pour la mise à jour
                     addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
-                }
-            });
-
-            // Écouter les nouveaux utilisateurs Telegram
-            socketInstance.on('new_telegram_user', function(userData) {
-                console.log('New Telegram user received:', userData);
-
-                // Si la plateforme actuelle est Telegram, mettre à jour les données
-                if (currentPlatform === 'telegram') {
-                    // Mettre à jour les statistiques des utilisateurs
-                    let activeUsersCount = parseInt(document.querySelectorAll('.stat-value')[0].textContent);
-                    document.querySelectorAll('.stat-value')[0].textContent = (activeUsersCount + 1).toString();
-
-                    // Animation pour la mise à jour
-                    const usersElement = document.querySelectorAll('.stat-card')[0];
-                    usersElement.classList.add('highlight-update');
-                    setTimeout(() => {
-                        usersElement.classList.remove('highlight-update');
-                    }, 2000);
-
-                    // Mise à jour du tableau d'utilisateurs sur la page de tableau de bord
-                    fetchPlatformData('telegram');
-
-                    // Si on est sur la page des utilisateurs, mettre à jour également
-                    if (document.getElementById('users-section').style.display === 'block') {
-                        fetchAllUsers('telegram');
-                    }
-
-                    // Notification
-                    addNotification(`Nouvel utilisateur Telegram: ${userData.first_name} ${userData.last_name}`, 'info');
-                }
-            });
-
-            // Écouter les nouvelles conversations Telegram
-            socketInstance.on('new_telegram_conversation', function(convData) {
-                console.log('New Telegram conversation received:', convData);
-
-                // Si la plateforme actuelle est Telegram, mettre à jour les données
-                if (currentPlatform === 'telegram') {
-                    // Mettre à jour les statistiques des conversations
-                    let conversationsCount = parseInt(document.querySelectorAll('.stat-value')[1].textContent);
-                    document.querySelectorAll('.stat-value')[1].textContent = (conversationsCount + 1).toString();
-
-                    // Animation pour la mise à jour
-                    const convsElement = document.querySelectorAll('.stat-card')[1];
-                    convsElement.classList.add('highlight-update');
-                    setTimeout(() => {
-                        convsElement.classList.remove('highlight-update');
-                    }, 2000);
-
-                    // Mise à jour du tableau de conversations sur la page de tableau de bord
-                    fetchPlatformData('telegram');
-
-                    // Si on est sur la page des conversations, mettre à jour également
-                    if (document.getElementById('conversations-section').style.display === 'block') {
-                        fetchAllConversations('telegram');
-                    }
-
-                    // Notification
-                    addNotification(`Nouvelle conversation Telegram: ${convData.title}`, 'info');
                 }
             });
             
