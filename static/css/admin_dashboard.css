@@ -1152,3 +1152,177 @@ body {
     margin-bottom: 25px;
     font-size: 1em;
 }
+
+/* À AJOUTER */
+@media (max-width: 768px) {
+    .top-nav-title {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .sidebar-title {
+        font-size: 1.2em;
+    }
+
+    .sidebar-subtitle {
+        font-size: 0.8em;
+        display: block;
+    }
+
+    .mobile-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        padding: 0;
+        margin-left: 10px;
+        order: -1;
+    }
+
+    .mobile-toggle .bi-mortarboard-fill {
+        font-size: 1.2em;
+        color: #FFD700;
+    }
+
+    .sidebar.mobile-visible {
+        transform: translateX(0);
+        width: 250px;
+        z-index: 1100;
+    }
+
+    /* Style quand la sidebar est visible sur mobile */
+    .sidebar.mobile-visible {
+        padding: 20px !important;
+        width: 250px !important;
+    }
+
+    /* Force l'affichage des éléments de navigation correctement */
+    .sidebar.mobile-visible .nav-item {
+        width: 100% !important;
+        height: auto !important;
+        padding: 12px !important;
+        justify-content: flex-start !important;
+    }
+
+    .sidebar.mobile-visible .nav-item span {
+        display: inline !important;
+        margin-left: 12px !important;
+    }
+
+    /* Assure que les sections de la sidebar sont visibles */
+    .sidebar.mobile-visible .sidebar-section {
+        padding: 15px !important;
+        align-items: stretch !important;
+    }
+
+    /* Style pour le footer quand la sidebar est visible */
+    .sidebar.mobile-visible .sidebar-footer {
+        display: block !important;
+        opacity: 1 !important;
+    }
+
+    .top-nav {
+      padding-left: 10px; /* Réduit le padding gauche sur mobile */
+    }
+
+    .mobile-toggle {
+      margin-left: 0; /* Supprime la marge à gauche du bouton */
+      padding-left: 0; /* Supprime le padding à gauche du bouton */
+    }
+
+    .top-nav-title {
+      padding-left: 0; /* Supprime le padding à gauche du conteneur de titre */
+      margin-left: 0; /* Supprime la marge à gauche du conteneur de titre */
+    }
+
+    .mobile-toggle .bi-mortarboard {
+      display: inline; /* Affiche l'icône vide par défaut */
+    }
+
+    .mobile-toggle .bi-mortarboard-fill {
+      display: none; /* Cache l'icône pleine par défaut */
+    }
+
+    .mobile-toggle.active .bi-mortarboard {
+      display: none; /* Cache l'icône vide quand active */
+    }
+
+    .mobile-toggle.active .bi-mortarboard-fill {
+      display: inline; /* Affiche l'icône pleine quand active */
+    }
+
+    .table-responsive-container {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch; /* Pour un défilement fluide sur iOS */
+      position: relative;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    /* Style pour le tableau à l'intérieur du container */
+    .table-responsive-container .data-table {
+      width: 100%;
+      margin: 0;
+      min-width: 550px; /* Assure une largeur minimale pour le contenu du tableau */
+    }
+
+    /* Indicateurs de défilement */
+    .scroll-indicator {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 40px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.6);
+      pointer-events: none; /* Pour ne pas interférer avec le défilement */
+      opacity: 0.7;
+      transition: opacity 0.3s ease;
+    }
+
+    .scroll-left {
+      left: 5px;
+      display: none; /* Caché par défaut */
+    }
+
+    .scroll-right {
+      right: 5px;
+    }
+
+    /* Section titles mieux adaptées sur mobile */
+    .section-title {
+      font-size: 1.3em;
+      margin: 20px 0 15px;
+    }
+
+    /* Améliorer la lisibilité des labels de tableau sur mobile */
+    .data-table th {
+      white-space: nowrap;
+      padding: 10px 12px;
+    }
+
+    /* Style pour "Voir plus..." sur mobile */
+    .see-more-cell {
+      position: sticky;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.2);
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-toggle {
+        display: none;
+    }
+}

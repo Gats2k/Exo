@@ -46,11 +46,14 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Ajouter l'événement de clic sur la zone principale
-    document.querySelector('.main-area').addEventListener('click', (e) => {
-        if (!e.target.closest('.sidebar') && !e.target.closest('.sidebar-toggle')) {
-            closeSidebar();
-        }
-    });
+    const mainArea = document.querySelector('.main-area');
+    if (mainArea) {
+        mainArea.addEventListener('click', (e) => {
+            if (!e.target.closest('.sidebar') && !e.target.closest('.sidebar-toggle')) {
+                closeSidebar();
+            }
+        });
+    }
 });
 
 window.startRename = function(id, event) {
@@ -114,10 +117,19 @@ window.openConversation = function(id, event) {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Détecter si nous sommes sur la page admin ou la page chat
+    const isAdminPage = window.location.pathname.includes('/admin');
+
     // Initialize Socket.IO
     const socket = io();
     // Make socket available globally for our conversation functions
     window.socket = socket;
+
+    // Si nous sommes sur la page admin, sortir immédiatement pour éviter les erreurs
+    if (isAdminPage) {
+        console.log('Page administrative détectée, désactivation du script de chat');
+        return;
+    }
 
     // Get all necessary elements
     const sidebar = document.querySelector('.sidebar');
@@ -135,6 +147,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let isFirstMessage = true;
     let sidebarTimeout;
     let currentImage = null;
+
+    // Vérifier que tous les éléments nécessaires existent
+    if (!inputContainer || !responseTime || !chatMessages || !welcomeContainer || !suggestionsContainer) {
+        console.log('Éléments requis non disponibles, sortie du script');
+        return;
+    }
 
     // Check if there are any existing messages
     if (chatMessages.children.length === 0) {

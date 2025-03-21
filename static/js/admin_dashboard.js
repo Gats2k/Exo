@@ -209,12 +209,12 @@ function updateTableWithWebData(data) {
       });
 
       // Add "See more..." row if there are more than 5 users
-        if (data.users.length >= 3) {
-          const moreRow = usersTable.insertRow();
-          moreRow.className = 'see-more-row';
-          moreRow.innerHTML = `
-              <td colspan="6" class="see-more-cell">Voir plus...</td>
-          `;
+      if (data.users.length >= 3) {
+        const moreRow = usersTable.insertRow();
+        moreRow.className = 'see-more-row';
+        moreRow.innerHTML = `
+            <td colspan="6" class="see-more-cell" onclick="showSection('users')">Voir plus...</td>
+        `;
       }
   }
 
@@ -238,12 +238,12 @@ function updateTableWithWebData(data) {
       });
 
       // Add "See more..." row if there are more than 5 conversations
-        if (data.conversations.length >= 3) {
-          const moreRow = conversationsTable.insertRow();
-          moreRow.className = 'see-more-row';
-          moreRow.innerHTML = `
-              <td colspan="4" class="see-more-cell">Voir plus...</td>
-          `;
+      if (data.conversations.length >= 3) {
+        const moreRow = conversationsTable.insertRow();
+        moreRow.className = 'see-more-row';
+        moreRow.innerHTML = `
+            <td colspan="4" class="see-more-cell" onclick="showSection('conversations')">Voir plus...</td>
+        `;
       }
   }
 }
@@ -332,7 +332,7 @@ function updateTableWithPlatformData(data) {
             const colSpan = data.platform === 'telegram' ? 7 : 6;
 
             moreRow.innerHTML = `
-                <td colspan="${colSpan}" class="see-more-cell">Voir plus...</td>
+                <td colspan="${colSpan}" class="see-more-cell" onclick="showSection('users')">Voir plus...</td>
             `;
         }
     }
@@ -353,16 +353,33 @@ function updateTableWithPlatformData(data) {
             `;
         });
 
-        // Add "See more..." row if there are more than 5 conversations
         if (data.conversations.length >= 3) {
             const moreRow = conversationsTable.insertRow();
             moreRow.className = 'see-more-row';
             moreRow.innerHTML = `
-                <td colspan="4" class="see-more-cell">Voir plus...</td>
+                <td colspan="4" class="see-more-cell" onclick="showSection('conversations')">Voir plus...</td>
             `;
         }
     }
 }
+
+// Ajouter une règle de style dans le document pour indiquer que les cellules "Voir plus..." sont cliquables
+document.addEventListener('DOMContentLoaded', function() {
+    // Créer une règle de style pour les cellules "Voir plus..."
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .see-more-cell {
+            cursor: pointer;
+            text-align: center;
+            color: #ffd700;
+            font-weight: bold;
+        }
+        .see-more-cell:hover {
+            text-decoration: underline;
+        }
+    `;
+    document.head.appendChild(style);
+});
 
 function updateDashboardStats(data) {
     try {
@@ -1158,3 +1175,220 @@ function showNotification(message, type) {
     // You can implement this based on your notification system
     alert(message); // Basic implementation
 }
+
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('mobile-visible');
+
+    // Empêcher le défilement du corps quand la sidebar est ouverte
+    if (sidebar.classList.contains('mobile-visible')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = 'auto';
+    }
+}
+
+// Fermer la sidebar si on clique en dehors
+document.addEventListener('click', function(event) {
+    const sidebar = document.querySelector('.sidebar');
+    const mobileToggle = document.querySelector('.mobile-toggle');
+
+    if (sidebar.classList.contains('mobile-visible') && 
+        !sidebar.contains(event.target) && 
+        !mobileToggle.contains(event.target)) {
+
+        // Ferme la sidebar
+        sidebar.classList.remove('mobile-visible');
+
+        // Met également à jour l'état du bouton pour changer l'icône
+        mobileToggle.classList.remove('active');
+
+        // Réactive le défilement
+        document.body.style.overflow = 'auto';
+
+        // Reset des styles inline quand on ferme
+        setTimeout(() => {
+            if (!sidebar.classList.contains('mobile-visible')) {
+                sidebar.style.width = '';
+
+                document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+                    item.style.width = '';
+                    item.style.height = '';
+                    item.style.padding = '';
+                    item.style.justifyContent = '';
+                });
+
+                document.querySelectorAll('.sidebar .nav-item span').forEach(span => {
+                    span.style.display = '';
+                    span.style.marginLeft = '';
+                });
+
+                document.querySelectorAll('.sidebar-section').forEach(section => {
+                    section.style.padding = '';
+                    section.style.alignItems = '';
+                });
+
+                if (document.querySelector('.sidebar-footer')) {
+                    document.querySelector('.sidebar-footer').style.display = '';
+                    document.querySelector('.sidebar-footer').style.opacity = '';
+                }
+            }
+        }, 300); // Attendre la fin de l'animation
+    }
+});
+
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const mobileToggle = document.querySelector('.mobile-toggle');
+
+    // Si la sidebar n'est pas déjà ouverte, on prépare son affichage
+    if (!sidebar.classList.contains('mobile-visible')) {
+        // Assure que tous les styles sont appliqués avant l'animation
+        sidebar.style.width = '250px';
+
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+            item.style.width = '100%';
+            item.style.height = 'auto';
+            item.style.padding = '12px';
+            item.style.justifyContent = 'flex-start';
+        });
+
+        document.querySelectorAll('.sidebar .nav-item span').forEach(span => {
+            span.style.display = 'inline';
+            span.style.marginLeft = '12px';
+        });
+
+        document.querySelectorAll('.sidebar-section').forEach(section => {
+            section.style.padding = '15px';
+            section.style.alignItems = 'stretch';
+        });
+
+        if (document.querySelector('.sidebar-footer')) {
+            document.querySelector('.sidebar-footer').style.display = 'block';
+            document.querySelector('.sidebar-footer').style.opacity = '1';
+        }
+    }
+
+    // Bascule la classe pour l'animation
+    sidebar.classList.toggle('mobile-visible');
+
+    // Bascule la classe active du bouton pour changer l'icône
+    mobileToggle.classList.toggle('active');
+
+    // Gestion du défilement
+    if (sidebar.classList.contains('mobile-visible')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = 'auto';
+
+        // Reset des styles inline quand on ferme
+        setTimeout(() => {
+            if (!sidebar.classList.contains('mobile-visible')) {
+                sidebar.style.width = '';
+
+                document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+                    item.style.width = '';
+                    item.style.height = '';
+                    item.style.padding = '';
+                    item.style.justifyContent = '';
+                });
+
+                document.querySelectorAll('.sidebar .nav-item span').forEach(span => {
+                    span.style.display = '';
+                    span.style.marginLeft = '';
+                });
+
+                document.querySelectorAll('.sidebar-section').forEach(section => {
+                    section.style.padding = '';
+                    section.style.alignItems = '';
+                });
+
+                if (document.querySelector('.sidebar-footer')) {
+                    document.querySelector('.sidebar-footer').style.display = '';
+                    document.querySelector('.sidebar-footer').style.opacity = '';
+                }
+            }
+        }, 300); // Attendre la fin de l'animation
+    }
+}
+
+/* À AJOUTER */
+// Fonction pour envelopper tous les tableaux dans des conteneurs défilables sur mobile
+function setupResponsiveTables() {
+    if (window.innerWidth <= 768) {
+        document.querySelectorAll('.data-table').forEach(table => {
+            // Vérifier si le tableau n'est pas déjà enveloppé
+            if (!table.parentElement.classList.contains('table-responsive-container')) {
+                // Créer le conteneur
+                const container = document.createElement('div');
+                container.className = 'table-responsive-container';
+
+                // Créer les indicateurs de défilement
+                const leftIndicator = document.createElement('div');
+                leftIndicator.className = 'scroll-indicator scroll-left';
+                leftIndicator.innerHTML = '<i class="bi bi-chevron-left"></i>';
+
+                const rightIndicator = document.createElement('div');
+                rightIndicator.className = 'scroll-indicator scroll-right';
+                rightIndicator.innerHTML = '<i class="bi bi-chevron-right"></i>';
+
+                // Envelopper le tableau
+                table.parentNode.insertBefore(container, table);
+                container.appendChild(table);
+                container.appendChild(leftIndicator);
+                container.appendChild(rightIndicator);
+
+                // Ajouter l'événement de défilement
+                container.addEventListener('scroll', function() {
+                    updateScrollIndicators(container);
+                });
+
+                // Initialiser l'état des indicateurs
+                updateScrollIndicators(container);
+            }
+        });
+    }
+}
+
+// Mettre à jour les indicateurs de défilement
+function updateScrollIndicators(container) {
+    const leftIndicator = container.querySelector('.scroll-left');
+    const rightIndicator = container.querySelector('.scroll-right');
+
+    // Afficher/masquer l'indicateur gauche
+    if (container.scrollLeft > 10) {
+        leftIndicator.style.display = 'flex';
+    } else {
+        leftIndicator.style.display = 'none';
+    }
+
+    // Afficher/masquer l'indicateur droit
+    if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 10) {
+        rightIndicator.style.display = 'none';
+    } else {
+        rightIndicator.style.display = 'flex';
+    }
+}
+
+// Exécuter au chargement et lors du redimensionnement
+document.addEventListener('DOMContentLoaded', function() {
+    setupResponsiveTables();
+
+    // Reconfigurer les tableaux si la fenêtre est redimensionnée
+    window.addEventListener('resize', function() {
+        setupResponsiveTables();
+    });
+
+    // Observer les changements de DOM pour détecter les nouveaux tableaux
+    if (window.MutationObserver) {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length > 0) {
+                    setupResponsiveTables();
+                }
+            });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+});

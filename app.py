@@ -115,29 +115,29 @@ def get_system_instructions():
 def call_gemini_api(messages):
     """
     Call the Gemini API with the provided messages.
-    
+
     Args:
         messages: List of message dictionaries with 'role' and 'content'
-        
+
     Returns:
         The assistant's response content
     """
     import json
     import requests
-    
+
     logger.info(f"Calling Gemini API with {len(messages)} messages")
-    
+
     try:
         # Format messages for Gemini API
         gemini_messages = []
-        
+
         # Extract the system message if it exists
         system_content = None
         for msg in messages:
             if msg['role'] == 'system':
                 system_content = msg['content']
                 break
-        
+
         # Process the conversation messages (excluding system message)
         contents = []
         for msg in messages:
@@ -147,45 +147,45 @@ def call_gemini_api(messages):
                     "parts": [{"text": msg['content']}],
                     "role": role
                 })
-        
+
         # Add system message as a special prefix to the first user message if it exists
         if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
             contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
-        
+
         # Make sure we have at least one message in contents
         if not contents:
             contents.append({
                 "parts": [{"text": "Hello"}],
                 "role": "user"
             })
-        
+
         # Prepare the API request
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
         headers = {'Content-Type': 'application/json'}
         data = {"contents": contents}
-        
+
         logger.info(f"Sending request to Gemini API with {len(contents)} messages")
-        
+
         # Make the API request
         response = requests.post(api_url, headers=headers, json=data)
-        
+
         if response.status_code != 200:
             logger.error(f"Gemini API error: {response.status_code} - {response.text}")
             return f"I apologize, but I encountered an error communicating with my AI brain. Error: {response.status_code}"
-        
+
         # Parse the response
         response_json = response.json()
         logger.info("Received response from Gemini API")
-        
+
         # Extract the generated text from the response
         if 'candidates' in response_json and len(response_json['candidates']) > 0:
             candidate = response_json['candidates'][0]
             if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
                 return candidate['content']['parts'][0]['text']
-        
+
         logger.error(f"Unexpected response structure from Gemini API: {response_json}")
         return "I apologize, but I received an unexpected response format from my AI brain."
-    
+
     except Exception as e:
         logger.error(f"Exception in call_gemini_api: {str(e)}", exc_info=True)
         return f"I apologize, but I encountered an error processing your request. Error: {str(e)}"
@@ -245,7 +245,7 @@ def get_or_create_conversation(thread_id=None):
         else:
             # For other models, generate a UUID as thread_id
             thread_id = str(uuid.uuid4())
-        
+
         # Associate the conversation with the current logged-in user
         user_id = None
         if current_user.is_authenticated:
@@ -1064,61 +1064,71 @@ def unauthorized():
 def delete_user(user_id):
     """Delete a user and their associated data."""
     try:
-        with db_retry_session() as session:
-            # Find the user based on the platform data
-            user = None
-            
-            logger.info(f"Attempting to delete user with ID: {user_id}")
+        logger.info(f"Attempting to delete user with ID: {user_id}")
 
-            # Try to find in web users
-            user = User.query.filter_by(phone_number=user_id).first()
-            
-            if user:
-                logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
-                
-                # Commencer une transaction pour garantir l'intégrité
-                try:
-                    # Étape 1: Log information about the user's conversations
-                    user_conversations = Conversation.query.filter_by(user_id=user.id).all()
-                    logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
-                    
-                    # Étape 2: Suppression des abonnements associés (utiliser user_subscription)
-                    try:
-                        # Vérifier si la table user_subscription existe et contient des enregistrements pour cet utilisateur
-                        # Utiliser SQL brut pour éviter les problèmes de mappage objet-relationnel
-                        result = session.execute(
-                            "SELECT COUNT(*) FROM user_subscription WHERE user_id = :user_id",
-                            {"user_id": user.id}
-                        ).scalar()
-                        
-                        if result and result > 0:
-                            logger.info(f"Deleting {result} subscription relationships for user {user.id}")
-                            session.execute(
-                                "DELETE FROM user_subscription WHERE user_id = :user_id",
-                                {"user_id": user.id}
-                            )
-                            session.flush()
-                    except Exception as sub_error:
-                        logger.warning(f"Error deleting user_subscription entries for user {user_id}: {str(sub_error)}")
-                        # On ne lève pas d'exception ici pour permettre la poursuite de la suppression
+        # Find the user based on the platform data
+        user = None
 
-                    # Étape 3: Delete the user (cascading should take care of related records)
-                    # La suppression en cascade grâce à la contrainte fk_user_conversation s'occupera de supprimer
-                    # automatiquement toutes les conversations associées à l'utilisateur
-                    logger.info(f"Deleting web user {user.id}")
-                    session.delete(user)
-                    session.commit()
-                    logger.info(f"Web user {user_id} deleted successfully")
-                    return jsonify({'success': True, 'message': 'User deleted successfully'})
-                except Exception as user_error:
-                    logger.error(f"Error deleting user: {str(user_error)}")
-                    session.rollback()
-                    return jsonify({'success': False, 'message': f'Error deleting user: {str(user_error)}'}), 500
+        # Try to find in web users
+        user = User.query.filter_by(phone_number=user_id).first()
+        if user:
+            logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
 
-            # Try to find in Telegram users
-            user = TelegramUser.query.filter_by(telegram_id=user_id).first()
-            if user:
-                try:
+            try:
+                # Importer le module text pour les requêtes SQL
+                from sqlalchemy import text
+
+                # Utiliser du SQL pur avec une connexion directe pour éviter
+                # les problèmes avec le modèle ORM et gérer les transactions correctement
+                with db.engine.begin() as connection:
+                    # 1. Récupérer l'ID de l'utilisateur pour les requêtes suivantes
+                    user_id_to_delete = user.id
+
+                    # 2. Supprimer les associations dans user_subscription
+                    logger.info(f"Deleting subscription relationships for user {user_id_to_delete}")
+                    connection.execute(
+                        text("DELETE FROM user_subscription WHERE user_id = :user_id"),
+                        {"user_id": user_id_to_delete}
+                    )
+
+                    # 3. Supprimer les messages liés aux conversations de l'utilisateur
+                    logger.info(f"Deleting messages for user {user_id_to_delete}")
+                    connection.execute(
+                        text("""DELETE FROM message 
+                                WHERE conversation_id IN (
+                                    SELECT id FROM conversation WHERE user_id = :user_id
+                                )"""),
+                        {"user_id": user_id_to_delete}
+                    )
+
+                    # 4. Supprimer les conversations de l'utilisateur
+                    logger.info(f"Deleting conversations for user {user_id_to_delete}")
+                    connection.execute(
+                        text("DELETE FROM conversation WHERE user_id = :user_id"),
+                        {"user_id": user_id_to_delete}
+                    )
+
+                    # 5. Supprimer l'utilisateur lui-même
+                    # Note: le mot-clé "user" est réservé dans SQL, donc on le met entre guillemets
+                    logger.info(f"Deleting user with ID {user_id_to_delete}")
+                    connection.execute(
+                        text("DELETE FROM \"user\" WHERE id = :user_id"),
+                        {"user_id": user_id_to_delete}
+                    )
+
+                # Si on arrive ici, c'est que la transaction a été validée avec succès
+                logger.info(f"Web user {user_id} deleted successfully")
+                return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+            except Exception as e:
+                logger.error(f"Error deleting web user: {str(e)}")
+                return jsonify({'success': False, 'message': f'Error deleting user: {str(e)}'}), 500
+
+        # Try to find in Telegram users
+        user = TelegramUser.query.filter_by(telegram_id=user_id).first()
+        if user:
+            try:
+                with db_retry_session() as session:
                     # Delete all messages first
                     for conv in user.conversations:
                         TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
@@ -1132,25 +1142,26 @@ def delete_user(user_id):
                     session.delete(user)
                     session.commit()
                     return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
-                except Exception as telegram_error:
-                    logger.error(f"Error deleting Telegram user: {str(telegram_error)}")
-                    session.rollback()
-                    return jsonify({'success': False, 'message': f'Error deleting Telegram user: {str(telegram_error)}'}), 500
+            except Exception as telegram_error:
+                logger.error(f"Error deleting Telegram user: {str(telegram_error)}")
+                session.rollback()
+                return jsonify({'success': False, 'message': f'Error deleting Telegram user: {str(telegram_error)}'}), 500
 
-            # Check WhatsApp users (using the phone number as ID)
-            messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
-            if messages:
-                try:
+        # Check WhatsApp users (using the phone number as ID)
+        messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
+        if messages:
+            try:
+                with db_retry_session() as session:
                     for message in messages:
                         session.delete(message)
                     session.commit()
                     return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
-                except Exception as whatsapp_error:
-                    logger.error(f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
-                    session.rollback()
-                    return jsonify({'success': False, 'message': f'Error deleting WhatsApp messages: {str(whatsapp_error)}'}), 500
+            except Exception as whatsapp_error:
+                logger.error(f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
+                session.rollback()
+                return jsonify({'success': False, 'message': f'Error deleting WhatsApp messages: {str(whatsapp_error)}'}), 500
 
-            return jsonify({'success': False, 'message': 'User not found'}), 404
+        return jsonify({'success': False, 'message': 'User not found'}), 404
 
     except Exception as e:
         logger.error(f"Error in delete_user function for {user_id}: {str(e)}")
