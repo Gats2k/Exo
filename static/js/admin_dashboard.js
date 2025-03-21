@@ -1376,6 +1376,149 @@ function updateScrollIndicators(container) {
 /**
  * Configure Socket.IO pour recevoir les mises à jour en temps réel des statistiques
  */
+// Système de notifications - variables globales
+let notifications = [];
+const MAX_NOTIFICATIONS = 5;
+
+// Ouvrir/fermer le menu de notifications
+function toggleNotifications() {
+    const notificationDropdown = document.getElementById('notificationDropdown');
+    notificationDropdown.classList.toggle('show');
+    
+    // Si le menu est affiché, marquons les notifications comme lues
+    if (notificationDropdown.classList.contains('show')) {
+        document.getElementById('notification-badge').classList.remove('show');
+    }
+    
+    // Fermer le menu déroulant des plateformes si ouvert
+    document.getElementById('platformDropdown').classList.remove('show');
+    
+    // Empêcher la propagation de l'événement de clic
+    event.stopPropagation();
+}
+
+// Ajout d'une nouvelle notification
+function addNotification(message, type = 'info') {
+    // Créer un nouvel objet notification
+    const newNotification = {
+        id: Date.now(),
+        message: message,
+        type: type,
+        timestamp: new Date()
+    };
+    
+    // Ajouter au début de la liste de notifications
+    notifications.unshift(newNotification);
+    
+    // Limiter le nombre de notifications stockées
+    if (notifications.length > MAX_NOTIFICATIONS) {
+        notifications.pop();
+    }
+    
+    // Afficher le badge de notification
+    document.getElementById('notification-badge').classList.add('show');
+    
+    // Mettre à jour l'affichage des notifications
+    updateNotificationsDisplay();
+}
+
+// Mise à jour de l'affichage des notifications
+function updateNotificationsDisplay() {
+    const notificationList = document.getElementById('notification-list');
+    const emptyNotifications = document.getElementById('empty-notifications');
+    
+    // Vider la liste actuelle
+    while (notificationList.firstChild && notificationList.firstChild !== emptyNotifications) {
+        notificationList.removeChild(notificationList.firstChild);
+    }
+    
+    // Afficher le message "Aucune notification" si la liste est vide
+    if (notifications.length === 0) {
+        emptyNotifications.style.display = 'block';
+        return;
+    } else {
+        emptyNotifications.style.display = 'none';
+    }
+    
+    // Ajouter chaque notification à la liste
+    notifications.forEach(notification => {
+        const notificationItem = document.createElement('div');
+        notificationItem.className = 'notification-item';
+        notificationItem.dataset.id = notification.id;
+        
+        const content = document.createElement('div');
+        content.className = 'notification-content';
+        content.textContent = notification.message;
+        
+        const time = document.createElement('div');
+        time.className = 'notification-time';
+        time.textContent = formatTimestamp(notification.timestamp);
+        
+        notificationItem.appendChild(content);
+        notificationItem.appendChild(time);
+        
+        // Ajouter un gestionnaire d'événements pour supprimer la notification au clic
+        notificationItem.addEventListener('click', function() {
+            removeNotification(notification.id);
+        });
+        
+        notificationList.insertBefore(notificationItem, emptyNotifications);
+    });
+}
+
+// Formater l'horodatage pour l'affichage
+function formatTimestamp(timestamp) {
+    const now = new Date();
+    const diff = now - timestamp;
+    
+    // Si moins d'une minute
+    if (diff < 60000) {
+        return 'À l\'instant';
+    }
+    
+    // Si moins d'une heure
+    if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        return `Il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    }
+    
+    // Si aujourd'hui
+    if (now.toDateString() === timestamp.toDateString()) {
+        return `Aujourd'hui à ${timestamp.getHours()}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
+    }
+    
+    // Sinon, date complète
+    return `${timestamp.toLocaleDateString()} à ${timestamp.getHours()}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
+}
+
+// Supprimer une notification
+function removeNotification(id) {
+    notifications = notifications.filter(notification => notification.id !== id);
+    updateNotificationsDisplay();
+    
+    // Si toutes les notifications sont supprimées, cacher le badge
+    if (notifications.length === 0) {
+        document.getElementById('notification-badge').classList.remove('show');
+    }
+}
+
+// Supprimer toutes les notifications
+function clearAllNotifications() {
+    notifications = [];
+    updateNotificationsDisplay();
+    document.getElementById('notification-badge').classList.remove('show');
+}
+
+// Fermer le menu de notifications quand on clique ailleurs sur la page
+document.addEventListener('click', function(event) {
+    const notificationDropdown = document.getElementById('notificationDropdown');
+    const notificationBell = document.querySelector('.notification-bell');
+    
+    if (!notificationBell.contains(event.target) && !notificationDropdown.contains(event.target)) {
+        notificationDropdown.classList.remove('show');
+    }
+});
+
 function setupRealtimeUpdates() {
     // Vérifier si la variable socket existe déjà (peut être créée dans main.js)
     if (typeof io !== 'undefined') {
@@ -1400,10 +1543,8 @@ function setupRealtimeUpdates() {
                     satisfactionElement.classList.remove('highlight-update');
                 }, 2000);
                 
-                // Afficher une notification si la fonction existe
-                if (typeof showNotification === 'function') {
-                    showNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
-                }
+                // Ajouter une notification pour la mise à jour
+                addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
             }
         });
     } else {

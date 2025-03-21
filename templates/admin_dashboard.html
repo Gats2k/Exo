@@ -51,6 +51,26 @@
             </div>
         </div>
         <div style="margin-left: auto;"></div>
+        
+        <!-- Système de notification -->
+        <div class="notification-container">
+            <div class="notification-bell" onclick="toggleNotifications()">
+                <i class="bi bi-bell"></i>
+                <span class="notification-badge" id="notification-badge"></span>
+            </div>
+            <div class="notification-dropdown" id="notificationDropdown">
+                <div class="notification-header">
+                    <span>Notifications</span>
+                    <button class="clear-all-btn" onclick="clearAllNotifications()">Tout effacer</button>
+                </div>
+                <div class="notification-list" id="notification-list">
+                    <div class="empty-notifications" id="empty-notifications">
+                        Aucune notification
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="web-selector-container">
             <div class="web-selector" onclick="toggleDropdown()">
                 <i class="bi bi-globe" id="platform-icon"></i>
@@ -71,9 +91,6 @@
                     WhatsApp
                 </div>
             </div>
-        </div>
-        <div class="notification-bell">
-            <i class="bi bi-bell"></i>
         </div>
     </div>
 
