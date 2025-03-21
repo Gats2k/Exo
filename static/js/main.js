@@ -342,6 +342,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="message-content">
                 ${content}
             </div>
+            <div class="message-feedback">
+                <button class="feedback-btn thumbs-up" data-message-id="${data.id}" data-feedback-type="positive">
+                    <i class="bi bi-hand-thumbs-up"></i>
+                </button>
+                <button class="feedback-btn thumbs-down" data-message-id="${data.id}" data-feedback-type="negative">
+                    <i class="bi bi-hand-thumbs-down"></i>
+                </button>
+            </div>
         `;
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -386,6 +394,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="message-content">
                         ${content}
                     </div>
+                    ${msg.role === 'assistant' ? `
+                    <div class="message-feedback">
+                        <button class="feedback-btn thumbs-up" data-message-id="${msg.id}" data-feedback-type="positive">
+                            <i class="bi bi-hand-thumbs-up"></i>
+                        </button>
+                        <button class="feedback-btn thumbs-down" data-message-id="${msg.id}" data-feedback-type="negative">
+                            <i class="bi bi-hand-thumbs-down"></i>
+                        </button>
+                    </div>
+                    ` : ''}
                 `;
                 chatMessages.appendChild(messageDiv);
             });
