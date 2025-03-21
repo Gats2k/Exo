@@ -626,6 +626,48 @@ def handle_clear_session():
     # Clear the thread_id from session
     session.pop('thread_id', None)
     emit('session_cleared', {'success': True})
+    
+@socketio.on('submit_feedback')
+def handle_feedback(data):
+    """Handle feedback submission for a message"""
+    try:
+        message_id = data.get('message_id')
+        feedback_type = data.get('feedback_type')
+        user_id = session.get('user_id')
+        
+        if not message_id or not feedback_type:
+            emit('feedback_submitted', {'success': False, 'error': 'Missing required parameters'})
+            return
+            
+        if feedback_type not in ['positive', 'negative']:
+            emit('feedback_submitted', {'success': False, 'error': 'Invalid feedback type'})
+            return
+        
+        with db_retry_session() as session:
+            # Check if this user already gave feedback on this message
+            existing_feedback = MessageFeedback.query.filter_by(
+                message_id=message_id, 
+                user_id=user_id
+            ).first()
+            
+            if existing_feedback:
+                # Update existing feedback
+                existing_feedback.feedback_type = feedback_type
+                db.session.commit()
+            else:
+                # Create new feedback entry
+                new_feedback = MessageFeedback(
+                    message_id=message_id,
+                    user_id=user_id,
+                    feedback_type=feedback_type
+                )
+                db.session.add(new_feedback)
+                db.session.commit()
+            
+            emit('feedback_submitted', {'success': True})
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {str(e)}")
+        emit('feedback_submitted', {'success': False, 'error': str(e)})
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -724,8 +766,13 @@ def admin_dashboard():
         active_users = len(users)
         # Count users created today
         active_users_today = sum(1 for user in users if user.created_at.date() == today)
-        # Initialize satisfaction rate to 0
-        satisfaction_rate = 0
+        
+        # Calculate satisfaction rate based on message feedback
+        total_feedbacks = MessageFeedback.query.count()
+        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+        
+        # Calculate satisfaction rate (percentage of positive feedback)
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
 
         # Get OpenAI Assistant ID for settings
         openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'Non configuré')
@@ -960,12 +1007,17 @@ def admin_platform_data(platform):
         # Get web platform statistics
         users = User.query.all()
         conversations = Conversation.query.all()
+        
+        # Calculate satisfaction rate for web platform
+        total_feedbacks = MessageFeedback.query.count()
+        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
 
         data = {
             'active_users': len(users),
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0,
+            'satisfaction_rate': satisfaction_rate,
             'platform': 'web',
             'users': [{
                 'first_name': user.first_name,
