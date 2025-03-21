@@ -387,6 +387,51 @@ body {
     padding: 5px;
 }
 
+.message-feedback {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 8px;
+    padding: 0 10px;
+    height: 2rem; /* Approximately 2 inches */
+}
+
+.feedback-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.5;
+    font-size: 1.3rem;
+    padding: 5px;
+}
+
+.feedback-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.feedback-btn.thumbs-up:hover {
+    color: #4ADE80;
+}
+
+.feedback-btn.thumbs-down:hover {
+    color: #F43F5E;
+}
+
+.feedback-btn.active {
+    opacity: 1;
+}
+
+.feedback-btn.active.thumbs-up {
+    color: #4ADE80;
+}
+
+.feedback-btn.active.thumbs-down {
+    color: #F43F5E;
+}
+
 .chat-input {
     position: fixed;
     bottom: 0;
