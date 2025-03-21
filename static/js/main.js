@@ -396,10 +396,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     ${msg.role === 'assistant' ? `
                     <div class="message-feedback">
-                        <button class="feedback-btn thumbs-up" data-message-id="${msg.id}" data-feedback-type="positive">
+                        <button class="feedback-btn thumbs-up ${msg.feedback === 'positive' ? 'active' : ''}" 
+                               data-message-id="${msg.id}" data-feedback-type="positive">
                             <i class="bi bi-hand-thumbs-up"></i>
                         </button>
-                        <button class="feedback-btn thumbs-down" data-message-id="${msg.id}" data-feedback-type="negative">
+                        <button class="feedback-btn thumbs-down ${msg.feedback === 'negative' ? 'active' : ''}" 
+                               data-message-id="${msg.id}" data-feedback-type="negative">
                             <i class="bi bi-hand-thumbs-down"></i>
                         </button>
                     </div>

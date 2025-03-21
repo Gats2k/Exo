@@ -604,13 +604,33 @@ def handle_open_conversation(data):
 
             # Get messages for this conversation
             messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
-            messages_data = [
-                {
+            messages_data = []
+
+            # Import needed for current_user
+            from flask_login import current_user
+            user_id = current_user.id if current_user.is_authenticated else None
+            
+            for msg in messages:
+                # Add base message data
+                message_data = {
+                    'id': msg.id,  # Include message ID for feedback tracking
                     'role': msg.role,
                     'content': msg.content,
-                    'image_url': msg.image_url
-                } for msg in messages
-            ]
+                    'image_url': msg.image_url,
+                }
+                
+                # If it's an assistant message, check for existing feedback
+                if msg.role == 'assistant':
+                    # Get existing feedback for this message from the current user
+                    feedback = MessageFeedback.query.filter_by(
+                        message_id=msg.id,
+                        user_id=user_id
+                    ).first()
+                    
+                    if feedback:
+                        message_data['feedback'] = feedback.feedback_type
+                
+                messages_data.append(message_data)
 
             emit('conversation_opened', {
                 'success': True,
@@ -619,6 +639,7 @@ def handle_open_conversation(data):
                 'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
             })
     except Exception as e:
+        app.logger.error(f"Error opening conversation: {str(e)}")
         emit('conversation_opened', {
             'success': False,
             'error': str(e)
