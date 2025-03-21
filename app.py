@@ -670,7 +670,20 @@ def handle_feedback(data):
                 db_session.add(new_feedback)
                 db_session.commit()
 
+            # Émettre le succès à l'utilisateur qui a soumis le feedback
             emit('feedback_submitted', {'success': True})
+            
+            # Calculer les nouvelles statistiques de satisfaction
+            total_feedbacks = MessageFeedback.query.count()
+            positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+            satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+            
+            # Émettre la mise à jour à tous les clients connectés (y compris le tableau de bord admin)
+            socketio.emit('feedback_stats_updated', {
+                'satisfaction_rate': satisfaction_rate,
+                'total_feedbacks': total_feedbacks,
+                'positive_feedbacks': positive_feedbacks
+            }, broadcast=True)
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         emit('feedback_submitted', {'success': False, 'error': str(e)})

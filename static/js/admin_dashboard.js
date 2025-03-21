@@ -379,6 +379,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     `;
     document.head.appendChild(style);
+    
+    // Configuration de Socket.IO pour les mises à jour en temps réel
+    setupRealtimeUpdates();
 });
 
 function updateDashboardStats(data) {
@@ -1367,6 +1370,44 @@ function updateScrollIndicators(container) {
         rightIndicator.style.display = 'none';
     } else {
         rightIndicator.style.display = 'flex';
+    }
+}
+
+/**
+ * Configure Socket.IO pour recevoir les mises à jour en temps réel des statistiques
+ */
+function setupRealtimeUpdates() {
+    // Vérifier si la variable socket existe déjà (peut être créée dans main.js)
+    if (typeof io !== 'undefined') {
+        // Si la variable io existe, initialiser socket
+        const socket = io();
+        
+        // Écouter l'événement de mise à jour des statistiques de feedback
+        socket.on('feedback_stats_updated', function(data) {
+            console.log('Received real-time feedback stats update:', data);
+            
+            // Mettre à jour uniquement la statistique de satisfaction
+            if (data.satisfaction_rate !== undefined) {
+                // Mettre à jour l'affichage du taux de satisfaction
+                document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+                
+                // Ajouter une animation pour attirer l'attention sur la mise à jour
+                const satisfactionElement = document.querySelectorAll('.stat-card')[2];
+                satisfactionElement.classList.add('highlight-update');
+                
+                // Supprimer la classe d'animation après un court délai
+                setTimeout(() => {
+                    satisfactionElement.classList.remove('highlight-update');
+                }, 2000);
+                
+                // Afficher une notification si la fonction existe
+                if (typeof showNotification === 'function') {
+                    showNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
+                }
+            }
+        });
+    } else {
+        console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
     }
 }
 

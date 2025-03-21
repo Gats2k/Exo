@@ -9,6 +9,7 @@
     --container-width: 400px; /* Valeur par défaut, peut être ajustée */
     --sidebar-icon-size: 1.2rem;
     --sidebar-text-size: 1.5rem;
+    --highlight-color: #4ADE80; /* Couleur verte pour mise en évidence */
 }
 
 body {
