@@ -22,14 +22,49 @@ from mathpix_utils import process_image_with_mathpix
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
-from app import (
-    get_db_context, 
-    CURRENT_MODEL, 
-    get_ai_client, 
-    get_model_name, 
-    get_system_instructions,
-    call_gemini_api
-)
+from app import get_db_context
+
+def get_app_config():
+    """
+    Récupère dynamiquement les configurations actuelles depuis le fichier de configuration.
+    Cela permet de toujours obtenir les dernières valeurs sans redémarrer le bot.
+    """
+    import app
+    import json
+    import os
+
+    # Utiliser un chemin absolu pour le fichier de configuration
+    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+
+    # Essayer d'abord de lire depuis le fichier de configuration
+    try:
+        if os.path.exists(config_file_path):
+            with open(config_file_path, 'r') as f:
+                config_data = json.load(f)
+
+            # Log la configuration trouvée pour débogage
+            logger.info(f"Found config in file: model={config_data['CURRENT_MODEL']}, timestamp={config_data.get('timestamp', 0)}")
+
+            # Retourner les configurations depuis le fichier sans vérifier l'âge
+            return {
+                'CURRENT_MODEL': config_data['CURRENT_MODEL'],
+                'get_ai_client': app.get_ai_client,
+                'get_model_name': app.get_model_name,
+                'get_system_instructions': app.get_system_instructions,
+                'call_gemini_api': app.call_gemini_api
+            }
+    except Exception as e:
+        logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
+
+    # Fallback aux configurations du module app
+    logger.info(f"Using config from app module: {app.CURRENT_MODEL}")
+    return {
+        'CURRENT_MODEL': app.CURRENT_MODEL,
+        'get_ai_client': app.get_ai_client,
+        'get_model_name': app.get_model_name,
+        'get_system_instructions': app.get_system_instructions,
+        'call_gemini_api': app.call_gemini_api
+    }
 
 # Set up logging
 logging.basicConfig(
@@ -188,7 +223,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_threads[user_id] = None
 
         with db_retry_session() as session:
-            # Get or create thread ID for this user
+            # Get the current model configuration dynamically for thread creation
+            config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
+
             thread_id = user_threads[user_id]
             if not thread_id:
                 # Create a new thread ID
@@ -223,7 +261,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 action=constants.ChatAction.TYPING
             )
 
-            # Get the current model selected from dashboard
+            # Get the current model configuration dynamically
+            config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
+            get_ai_client = config['get_ai_client']
+            get_model_name = config['get_model_name']
+            get_system_instructions = config['get_system_instructions']
+            call_gemini_api = config['call_gemini_api']
+
             logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
 
             # Different handling based on selected model
@@ -348,6 +393,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error("No photo found in the message")
                 return
 
+            # Get the current model configuration dynamically for thread creation
+            config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
+
             # Get or create thread ID for this user
             thread_id = user_threads[user_id]
             if not thread_id:
@@ -452,7 +501,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Store the user's message in our database
             await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
-            # Get the current model selected from dashboard
+            # Get the current model configuration dynamically
+            config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
+            get_ai_client = config['get_ai_client']
+            get_model_name = config['get_model_name']
+            get_system_instructions = config['get_system_instructions']
+            call_gemini_api = config['call_gemini_api']
+
             logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
             # Different handling based on selected model
@@ -618,9 +674,10 @@ def run_telegram_bot():
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
-        # Log current configuration
-        logger.info(f"Telegram bot starting with model: {CURRENT_MODEL}")
-        logger.info(f"System instructions: {get_system_instructions()}")
+        # Log current configuration (without using imported values)
+        config = get_app_config()
+        logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
+        logger.info(f"System instructions: {config['get_system_instructions']()}")
 
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()

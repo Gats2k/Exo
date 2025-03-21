@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from flask_login import LoginManager, current_user, login_user, logout_user, login_required
 import uuid
 from mathpix_utils import process_image_with_mathpix # Added import
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -743,6 +744,44 @@ def admin_dashboard():
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
 
+def reload_model_settings():
+    """
+    Recharge les paramètres du modèle depuis l'environnement et les sauvegarde dans un fichier JSON.
+    Cette fonction est appelée lorsque l'administrateur modifie les paramètres du modèle.
+    """
+    global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
+
+    # Recharger les variables depuis l'environnement
+    CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+    DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant')
+    DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
+    QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
+    GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
+
+    # Utiliser un chemin absolu pour le fichier de configuration
+    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+
+    # Sauvegarde des configurations dans un fichier JSON
+    config_data = {
+        'timestamp': time.time(),
+        'CURRENT_MODEL': CURRENT_MODEL,
+        'DEEPSEEK_INSTRUCTIONS': DEEPSEEK_INSTRUCTIONS,
+        'DEEPSEEK_REASONER_INSTRUCTIONS': DEEPSEEK_REASONER_INSTRUCTIONS,
+        'QWEN_INSTRUCTIONS': QWEN_INSTRUCTIONS,
+        'GEMINI_INSTRUCTIONS': GEMINI_INSTRUCTIONS
+    }
+
+    try:
+        with open(config_file_path, 'w') as f:
+            json.dump(config_data, f)
+
+        # S'assurer que le fichier a les permissions correctes
+        os.chmod(config_file_path, 0o666)  # rw-rw-rw-
+
+        logger.info(f"AI model settings saved to {config_file_path}: {CURRENT_MODEL}")
+    except Exception as e:
+        logger.error(f"Error saving AI model settings to file ({config_file_path}): {str(e)}")
+
 @app.route('/admin/settings/model', methods=['POST'])
 def update_model_settings():
     """Update AI model settings"""
@@ -809,10 +848,37 @@ def update_model_settings():
         # Reload environment variables
         load_dotenv()
 
+        # Recharger les paramètres du modèle
+        reload_model_settings()
+
         return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:
         logger.error(f"Error updating model settings: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+if 'RUN_TELEGRAM_BOT' not in os.environ:
+    os.environ['RUN_TELEGRAM_BOT'] = 'true'
+    logger.info("Enabled Telegram bot (RUN_TELEGRAM_BOT=true)")
+
+    # Mettre à jour .env également
+    env_path = '.env'
+    env_vars = {}
+
+    # Lire les variables existantes
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                if '=' in line:
+                    key, value = line.strip().split('=', 1)
+                    env_vars[key] = value
+
+    # Mettre à jour avec la nouvelle valeur
+    env_vars['RUN_TELEGRAM_BOT'] = 'true'
+
+    # Écrire dans .env
+    with open(env_path, 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f"{key}={value}\n")
 
 @app.route('/admin/logout')
 def admin_logout():
@@ -1000,6 +1066,21 @@ def delete_user(user_id):
             # Try to find in web users
             user = User.query.filter_by(phone_number=user_id).first()
             if user:
+                # Supprimer d'abord les abonnements liés à cet utilisateur
+                try:
+                    Subscription.query.filter_by(user_id=user.id).delete()
+                except Exception as sub_error:
+                    logger.warning(f"Error deleting subscriptions for user {user_id}: {str(sub_error)}")
+
+                # Supprimer les messages associés aux conversations de l'utilisateur
+                user_conversations = Conversation.query.filter_by(user_id=user.id).all()
+                for conv in user_conversations:
+                    Message.query.filter_by(conversation_id=conv.id).delete()
+
+                # Supprimer les conversations
+                Conversation.query.filter_by(user_id=user.id).delete()
+
+                # Enfin, supprimer l'utilisateur
                 session.delete(user)
                 session.commit()
                 return jsonify({'success': True, 'message': 'User deleted successfully'})
