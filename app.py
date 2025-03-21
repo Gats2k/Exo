@@ -1076,15 +1076,15 @@ def delete_user(user_id):
             if user:
                 logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
                 
-                # Deletion debug: Direct query for conversations
+                # Étape 1: Vérifier la cohérence des conversations associées à l'utilisateur
                 conversations_direct = Conversation.query.all()
                 logger.info(f"Total conversations in DB: {len(conversations_direct)}")
                 
-                # Specifically check for conversations belonging to this user
+                # Specifiquement rechercher les conversations appartenant à cet utilisateur
                 user_conversations = Conversation.query.filter_by(user_id=user.id).all()
                 logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
                 
-                # Supprimer d'abord les abonnements liés à cet utilisateur
+                # Étape 2: Suppression des abonnements associés
                 try:
                     sub_count = Subscription.query.filter_by(user_id=user.id).count()
                     logger.info(f"Deleting {sub_count} subscriptions for user {user.id}")
@@ -1092,22 +1092,29 @@ def delete_user(user_id):
                 except Exception as sub_error:
                     logger.warning(f"Error deleting subscriptions for user {user_id}: {str(sub_error)}")
 
-                # Supprimer tous les messages de cet utilisateur
-                message_count = 0
-                for conv in user_conversations:
-                    msg_count = Message.query.filter_by(conversation_id=conv.id).count()
-                    message_count += msg_count
-                    logger.info(f"Deleting {msg_count} messages for conversation {conv.id}")
-                    Message.query.filter_by(conversation_id=conv.id).delete()
-                
-                logger.info(f"Deleted a total of {message_count} messages across all conversations")
+                # Étape 3: Suppression des messages et conversations
+                try:
+                    # Supprimer les messages liés aux conversations de l'utilisateur
+                    message_count = 0
+                    for conv in user_conversations:
+                        msg_count = Message.query.filter_by(conversation_id=conv.id).count()
+                        message_count += msg_count
+                        logger.info(f"Deleting {msg_count} messages for conversation {conv.id}")
+                        Message.query.filter_by(conversation_id=conv.id).delete()
+                    
+                    logger.info(f"Deleted a total of {message_count} messages across all conversations")
 
-                # Supprimer les conversations
-                conv_count = Conversation.query.filter_by(user_id=user.id).count()
-                logger.info(f"Deleting {conv_count} conversations for user {user.id}")
-                Conversation.query.filter_by(user_id=user.id).delete()
+                    # Supprimer les conversations - grâce à ON DELETE CASCADE, ce n'est plus strictement 
+                    # nécessaire mais nous le faisons par précaution
+                    conv_count = Conversation.query.filter_by(user_id=user.id).count()
+                    logger.info(f"Deleting {conv_count} conversations for user {user.id}")
+                    Conversation.query.filter_by(user_id=user.id).delete()
+                except Exception as conv_error:
+                    logger.warning(f"Error while deleting conversations: {str(conv_error)}")
+                    # On continue malgré cette erreur, car la contrainte de FK avec CASCADE devrait
+                    # supprimer les conversations automatiquement
 
-                # Enfin, supprimer l'utilisateur
+                # Étape 4: Suppression de l'utilisateur
                 logger.info(f"Deleting web user {user.id}")
                 session.delete(user)
                 session.commit()
