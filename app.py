@@ -1076,79 +1076,75 @@ def delete_user(user_id):
             if user:
                 logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
                 
-                # Étape 1: Vérifier la cohérence des conversations associées à l'utilisateur
-                conversations_direct = Conversation.query.all()
-                logger.info(f"Total conversations in DB: {len(conversations_direct)}")
-                
-                # Specifiquement rechercher les conversations appartenant à cet utilisateur
+                # Étape 1: Log information about the user's conversations
                 user_conversations = Conversation.query.filter_by(user_id=user.id).all()
                 logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
                 
                 # Étape 2: Suppression des abonnements associés
                 try:
                     sub_count = Subscription.query.filter_by(user_id=user.id).count()
-                    logger.info(f"Deleting {sub_count} subscriptions for user {user.id}")
-                    Subscription.query.filter_by(user_id=user.id).delete()
+                    if sub_count > 0:
+                        logger.info(f"Deleting {sub_count} subscriptions for user {user.id}")
+                        Subscription.query.filter_by(user_id=user.id).delete()
+                        session.flush()
                 except Exception as sub_error:
                     logger.warning(f"Error deleting subscriptions for user {user_id}: {str(sub_error)}")
+                    # Continue with deletion despite this error
 
-                # Étape 3: Suppression des messages et conversations
+                # Étape 3: Delete the user (cascading should take care of related records)
+                # La suppression en cascade grâce à la contrainte fk_user_conversation s'occupera de supprimer
+                # automatiquement toutes les conversations associées à l'utilisateur
                 try:
-                    # Supprimer les messages liés aux conversations de l'utilisateur
-                    message_count = 0
-                    for conv in user_conversations:
-                        msg_count = Message.query.filter_by(conversation_id=conv.id).count()
-                        message_count += msg_count
-                        logger.info(f"Deleting {msg_count} messages for conversation {conv.id}")
-                        Message.query.filter_by(conversation_id=conv.id).delete()
-                    
-                    logger.info(f"Deleted a total of {message_count} messages across all conversations")
-
-                    # Supprimer les conversations - grâce à ON DELETE CASCADE, ce n'est plus strictement 
-                    # nécessaire mais nous le faisons par précaution
-                    conv_count = Conversation.query.filter_by(user_id=user.id).count()
-                    logger.info(f"Deleting {conv_count} conversations for user {user.id}")
-                    Conversation.query.filter_by(user_id=user.id).delete()
-                except Exception as conv_error:
-                    logger.warning(f"Error while deleting conversations: {str(conv_error)}")
-                    # On continue malgré cette erreur, car la contrainte de FK avec CASCADE devrait
-                    # supprimer les conversations automatiquement
-
-                # Étape 4: Suppression de l'utilisateur
-                logger.info(f"Deleting web user {user.id}")
-                session.delete(user)
-                session.commit()
-                logger.info(f"Web user {user_id} deleted successfully")
-                return jsonify({'success': True, 'message': 'User deleted successfully'})
+                    logger.info(f"Deleting web user {user.id}")
+                    session.delete(user)
+                    session.commit()
+                    logger.info(f"Web user {user_id} deleted successfully")
+                    return jsonify({'success': True, 'message': 'User deleted successfully'})
+                except Exception as user_error:
+                    logger.error(f"Error deleting user: {str(user_error)}")
+                    session.rollback()
+                    return jsonify({'success': False, 'message': f'Error deleting user: {str(user_error)}'}), 500
 
             # Try to find in Telegram users
             user = TelegramUser.query.filter_by(telegram_id=user_id).first()
             if user:
-                # Delete all messages first
-                for conv in user.conversations:
-                    TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+                try:
+                    # Delete all messages first
+                    for conv in user.conversations:
+                        TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+                    session.flush()
 
-                # Delete all conversations
-                TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+                    # Delete all conversations
+                    TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+                    session.flush()
 
-                # Finally delete the user
-                session.delete(user)
-                session.commit()
-                return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+                    # Finally delete the user
+                    session.delete(user)
+                    session.commit()
+                    return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+                except Exception as telegram_error:
+                    logger.error(f"Error deleting Telegram user: {str(telegram_error)}")
+                    session.rollback()
+                    return jsonify({'success': False, 'message': f'Error deleting Telegram user: {str(telegram_error)}'}), 500
 
             # Check WhatsApp users (using the phone number as ID)
             messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
             if messages:
-                for message in messages:
-                    session.delete(message)
-                session.commit()
-                return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+                try:
+                    for message in messages:
+                        session.delete(message)
+                    session.commit()
+                    return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+                except Exception as whatsapp_error:
+                    logger.error(f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
+                    session.rollback()
+                    return jsonify({'success': False, 'message': f'Error deleting WhatsApp messages: {str(whatsapp_error)}'}), 500
 
             return jsonify({'success': False, 'message': 'User not found'}), 404
 
     except Exception as e:
-        logger.error(f"Error deleting user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'message': 'Error deleting user'}), 500
+        logger.error(f"Error in delete_user function for {user_id}: {str(e)}")
+        return jsonify({'success': False, 'message': f'Server error: {str(e)}'}), 500
 
 # Add this route after the other admin routes
 
