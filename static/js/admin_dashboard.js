@@ -1413,7 +1413,11 @@ function setupRealtimeUpdates() {
 
 // Exécuter au chargement et lors du redimensionnement
 document.addEventListener('DOMContentLoaded', function() {
+    // Configurer les tableaux responsive
     setupResponsiveTables();
+    
+    // Configurer les mises à jour en temps réel pour les statistiques de feedback
+    setupRealtimeUpdates();
 
     // Reconfigurer les tableaux si la fenêtre est redimensionnée
     window.addEventListener('resize', function() {

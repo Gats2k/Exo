@@ -49,9 +49,20 @@ body {
     width: var(--sidebar-icon-size);
 }
 
-/* À AJOUTER */
+/* Animation pour l'icône */
 .icon-button:hover .bi-mortarboard {
     transform: scale(1.1);
+}
+
+/* Animation pour la mise à jour des statistiques */
+@keyframes highlight-update {
+    0% { background-color: transparent; }
+    30% { background-color: rgba(74, 222, 128, 0.2); } /* Couleur verte semi-transparente */
+    100% { background-color: transparent; }
+}
+
+.highlight-update {
+    animation: highlight-update 2s ease-in-out;
 }
 
 /* Sidebar Styles */
