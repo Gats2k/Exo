@@ -633,27 +633,30 @@ def handle_feedback(data):
     try:
         message_id = data.get('message_id')
         feedback_type = data.get('feedback_type')
-        user_id = session.get('user_id')
-        
+
+        # Utiliser current_user de Flask-Login si l'utilisateur est authentifié
+        from flask_login import current_user
+        user_id = current_user.id if current_user.is_authenticated else None
+
         if not message_id or not feedback_type:
             emit('feedback_submitted', {'success': False, 'error': 'Missing required parameters'})
             return
-            
+
         if feedback_type not in ['positive', 'negative']:
             emit('feedback_submitted', {'success': False, 'error': 'Invalid feedback type'})
             return
-        
-        with db_retry_session() as session:
+
+        with db_retry_session() as db_session:  # Renommer pour éviter la confusion
             # Check if this user already gave feedback on this message
             existing_feedback = MessageFeedback.query.filter_by(
                 message_id=message_id, 
                 user_id=user_id
             ).first()
-            
+
             if existing_feedback:
                 # Update existing feedback
                 existing_feedback.feedback_type = feedback_type
-                db.session.commit()
+                db_session.commit()
             else:
                 # Create new feedback entry
                 new_feedback = MessageFeedback(
@@ -661,9 +664,9 @@ def handle_feedback(data):
                     user_id=user_id,
                     feedback_type=feedback_type
                 )
-                db.session.add(new_feedback)
-                db.session.commit()
-            
+                db_session.add(new_feedback)
+                db_session.commit()
+
             emit('feedback_submitted', {'success': True})
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
