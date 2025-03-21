@@ -338,15 +338,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         content += data.message.replace(/\n/g, '<br>');
 
+        // Déterminer si un feedback existe déjà (sera utilisé si le client a soumis un feedback et reçoit un feedback_submitted event)
+        const feedbackPositive = data.feedback === 'positive';
+        const feedbackNegative = data.feedback === 'negative';
+
         messageDiv.innerHTML = `
             <div class="message-content">
                 ${content}
             </div>
             <div class="message-feedback">
-                <button class="feedback-btn thumbs-up" data-message-id="${data.id}" data-feedback-type="positive">
+                <button class="feedback-btn thumbs-up ${feedbackPositive ? 'active' : ''}" 
+                       data-message-id="${data.id}" data-feedback-type="positive">
                     <i class="bi bi-hand-thumbs-up"></i>
                 </button>
-                <button class="feedback-btn thumbs-down" data-message-id="${data.id}" data-feedback-type="negative">
+                <button class="feedback-btn thumbs-down ${feedbackNegative ? 'active' : ''}" 
+                       data-message-id="${data.id}" data-feedback-type="negative">
                     <i class="bi bi-hand-thumbs-down"></i>
                 </button>
             </div>
@@ -598,6 +604,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Listen for feedback submission confirmation
+    socket.on('feedback_submitted', function(data) {
+        if (data.success) {
+            console.log('Feedback submitted successfully');
+            // Le feedback a été enregistré avec succès dans la base de données
+            // Il sera maintenant persisté entre les rechargements de page
+        }
+    });
+    
     // Add event handlers for feedback buttons
     document.addEventListener('click', function(event) {
         const feedbackBtn = event.target.closest('.feedback-btn');
@@ -614,6 +629,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add active class to the clicked button
             feedbackBtn.classList.add('active');
+            
+            // Stocker ce feedback en mémoire (pour retrouver facilement dans quel état est un message)
+            // Cela permettra de conserver l'état visuel même pour les nouveaux messages
+            if (!window.userFeedbacks) {
+                window.userFeedbacks = {};
+            }
+            window.userFeedbacks[messageId] = feedbackType;
             
             // Send feedback to server
             socket.emit('submit_feedback', {

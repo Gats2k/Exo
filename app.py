@@ -427,7 +427,7 @@ def handle_message(data):
 
                     while True:
                         if time.time() - start_time > timeout:
-                            emit('receive_message', {'message': 'Request timed out.'})
+                            emit('receive_message', {'message': 'Request timed out.', 'id': 0})
                             return
 
                         run_status = ai_client.beta.threads.runs.retrieve(
@@ -438,7 +438,7 @@ def handle_message(data):
                         if run_status.status == 'completed':
                             break
                         elif run_status.status == 'failed':
-                            emit('receive_message', {'message': 'Sorry, there was an error.'})
+                            emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
                             return
 
                         eventlet.sleep(1)
