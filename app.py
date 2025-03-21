@@ -23,11 +23,6 @@ from flask_login import LoginManager, current_user, login_user, logout_user, log
 import uuid
 from mathpix_utils import process_image_with_mathpix # Added import
 import json
-import queue
-import threading
-
-# File d'attente pour les événements Socket.IO provenant du thread Telegram
-socketio_event_queue = queue.Queue()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -83,26 +78,6 @@ DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpf
 DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
 QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
 GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
-
-def enqueue_socketio_event(event_name, data):
-    """
-    Ajoute un événement Socket.IO à la file d'attente pour qu'il soit émis
-    depuis le thread principal de Flask/Socket.IO
-    """
-    socketio_event_queue.put((event_name, data))
-    logger.info(f"Event {event_name} queued for Socket.IO emission")
-
-# Fonction qui vérifie périodiquement la file d'attente des événements
-def process_socketio_events():
-    while not socketio_event_queue.empty():
-        try:
-            event_name, data = socketio_event_queue.get_nowait()
-            socketio.emit(event_name, data)
-            logger.info(f"Emitted queued Socket.IO event: {event_name}")
-        except queue.Empty:
-            break
-        except Exception as e:
-            logger.error(f"Error emitting queued Socket.IO event: {str(e)}")
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -352,15 +327,12 @@ def handle_message(data):
         # Get current conversation or create a new one
         thread_id = session.get('thread_id')
         conversation = None
-        is_new_conversation = False
-
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
 
         if not conversation:
             conversation = get_or_create_conversation()
             session['thread_id'] = conversation.thread_id
-            is_new_conversation = True
 
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
@@ -580,20 +552,6 @@ def handle_message(data):
                 'subject': 'Général',
                 'time': conversation.created_at.strftime('%H:%M')
             }, broadcast=True)
-
-            # Émettre un événement pour mettre à jour le tableau de bord admin
-            if is_new_conversation:
-                # Récupérer les statistiques de conversations pour aujourd'hui
-                today = datetime.today().date()
-                all_conversations = Conversation.query.all()
-                today_conversations = sum(1 for conv in all_conversations if conv.created_at.date() == today)
-
-                # Émettre l'événement pour mettre à jour le tableau de bord
-                socketio.emit('new_conversation_created', {
-                    'today_conversations': today_conversations,
-                    'conversation_title': conversation.title,
-                    'platform': 'web'  # Conversation web par défaut
-                })
 
         db.session.commit()
 
@@ -1051,20 +1009,6 @@ def register():
 
             db.session.add(user)
             db.session.commit()
-
-            # Émettre un événement en temps réel pour la création d'un nouvel utilisateur
-            # Récupérer les statistiques mises à jour
-            all_users = User.query.all()
-            active_users = len(all_users)
-            today = datetime.today().date()
-            active_users_today = sum(1 for user in all_users if user.created_at.date() == today)
-
-            socketio.emit('new_user_created', {
-                'active_users': active_users,
-                'active_users_today': active_users_today,
-                'user_name': f"{first_name} {last_name}",
-                'platform': 'web'  # Nouvel utilisateur web par défaut
-            })
 
             # Log the user in
             login_user(user)
@@ -1680,8 +1624,9 @@ def delete_subscription(subscription_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
-    # Schedule the Socket.IO event processing task
-    scheduler.add_job(func=process_socketio_events, trigger="interval", seconds=1)
+    # Schedule the cleanup task
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=cleanup_uploads, trigger="interval", hours=1)
     scheduler.start()
 
     # Start the Socket.IO server

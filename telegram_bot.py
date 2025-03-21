@@ -116,29 +116,7 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                 )
                 session.add(user)
                 session.commit()
-                session.refresh(user)  # Pour obtenir les dates created_at
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
-
-                # Utiliser la file d'attente pour émettre l'événement Socket.IO
-                try:
-                    from app import enqueue_socketio_event
-
-                    # Calculer les statistiques d'utilisateurs
-                    all_telegram_users = TelegramUser.query.all()
-                    active_users = len(all_telegram_users)
-                    today = datetime.today().date()
-                    active_users_today = sum(1 for u in all_telegram_users if u.created_at.date() == today)
-
-                    # Ajouter l'événement à la file d'attente
-                    enqueue_socketio_event('new_user_created', {
-                        'active_users': active_users,
-                        'active_users_today': active_users_today,
-                        'user_name': f"{first_name} {last_name}",
-                        'platform': 'telegram'
-                    })
-                    logger.info(f"Queued new_user_created event for Telegram user {user_id}")
-                except Exception as socketio_error:
-                    logger.warning(f"Could not queue Socket.IO event: {str(socketio_error)}")
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
@@ -150,7 +128,6 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                     updated = True
                 if updated:
                     session.commit()
-                    # Pas besoin de session.refresh(user) car updated_at n'est pas utilisé
                     logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
             return user
@@ -161,13 +138,7 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
 async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
     """Create a new TelegramConversation record."""
     try:
-        # Vérifier d'abord si la conversation existe déjà avec ce thread_id
         with db_retry_session() as session:
-            existing_conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
-            if existing_conversation:
-                logger.info(f"Found existing conversation with thread_id {thread_id}, returning it")
-                return existing_conversation
-
             logger.info(f"Creating new TelegramConversation for user {user_id} with thread {thread_id}")
             conversation = TelegramConversation(
                 telegram_user_id=user_id,
@@ -176,30 +147,7 @@ async def create_telegram_conversation(user_id: int, thread_id: str) -> Telegram
             )
             session.add(conversation)
             session.commit()
-            session.refresh(conversation)  # Pour obtenir l'ID et les dates
             logger.info(f"Successfully created TelegramConversation: {conversation.id}")
-
-            # Utiliser UNIQUEMENT la file d'attente pour émettre l'événement Socket.IO
-            # et non pas envoyer l'événement directement
-            try:
-                from app import enqueue_socketio_event
-
-                # Calculer les statistiques de conversations
-                all_telegram_conversations = TelegramConversation.query.all()
-                today = datetime.today().date()
-                today_conversations = sum(1 for conv in all_telegram_conversations if conv.created_at.date() == today)
-
-                # Ajouter l'événement à la file d'attente une seule fois
-                enqueue_socketio_event('new_conversation_created', {
-                    'today_conversations': today_conversations,
-                    'conversation_title': conversation.title,
-                    'platform': 'telegram',
-                    'conversation_id': conversation.id  # Ajouter un identifiant unique
-                })
-                logger.info(f"Queued new_conversation_created event for Telegram conversation {conversation.id}")
-            except Exception as socketio_error:
-                logger.warning(f"Could not queue Socket.IO event: {str(socketio_error)}")
-
             return conversation
     except Exception as e:
         logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
@@ -230,33 +178,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_name = update.effective_user.last_name
     try:
         # Create or get the user in our database
-        user = await get_or_create_telegram_user(user_id, first_name, last_name)
+        await get_or_create_telegram_user(user_id, first_name, last_name)
 
-        # Vérifier si l'utilisateur a déjà un thread actif
-        existing_thread_id = user_threads.get(user_id)
-        if existing_thread_id:
-            logger.info(f"User {user_id} already has thread {existing_thread_id}")
-            # Vérifier si une conversation existe pour ce thread
-            with db_retry_session() as session:
-                existing_conversation = TelegramConversation.query.filter_by(thread_id=existing_thread_id).first()
-                if existing_conversation:
-                    logger.info(f"Found existing conversation {existing_conversation.id} for user {user_id}")
-                    await update.message.reply_text('🤓')
-                    return
-
-        # Si on arrive ici, on n'a pas trouvé de thread ou de conversation existante
-        # Créer un nouveau thread
+        # Create a new thread for the user
         thread = openai_client.beta.threads.create()
         user_threads[user_id] = thread.id
         logger.info(f"Created new thread {thread.id} for user {user_id}")
 
         # Create a new conversation in our database
-        conversation = await create_telegram_conversation(user_id, thread.id)
+        await create_telegram_conversation(user_id, thread.id)
 
-        # La création de la conversation se charge déjà d'envoyer l'événement Socket.IO
-        # Ne pas dupliquer l'envoi d'événements ici
-
-        await update.message.reply_text('🤓')
+        await update.message.reply_text(
+            '🤓'
+        )
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}", exc_info=True)
         await update.message.reply_text(
@@ -302,7 +236,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     # For other models, create a unique thread ID
                     thread_id = f"thread_{user_id}_{int(time.time())}"
-
+                
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
                 # Create a new conversation in our database
@@ -379,7 +313,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
                 logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
-
+                
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
                 with db_retry_session() as sess:
@@ -397,7 +331,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "role": "system",
                         "content": system_instructions
                     })
-
+                
                 # Use Gemini's special call function if Gemini is selected
                 if CURRENT_MODEL == 'gemini':
                     try:
@@ -409,7 +343,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # For DeepSeek and Qwen models
                     ai_client = get_ai_client()
                     model = get_model_name()
-
+                    
                     try:
                         # Format messages for the API call
                         response = ai_client.chat.completions.create(
@@ -473,7 +407,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     # For other models, create a unique thread ID
                     thread_id = f"thread_{user_id}_{int(time.time())}"
-
+                
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
                 # Create a new conversation in our database
@@ -623,7 +557,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
                 logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
-
+                
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
                 with db_retry_session() as sess:
@@ -636,7 +570,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "role": msg.role,
                             "content": msg.content
                         })
-
+                
                 # Add the current message
                 previous_messages.append({
                     "role": "user", 
@@ -650,7 +584,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "role": "system",
                         "content": system_instructions
                     })
-
+                
                 # Use Gemini's special call function if Gemini is selected
                 if CURRENT_MODEL == 'gemini':
                     try:
@@ -662,7 +596,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # For DeepSeek and Qwen models
                     ai_client = get_ai_client()
                     model = get_model_name()
-
+                    
                     try:
                         # Format messages for the API call
                         response = ai_client.chat.completions.create(
@@ -733,38 +667,25 @@ def setup_telegram_bot():
         raise
 
 def run_telegram_bot():
-    """Run the Telegram bot with file lock to prevent multiple instances."""
+    """Run the Telegram bot."""
     try:
         # Only run if explicitly enabled
         if not os.environ.get('RUN_TELEGRAM_BOT'):
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
-        # Utiliser un verrou de fichier pour éviter les instances multiples
-        import fcntl
-        lock_file = open("/tmp/telegram_bot.lock", "w")
+        # Log current configuration (without using imported values)
+        config = get_app_config()
+        logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
+        logger.info(f"System instructions: {config['get_system_instructions']()}")
 
-        try:
-            # Essayer d'acquérir un verrou exclusif, non-bloquant
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-            # Log current configuration (without using imported values)
-            config = get_app_config()
-            logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
-            logger.info(f"System instructions: {config['get_system_instructions']()}")
-
-            # Create new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            application = setup_telegram_bot()
-            logger.info("Starting Telegram bot polling...")
-            application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-        except IOError:
-            # Une autre instance est déjà en cours d'exécution
-            logger.info("Another instance of the Telegram bot is already running.")
-            return
-
+        application = setup_telegram_bot()
+        logger.info("Starting Telegram bot polling...")
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
         raise
