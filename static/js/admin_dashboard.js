@@ -1384,15 +1384,15 @@ const MAX_NOTIFICATIONS = 5;
 function toggleNotifications() {
     const notificationDropdown = document.getElementById('notificationDropdown');
     notificationDropdown.classList.toggle('show');
-    
+
     // Si le menu est affiché, marquons les notifications comme lues
     if (notificationDropdown.classList.contains('show')) {
         document.getElementById('notification-badge').classList.remove('show');
     }
-    
+
     // Fermer le menu déroulant des plateformes si ouvert
     document.getElementById('platformDropdown').classList.remove('show');
-    
+
     // Empêcher la propagation de l'événement de clic
     event.stopPropagation();
 }
@@ -1406,18 +1406,18 @@ function addNotification(message, type = 'info') {
         type: type,
         timestamp: new Date()
     };
-    
+
     // Ajouter au début de la liste de notifications
     notifications.unshift(newNotification);
-    
+
     // Limiter le nombre de notifications stockées
     if (notifications.length > MAX_NOTIFICATIONS) {
         notifications.pop();
     }
-    
+
     // Afficher le badge de notification
     document.getElementById('notification-badge').classList.add('show');
-    
+
     // Mettre à jour l'affichage des notifications
     updateNotificationsDisplay();
 }
@@ -1426,12 +1426,12 @@ function addNotification(message, type = 'info') {
 function updateNotificationsDisplay() {
     const notificationList = document.getElementById('notification-list');
     const emptyNotifications = document.getElementById('empty-notifications');
-    
+
     // Vider la liste actuelle
     while (notificationList.firstChild && notificationList.firstChild !== emptyNotifications) {
         notificationList.removeChild(notificationList.firstChild);
     }
-    
+
     // Afficher le message "Aucune notification" si la liste est vide
     if (notifications.length === 0) {
         emptyNotifications.style.display = 'block';
@@ -1439,29 +1439,29 @@ function updateNotificationsDisplay() {
     } else {
         emptyNotifications.style.display = 'none';
     }
-    
+
     // Ajouter chaque notification à la liste
     notifications.forEach(notification => {
         const notificationItem = document.createElement('div');
         notificationItem.className = 'notification-item';
         notificationItem.dataset.id = notification.id;
-        
+
         const content = document.createElement('div');
         content.className = 'notification-content';
         content.textContent = notification.message;
-        
+
         const time = document.createElement('div');
         time.className = 'notification-time';
         time.textContent = formatTimestamp(notification.timestamp);
-        
+
         notificationItem.appendChild(content);
         notificationItem.appendChild(time);
-        
+
         // Ajouter un gestionnaire d'événements pour supprimer la notification au clic
         notificationItem.addEventListener('click', function() {
             removeNotification(notification.id);
         });
-        
+
         notificationList.insertBefore(notificationItem, emptyNotifications);
     });
 }
@@ -1470,23 +1470,23 @@ function updateNotificationsDisplay() {
 function formatTimestamp(timestamp) {
     const now = new Date();
     const diff = now - timestamp;
-    
+
     // Si moins d'une minute
     if (diff < 60000) {
         return 'À l\'instant';
     }
-    
+
     // Si moins d'une heure
     if (diff < 3600000) {
         const minutes = Math.floor(diff / 60000);
         return `Il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
     }
-    
+
     // Si aujourd'hui
     if (now.toDateString() === timestamp.toDateString()) {
         return `Aujourd'hui à ${timestamp.getHours()}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
     }
-    
+
     // Sinon, date complète
     return `${timestamp.toLocaleDateString()} à ${timestamp.getHours()}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
 }
@@ -1495,7 +1495,7 @@ function formatTimestamp(timestamp) {
 function removeNotification(id) {
     notifications = notifications.filter(notification => notification.id !== id);
     updateNotificationsDisplay();
-    
+
     // Si toutes les notifications sont supprimées, cacher le badge
     if (notifications.length === 0) {
         document.getElementById('notification-badge').classList.remove('show');
@@ -1513,7 +1513,7 @@ function clearAllNotifications() {
 document.addEventListener('click', function(event) {
     const notificationDropdown = document.getElementById('notificationDropdown');
     const notificationBell = document.querySelector('.notification-bell');
-    
+
     if (!notificationBell.contains(event.target) && !notificationDropdown.contains(event.target)) {
         notificationDropdown.classList.remove('show');
     }
@@ -1528,30 +1528,98 @@ function setupRealtimeUpdates() {
         // Réutiliser l'instance existante ou en créer une nouvelle si nécessaire
         if (!socketInstance) {
             socketInstance = io();
-            
-            // Ajouter un écouteur d'événement une seule fois
+
+            // Écouteur pour les mises à jour de statistiques de feedback
             socketInstance.on('feedback_stats_updated', function(data) {
                 console.log('Received real-time feedback stats update:', data);
-                
+
                 // Mettre à jour uniquement la statistique de satisfaction
                 if (data.satisfaction_rate !== undefined) {
                     // Mettre à jour l'affichage du taux de satisfaction
                     document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-                    
+
                     // Ajouter une animation pour attirer l'attention sur la mise à jour
                     const satisfactionElement = document.querySelectorAll('.stat-card')[2];
                     satisfactionElement.classList.add('highlight-update');
-                    
+
                     // Supprimer la classe d'animation après un court délai
                     setTimeout(() => {
                         satisfactionElement.classList.remove('highlight-update');
                     }, 2000);
-                    
+
                     // Ajouter une notification pour la mise à jour
                     addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
                 }
             });
-            
+
+            // Écouteur pour les nouveaux utilisateurs
+            socketInstance.on('new_user_created', function(data) {
+                console.log('Received real-time new user update:', data);
+
+                // Mettre à jour le nombre d'utilisateurs actifs
+                if (data.active_users !== undefined) {
+                    // Mettre à jour l'affichage du nombre d'utilisateurs
+                    document.querySelectorAll('.stat-value')[0].textContent = data.active_users;
+                    document.querySelectorAll('.stat-subtitle')[0].textContent = `+${data.active_users_today} aujourd'hui`;
+
+                    // Ajouter une animation pour attirer l'attention sur la mise à jour
+                    const usersElement = document.querySelectorAll('.stat-card')[0];
+                    usersElement.classList.add('highlight-update');
+
+                    // Supprimer la classe d'animation après un court délai
+                    setTimeout(() => {
+                        usersElement.classList.remove('highlight-update');
+                    }, 2000);
+
+                    // Ajouter une notification pour la mise à jour
+                    addNotification(`Nouvel utilisateur: ${data.user_name}`, 'info');
+
+                    // Si nous sommes sur la page des utilisateurs, mettre à jour la liste
+                    if (document.getElementById('users-section').style.display === 'block') {
+                        fetchAllUsers(currentPlatform);
+                    } else {
+                        // Sinon, mettre à jour juste le tableau d'aperçu sur le tableau de bord
+                        if (currentPlatform === data.platform) {
+                            fetchPlatformData(currentPlatform);
+                        }
+                    }
+                }
+            });
+
+            // Écouteur pour les nouvelles conversations
+            socketInstance.on('new_conversation_created', function(data) {
+                console.log('Received real-time new conversation update:', data);
+
+                // Mettre à jour le nombre de conversations
+                if (data.today_conversations !== undefined) {
+                    // Mettre à jour l'affichage du nombre de conversations
+                    document.querySelectorAll('.stat-value')[1].textContent = data.today_conversations;
+
+                    // Ajouter une animation pour attirer l'attention sur la mise à jour
+                    const conversationsElement = document.querySelectorAll('.stat-card')[1];
+                    conversationsElement.classList.add('highlight-update');
+
+                    // Supprimer la classe d'animation après un court délai
+                    setTimeout(() => {
+                        conversationsElement.classList.remove('highlight-update');
+                    }, 2000);
+
+                    // Ajouter une notification pour la mise à jour
+                    const title = data.conversation_title || 'Sans titre';
+                    addNotification(`Nouvelle conversation: ${title}`, 'info');
+
+                    // Si nous sommes sur la page des conversations, mettre à jour la liste
+                    if (document.getElementById('conversations-section').style.display === 'block') {
+                        fetchAllConversations(currentPlatform);
+                    } else {
+                        // Sinon, mettre à jour juste le tableau d'aperçu sur le tableau de bord
+                        if (currentPlatform === data.platform) {
+                            fetchPlatformData(currentPlatform);
+                        }
+                    }
+                }
+            });
+
             console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
         }
     } else {
@@ -1563,7 +1631,7 @@ function setupRealtimeUpdates() {
 document.addEventListener('DOMContentLoaded', function() {
     // Configurer les tableaux responsive
     setupResponsiveTables();
-    
+
     // Configurer les mises à jour en temps réel pour les statistiques de feedback
     setupRealtimeUpdates();
 
@@ -1585,3 +1653,39 @@ document.addEventListener('DOMContentLoaded', function() {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 });
+
+function setupResponsiveTables() {
+    if (window.innerWidth <= 768) {
+        document.querySelectorAll('.data-table').forEach(table => {
+            // Vérifier si le tableau n'est pas déjà enveloppé
+            if (!table.parentElement.classList.contains('table-responsive-container')) {
+                // Créer le conteneur
+                const container = document.createElement('div');
+                container.className = 'table-responsive-container';
+
+                // Créer les indicateurs de défilement
+                const leftIndicator = document.createElement('div');
+                leftIndicator.className = 'scroll-indicator scroll-left';
+                leftIndicator.innerHTML = '<i class="bi bi-chevron-left"></i>';
+
+                const rightIndicator = document.createElement('div');
+                rightIndicator.className = 'scroll-indicator scroll-right';
+                rightIndicator.innerHTML = '<i class="bi bi-chevron-right"></i>';
+
+                // Envelopper le tableau
+                table.parentNode.insertBefore(container, table);
+                container.appendChild(table);
+                container.appendChild(leftIndicator);
+                container.appendChild(rightIndicator);
+
+                // Ajouter l'événement de défilement
+                container.addEventListener('scroll', function() {
+                    updateScrollIndicators(container);
+                });
+
+                // Initialiser l'état des indicateurs
+                updateScrollIndicators(container);
+            }
+        });
+    }
+}
