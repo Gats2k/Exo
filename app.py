@@ -245,8 +245,13 @@ def get_or_create_conversation(thread_id=None):
         else:
             # For other models, generate a UUID as thread_id
             thread_id = str(uuid.uuid4())
+        
+        # Associate the conversation with the current logged-in user
+        user_id = None
+        if current_user.is_authenticated:
+            user_id = current_user.id
 
-        conversation = Conversation(thread_id=thread_id)
+        conversation = Conversation(thread_id=thread_id, user_id=user_id)
         session.add(conversation)
         session.commit()
         return conversation

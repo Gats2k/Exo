@@ -31,10 +31,12 @@ class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     thread_id = db.Column(db.String(255), nullable=False, unique=True)
     title = db.Column(db.String(255))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=True)
     deleted = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     messages = db.relationship('Message', backref='conversation', lazy=True, cascade='all, delete-orphan')
+    user = db.relationship('User', backref=db.backref('conversations', lazy=True))
 
 class Message(db.Model):
     __tablename__ = 'message'
