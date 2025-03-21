@@ -444,26 +444,46 @@ function updateDashboardStats(data) {
 }
 
 function fetchPlatformData(platform) {
+  // Ajouter un timestamp pour éviter la mise en cache
+  const timestamp = new Date().getTime();
+  const url = `/admin/data/${platform}?t=${timestamp}`;
+
+  console.log(`Récupération des données pour la plateforme ${platform}...`);
+
   // Make an AJAX request to get platform-specific data
-  fetch(`/admin/data/${platform}`)
+  fetch(url)
       .then(response => {
           if (!response.ok) {
-              throw new Error('Network response was not ok');
+              throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
           }
           return response.json();
       })
       .then(data => {
           // Debugging logs - place them here after data is available
-          console.log('Platform data received:', data);
-          console.log('Conversations data:', data.conversations);
+          console.log(`Platform data received for ${platform}:`, data);
+
+          if (data.conversations) {
+              console.log(`Received ${data.conversations.length} conversations for ${platform}`);
+          }
 
           // Add platform info to the data
           data.platform = platform;
+
           // Update the dashboard statistics with the new data
           updateDashboardStats(data);
+
+          // Si nous sommes sur la page des utilisateurs ou des conversations, mettre à jour ces tables également
+          const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
+          if (currentSection === 'users') {
+              console.log("Mise à jour automatique des utilisateurs suite à fetchPlatformData");
+              fetchAllUsers(platform);
+          } else if (currentSection === 'conversations') {
+              console.log("Mise à jour automatique des conversations suite à fetchPlatformData");
+              fetchAllConversations(platform);
+          }
       })
       .catch(error => {
-          console.error('Error fetching platform data:', error);
+          console.error(`Error fetching ${platform} data:`, error);
           // Show empty states on error
           updateDashboardStats({
               platform: platform,
@@ -1061,6 +1081,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     showSection('dashboard');
     fetchPlatformData('web');
+    setupAutoRefresh();
 
     // Add event listeners for user filtering and search
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -1522,40 +1543,187 @@ document.addEventListener('click', function(event) {
 // Socket.IO singleton pour éviter les connexions multiples
 let socketInstance = null;
 
-function setupRealtimeUpdates() {
-    // Vérifier si la variable socket existe déjà (peut être créée dans main.js)
-    if (typeof io !== 'undefined') {
-        // Réutiliser l'instance existante ou en créer une nouvelle si nécessaire
-        if (!socketInstance) {
-            socketInstance = io();
-            
-            // Ajouter un écouteur d'événement une seule fois
-            socketInstance.on('feedback_stats_updated', function(data) {
-                console.log('Received real-time feedback stats update:', data);
-                
-                // Mettre à jour uniquement la statistique de satisfaction
-                if (data.satisfaction_rate !== undefined) {
-                    // Mettre à jour l'affichage du taux de satisfaction
-                    document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-                    
-                    // Ajouter une animation pour attirer l'attention sur la mise à jour
-                    const satisfactionElement = document.querySelectorAll('.stat-card')[2];
-                    satisfactionElement.classList.add('highlight-update');
-                    
-                    // Supprimer la classe d'animation après un court délai
-                    setTimeout(() => {
-                        satisfactionElement.classList.remove('highlight-update');
-                    }, 2000);
-                    
-                    // Ajouter une notification pour la mise à jour
-                    addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
-                }
-            });
-            
-            console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
+function setupAutoRefresh() {
+    // Définir un intervalle de rechargement (toutes les 10 secondes)
+    const refreshInterval = 10000; // 10 secondes
+
+    // Démarrer l'intervalle de rechargement
+    setInterval(function() {
+        // Ne recharger que si nous sommes sur la page du tableau de bord ou des conversations
+        const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
+        if (currentSection === 'dashboard' || currentSection === 'conversations') {
+            console.log(`Rechargement automatique des données de la plateforme ${currentPlatform}`);
+            fetchPlatformData(currentPlatform);
         }
-    } else {
-        console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+    }, refreshInterval);
+
+    console.log(`Rechargement automatique configuré (intervalle de ${refreshInterval}ms)`);
+}
+
+function setupRealtimeUpdates() {
+    try {
+        // Vérifier si la variable io existe déjà (peut être créée dans main.js)
+        if (typeof io !== 'undefined') {
+            // Réutiliser l'instance existante ou en créer une nouvelle si nécessaire
+            if (!socketInstance) {
+                console.log("Initialisation de Socket.IO pour les mises à jour en temps réel...");
+
+                // Créer une nouvelle connexion Socket.IO avec gestion d'erreur
+                socketInstance = io({
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000,
+                    timeout: 10000,
+                    forceNew: false
+                });
+
+                // Ajouter des écouteurs d'événements de connexion pour le débogage
+                socketInstance.on('connect', function() {
+                    console.log('Socket.IO connecté avec succès, ID:', socketInstance.id);
+                    addNotification('Connexion au serveur de notification établie', 'info');
+                });
+
+                socketInstance.on('connect_error', function(error) {
+                    console.error('Erreur de connexion Socket.IO:', error);
+                });
+
+                socketInstance.on('reconnect', function(attemptNumber) {
+                    console.log('Socket.IO reconnecté après', attemptNumber, 'tentatives');
+                });
+
+                socketInstance.on('disconnect', function(reason) {
+                    console.log('Socket.IO déconnecté, raison:', reason);
+                    if (reason === 'io server disconnect') {
+                        // Le serveur a fermé la connexion, tentative de reconnexion
+                        socketInstance.connect();
+                    }
+                });
+
+                // Ajouter un écouteur spécifique pour les événements Telegram
+                console.log("Ajout des écouteurs d'événements Telegram");
+
+                // Ajouter un écouteur d'événement pour les statistiques de feedback
+                socketInstance.on('*', function(event, data) {
+                    console.log('Événement Socket.IO reçu:', event, data);
+                });
+
+                // Ajouter des écouteurs spécifiques avec noms complets
+                socketInstance.on('telegram_conversation_created', function(data) {
+                    console.log('ÉVÉNEMENT TELEGRAM CONVERSATION CRÉÉE REÇU:', data);
+                    addNotification(`Nouvelle conversation Telegram créée: ${data.title || "Sans titre"}`, 'info');
+
+                    // Si nous sommes sur la plateforme Telegram, actualiser les données
+                    if (currentPlatform === 'telegram') {
+                        console.log('Actualisation des données Telegram suite à un nouvel événement');
+                        fetchPlatformData('telegram');
+                    }
+                });
+
+                // Déboguer tous les événements socket entrants
+                socketInstance.onAny((event, ...args) => {
+                    console.log(`Socket.IO - Événement reçu: ${event}`, args);
+                });
+                
+                socketInstance.on('feedback_stats_updated', function(data) {
+                    console.log('Received real-time feedback stats update:', data);
+
+                    // Mettre à jour uniquement la statistique de satisfaction
+                    if (data.satisfaction_rate !== undefined) {
+                        // Mettre à jour l'affichage du taux de satisfaction
+                        document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+
+                        // Ajouter une animation pour attirer l'attention sur la mise à jour
+                        const satisfactionElement = document.querySelectorAll('.stat-card')[2];
+                        satisfactionElement.classList.add('highlight-update');
+
+                        // Supprimer la classe d'animation après un court délai
+                        setTimeout(() => {
+                            satisfactionElement.classList.remove('highlight-update');
+                        }, 2000);
+
+                        // Ajouter une notification pour la mise à jour
+                        addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
+                    }
+                });
+
+                // Écouter les nouveaux utilisateurs Telegram
+                socketInstance.on('telegram_user_created', function(data) {
+                    console.log('Nouvel utilisateur Telegram reçu:', data);
+
+                    // Mettre à jour le nombre d'utilisateurs actifs
+                    const activeUsersElement = document.querySelector('.stat-value');
+                    const currentActiveUsers = parseInt(activeUsersElement.textContent);
+                    activeUsersElement.textContent = currentActiveUsers + 1;
+
+                    // Mettre à jour le nombre d'utilisateurs aujourd'hui
+                    const activeUsersTodayElement = document.querySelector('.stat-subtitle');
+                    const currentActiveUsersToday = parseInt(activeUsersTodayElement.textContent.replace(/[^0-9]/g, ''));
+                    activeUsersTodayElement.textContent = `+${currentActiveUsersToday + 1} aujourd'hui`;
+
+                    // Animer la carte stats pour attirer l'attention
+                    const usersStatsElement = document.querySelectorAll('.stat-card')[0];
+                    usersStatsElement.classList.add('highlight-update');
+                    setTimeout(() => {
+                        usersStatsElement.classList.remove('highlight-update');
+                    }, 2000);
+
+                    // Ajouter une notification
+                    addNotification(`Nouvel utilisateur Telegram: ${data.first_name} ${data.last_name}`, 'info');
+
+                    // Si nous sommes sur la plateforme Telegram, mettre à jour le tableau d'utilisateurs
+                    if (currentPlatform === 'telegram') {
+                        // Actualiser les données Telegram
+                        fetchPlatformData('telegram');
+                    }
+                });
+
+                // Écouter les nouvelles conversations Telegram
+                socketInstance.on('telegram_conversation_created', function(data) {
+                    console.log('Nouvelle conversation Telegram reçue:', data);
+
+                    // Mettre à jour le nombre de conversations aujourd'hui
+                    const conversationsElement = document.querySelectorAll('.stat-value')[1];
+                    const currentConversations = parseInt(conversationsElement.textContent);
+                    conversationsElement.textContent = currentConversations + 1;
+
+                    // Animer la carte stats pour attirer l'attention
+                    const conversationsStatsElement = document.querySelectorAll('.stat-card')[1];
+                    conversationsStatsElement.classList.add('highlight-update');
+                    setTimeout(() => {
+                        conversationsStatsElement.classList.remove('highlight-update');
+                    }, 2000);
+
+                    // Ajouter une notification
+                    addNotification(`Nouvelle conversation Telegram créée: ${data.title || "Sans titre"}`, 'info');
+
+                    // Si nous sommes sur la plateforme Telegram, actualiser les données
+                    if (currentPlatform === 'telegram') {
+                        // Actualiser les données Telegram
+                        fetchPlatformData('telegram');
+                    }
+                });
+
+                // Écouter les nouveaux messages Telegram
+                socketInstance.on('telegram_message_created', function(data) {
+                    console.log('Nouveau message Telegram reçu:', data);
+
+                    // Ajouter une notification discrète
+                    addNotification(`Nouvelle activité sur Telegram`, 'info');
+
+                    // Si nous sommes sur la plateforme Telegram, actualiser les données de conversation
+                    if (currentPlatform === 'telegram' && 
+                        document.getElementById('conversations-section').style.display === 'block') {
+                        fetchAllConversations('telegram');
+                    }
+                });
+
+                console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
+            }
+        } else {
+            console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+        }
+    } catch (error) {
+        console.error("Erreur lors de l'initialisation de Socket.IO:", error);
     }
 }
 

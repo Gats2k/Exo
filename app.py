@@ -79,6 +79,36 @@ DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS'
 QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
 GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
 
+# Force l'activation du bot Telegram et le démarrage forcé
+if 'RUN_TELEGRAM_BOT' not in os.environ:
+    os.environ['RUN_TELEGRAM_BOT'] = 'true'
+    logger.info("Enabled Telegram bot (RUN_TELEGRAM_BOT=true)")
+
+# Force le démarrage du bot même si une autre instance est détectée
+os.environ['FORCE_TELEGRAM_BOT'] = 'true'
+logger.info("Forced Telegram bot start enabled (FORCE_TELEGRAM_BOT=true)")
+
+# Mettre à jour .env également
+env_path = '.env'
+env_vars = {}
+
+# Lire les variables existantes
+if os.path.exists(env_path):
+    with open(env_path, 'r') as f:
+        for line in f:
+            if '=' in line:
+                key, value = line.strip().split('=', 1)
+                env_vars[key] = value
+
+# Mettre à jour avec les nouvelles valeurs
+env_vars['RUN_TELEGRAM_BOT'] = 'true'
+env_vars['FORCE_TELEGRAM_BOT'] = 'true'
+
+# Écrire dans .env
+with open(env_path, 'w') as f:
+    for key, value in env_vars.items():
+        f.write(f"{key}={value}\n")
+
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
     if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
