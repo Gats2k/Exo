@@ -1067,27 +1067,51 @@ def delete_user(user_id):
         with db_retry_session() as session:
             # Find the user based on the platform data
             user = None
+            
+            logger.info(f"Attempting to delete user with ID: {user_id}")
 
             # Try to find in web users
             user = User.query.filter_by(phone_number=user_id).first()
+            
             if user:
+                logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
+                
+                # Deletion debug: Direct query for conversations
+                conversations_direct = Conversation.query.all()
+                logger.info(f"Total conversations in DB: {len(conversations_direct)}")
+                
+                # Specifically check for conversations belonging to this user
+                user_conversations = Conversation.query.filter_by(user_id=user.id).all()
+                logger.info(f"Found {len(user_conversations)} conversations for user ID {user.id}")
+                
                 # Supprimer d'abord les abonnements liés à cet utilisateur
                 try:
+                    sub_count = Subscription.query.filter_by(user_id=user.id).count()
+                    logger.info(f"Deleting {sub_count} subscriptions for user {user.id}")
                     Subscription.query.filter_by(user_id=user.id).delete()
                 except Exception as sub_error:
                     logger.warning(f"Error deleting subscriptions for user {user_id}: {str(sub_error)}")
 
-                # Supprimer les messages associés aux conversations de l'utilisateur
-                user_conversations = Conversation.query.filter_by(user_id=user.id).all()
+                # Supprimer tous les messages de cet utilisateur
+                message_count = 0
                 for conv in user_conversations:
+                    msg_count = Message.query.filter_by(conversation_id=conv.id).count()
+                    message_count += msg_count
+                    logger.info(f"Deleting {msg_count} messages for conversation {conv.id}")
                     Message.query.filter_by(conversation_id=conv.id).delete()
+                
+                logger.info(f"Deleted a total of {message_count} messages across all conversations")
 
                 # Supprimer les conversations
+                conv_count = Conversation.query.filter_by(user_id=user.id).count()
+                logger.info(f"Deleting {conv_count} conversations for user {user.id}")
                 Conversation.query.filter_by(user_id=user.id).delete()
 
                 # Enfin, supprimer l'utilisateur
+                logger.info(f"Deleting web user {user.id}")
                 session.delete(user)
                 session.commit()
+                logger.info(f"Web user {user_id} deleted successfully")
                 return jsonify({'success': True, 'message': 'User deleted successfully'})
 
             # Try to find in Telegram users
