@@ -509,7 +509,7 @@ def handle_message(data):
 
                 while True:
                     if time.time() - start_time > timeout:
-                        emit('receive_message', {'message': 'Request timed out.'})
+                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
                         return
 
                     run_status = ai_client.beta.threads.runs.retrieve(
@@ -520,7 +520,7 @@ def handle_message(data):
                     if run_status.status == 'completed':
                         break
                     elif run_status.status == 'failed':
-                        emit('receive_message', {'message': 'Sorry, there was an error.'})
+                        emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
                         return
 
                     eventlet.sleep(1)
@@ -555,16 +555,19 @@ def handle_message(data):
 
         db.session.commit()
 
-        # Send response to client
-        emit('receive_message', {'message': assistant_message})
+        # Send response to client including the message ID for feedback
+        emit('receive_message', {
+            'message': assistant_message,
+            'id': db_message.id
+        })
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}")
         error_message = str(e)
         if "image" in error_message.lower():
-            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.'})
+            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.', 'id': 0})
         else:
-            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.'})
+            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.', 'id': 0})
 
 @socketio.on('rename_conversation')
 def handle_rename(data):
