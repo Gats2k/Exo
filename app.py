@@ -551,7 +551,7 @@ def handle_message(data):
                 'title': conversation.title,
                 'subject': 'Général',
                 'time': conversation.created_at.strftime('%H:%M')
-            })
+            }, broadcast=True)
 
         db.session.commit()
 
@@ -641,19 +641,11 @@ def handle_feedback(data):
         from flask_login import current_user
         user_id = current_user.id if current_user.is_authenticated else None
 
-        # Validation plus stricte pour message_id
-        if not message_id or message_id == 'undefined' or not isinstance(message_id, (int, str)):
-            emit('feedback_submitted', {'success': False, 'error': 'Invalid message ID'})
+        if not message_id or not feedback_type:
+            emit('feedback_submitted', {'success': False, 'error': 'Missing required parameters'})
             return
 
-        # Essayer de convertir message_id en entier
-        try:
-            message_id = int(message_id)
-        except (ValueError, TypeError):
-            emit('feedback_submitted', {'success': False, 'error': 'Message ID must be a valid integer'})
-            return
-
-        if not feedback_type or feedback_type not in ['positive', 'negative']:
+        if feedback_type not in ['positive', 'negative']:
             emit('feedback_submitted', {'success': False, 'error': 'Invalid feedback type'})
             return
 
@@ -691,7 +683,7 @@ def handle_feedback(data):
                 'satisfaction_rate': satisfaction_rate,
                 'total_feedbacks': total_feedbacks,
                 'positive_feedbacks': positive_feedbacks
-            })
+            }, broadcast=True)
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         emit('feedback_submitted', {'success': False, 'error': str(e)})
