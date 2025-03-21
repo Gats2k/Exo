@@ -1519,34 +1519,41 @@ document.addEventListener('click', function(event) {
     }
 });
 
+// Socket.IO singleton pour éviter les connexions multiples
+let socketInstance = null;
+
 function setupRealtimeUpdates() {
     // Vérifier si la variable socket existe déjà (peut être créée dans main.js)
     if (typeof io !== 'undefined') {
-        // Si la variable io existe, initialiser socket
-        const socket = io();
-        
-        // Écouter l'événement de mise à jour des statistiques de feedback
-        socket.on('feedback_stats_updated', function(data) {
-            console.log('Received real-time feedback stats update:', data);
+        // Réutiliser l'instance existante ou en créer une nouvelle si nécessaire
+        if (!socketInstance) {
+            socketInstance = io();
             
-            // Mettre à jour uniquement la statistique de satisfaction
-            if (data.satisfaction_rate !== undefined) {
-                // Mettre à jour l'affichage du taux de satisfaction
-                document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+            // Ajouter un écouteur d'événement une seule fois
+            socketInstance.on('feedback_stats_updated', function(data) {
+                console.log('Received real-time feedback stats update:', data);
                 
-                // Ajouter une animation pour attirer l'attention sur la mise à jour
-                const satisfactionElement = document.querySelectorAll('.stat-card')[2];
-                satisfactionElement.classList.add('highlight-update');
-                
-                // Supprimer la classe d'animation après un court délai
-                setTimeout(() => {
-                    satisfactionElement.classList.remove('highlight-update');
-                }, 2000);
-                
-                // Ajouter une notification pour la mise à jour
-                addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
-            }
-        });
+                // Mettre à jour uniquement la statistique de satisfaction
+                if (data.satisfaction_rate !== undefined) {
+                    // Mettre à jour l'affichage du taux de satisfaction
+                    document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
+                    
+                    // Ajouter une animation pour attirer l'attention sur la mise à jour
+                    const satisfactionElement = document.querySelectorAll('.stat-card')[2];
+                    satisfactionElement.classList.add('highlight-update');
+                    
+                    // Supprimer la classe d'animation après un court délai
+                    setTimeout(() => {
+                        satisfactionElement.classList.remove('highlight-update');
+                    }, 2000);
+                    
+                    // Ajouter une notification pour la mise à jour
+                    addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
+                }
+            });
+            
+            console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
+        }
     } else {
         console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
     }
