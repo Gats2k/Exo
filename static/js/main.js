@@ -577,4 +577,52 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Session cleared successfully');
         }
     });
+    
+    // Add event handlers for feedback buttons
+    document.addEventListener('click', function(event) {
+        const feedbackBtn = event.target.closest('.feedback-btn');
+        if (feedbackBtn) {
+            event.preventDefault();
+            const messageId = feedbackBtn.dataset.messageId;
+            const feedbackType = feedbackBtn.dataset.feedbackType;
+            
+            // Remove active class from both buttons in this message
+            const messageFeedback = feedbackBtn.closest('.message-feedback');
+            messageFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to the clicked button
+            feedbackBtn.classList.add('active');
+            
+            // Send feedback to server
+            socket.emit('submit_feedback', {
+                message_id: messageId,
+                feedback_type: feedbackType
+            });
+            
+            // Show visual confirmation
+            const confirmation = document.createElement('div');
+            confirmation.className = 'feedback-confirmation';
+            confirmation.textContent = feedbackType === 'positive' ? 'Merci pour votre appréciation!' : 'Merci pour votre retour!';
+            confirmation.style.position = 'absolute';
+            confirmation.style.color = feedbackType === 'positive' ? '#4ADE80' : '#F43F5E';
+            confirmation.style.fontSize = '0.8rem';
+            confirmation.style.opacity = '0';
+            confirmation.style.transition = 'opacity 0.3s ease';
+            
+            messageFeedback.appendChild(confirmation);
+            
+            // Fade in and out
+            setTimeout(() => {
+                confirmation.style.opacity = '1';
+                setTimeout(() => {
+                    confirmation.style.opacity = '0';
+                    setTimeout(() => {
+                        confirmation.remove();
+                    }, 300);
+                }, 2000);
+            }, 10);
+        }
+    });
 });
