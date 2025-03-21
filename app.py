@@ -683,7 +683,7 @@ def handle_feedback(data):
                 'satisfaction_rate': satisfaction_rate,
                 'total_feedbacks': total_feedbacks,
                 'positive_feedbacks': positive_feedbacks
-            }, broadcast=True)
+            })
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         emit('feedback_submitted', {'success': False, 'error': str(e)})
