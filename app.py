@@ -257,35 +257,91 @@ def get_or_create_conversation(thread_id=None):
         return conversation
 
 @app.route('/')
-@login_required
 def chat():
+    # Check first if user is authenticated through regular Flask-Login
+    if current_user.is_authenticated:
+        is_telegram_user = False
+    # Then check if user is authenticated through Telegram session
+    elif session.get('is_telegram_user'):
+        is_telegram_user = True
+    else:
+        # If not authenticated through any method, redirect to login
+        return redirect(url_for('login'))
+        
     try:
         with db_retry_session() as db_session:
-            # Get recent non-deleted conversations for sidebar
-            recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
             conversation_history = []
+            
+            # Handle different user types (regular web user vs Telegram user)
+            if is_telegram_user:
+                # Get telegram user from session
+                telegram_id = session.get('telegram_id')
+                if not telegram_id:
+                    # If telegram_id is not in session, redirect to login
+                    session.pop('is_telegram_user', None)
+                    return redirect(url_for('login'))
+                    
+                # Fetch Telegram conversations
+                telegram_user = TelegramUser.query.filter_by(telegram_id=telegram_id).first()
+                if not telegram_user:
+                    session.pop('is_telegram_user', None)
+                    session.pop('telegram_id', None)
+                    flash('Utilisateur Telegram non trouvé.', 'error')
+                    return redirect(url_for('login'))
+                    
+                recent_conversations = TelegramConversation.query.filter_by(
+                    telegram_user_id=telegram_id
+                ).order_by(TelegramConversation.updated_at.desc()).limit(5).all()
+                
+                for conv in recent_conversations:
+                    conversation_history.append({
+                        'id': conv.id,
+                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject': 'Telegram',
+                        'time': conv.created_at.strftime('%H:%M')
+                    })
+                    
+                # Clear any existing thread_id from Flask's session
+                if 'thread_id' in session:
+                    session.pop('thread_id')
+                    
+                return render_template('chat.html', 
+                                   history=[], 
+                                   conversation_history=conversation_history,
+                                   is_telegram_user=True,
+                                   telegram_id=telegram_id,
+                                   telegram_name=session.get('telegram_name', 'Utilisateur Telegram'),
+                                   credits=42)
+            else:
+                # Regular web user - Get recent non-deleted conversations for sidebar
+                recent_conversations = Conversation.query.filter_by(
+                    deleted=False, 
+                    user_id=current_user.id
+                ).order_by(Conversation.updated_at.desc()).limit(5).all()
 
-            for conv in recent_conversations:
-                conversation_history.append({
-                    'id': conv.id,
-                    'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                    'subject': 'Général',
-                    'time': conv.created_at.strftime('%H:%M')
-                })
+                for conv in recent_conversations:
+                    conversation_history.append({
+                        'id': conv.id,
+                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject': 'Général',
+                        'time': conv.created_at.strftime('%H:%M')
+                    })
 
-            # Clear any existing thread_id from Flask's session
-            if 'thread_id' in session:
-                session.pop('thread_id')
+                # Clear any existing thread_id from Flask's session
+                if 'thread_id' in session:
+                    session.pop('thread_id')
 
-            return render_template('chat.html', 
-                               history=[], 
-                               conversation_history=conversation_history, 
-                               credits=42)
+                return render_template('chat.html', 
+                                   history=[], 
+                                   conversation_history=conversation_history,
+                                   is_telegram_user=False, 
+                                   credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
         return render_template('chat.html', 
                           history=[], 
                           conversation_history=[], 
+                          is_telegram_user=is_telegram_user if 'is_telegram_user' in locals() else False,
                           credits=42,
                           error="Une erreur est survenue. Veuillez réessayer.")
 
@@ -764,24 +820,55 @@ def cleanup_uploads():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        phone_number = request.form.get('phone_number')
-        password = request.form.get('password')
+        login_mode = request.form.get('login_mode', 'web')
+        
+        # Handle Telegram login mode
+        if login_mode == 'telegram':
+            telegram_id = request.form.get('telegram_id')
+            
+            if not telegram_id:
+                flash('Veuillez saisir votre ID Telegram.', 'error')
+                return redirect(url_for('login'))
+                
+            try:
+                # Check if the Telegram ID exists in the database
+                telegram_user = TelegramUser.query.filter_by(telegram_id=telegram_id).first()
+                
+                if telegram_user:
+                    # Store Telegram user information in the session
+                    session['is_telegram_user'] = True
+                    session['telegram_id'] = telegram_user.telegram_id
+                    session['telegram_name'] = f"{telegram_user.first_name} {telegram_user.last_name}".strip()
+                    
+                    flash(f'Connecté en tant qu\'utilisateur Telegram: {telegram_user.first_name}.', 'success')
+                    return redirect(url_for('chat'))
+                else:
+                    flash('ID Telegram non trouvé. Veuillez vérifier votre ID ou utiliser l\'application Telegram d\'abord.', 'error')
+                    return redirect(url_for('login'))
+            except Exception as e:
+                logger.error(f"Error during Telegram login: {str(e)}")
+                flash('Une erreur est survenue lors de la connexion. Veuillez réessayer.', 'error')
+                return redirect(url_for('login'))
+        else:
+            # Standard web login flow
+            phone_number = request.form.get('phone_number')
+            password = request.form.get('password')
 
-        # Check for admin credentials first
-        if phone_number == os.environ.get('ADMIN_PHONE') and \
-           password == os.environ.get('ADMIN_PASSWORD'):
-            session['is_admin'] = True
-            flash('Connecté en tant qu\'administrateur.', 'success')
-            return redirect(url_for('admin_dashboard'))
+            # Check for admin credentials first
+            if phone_number == os.environ.get('ADMIN_PHONE') and \
+               password == os.environ.get('ADMIN_PASSWORD'):
+                session['is_admin'] = True
+                flash('Connecté en tant qu\'administrateur.', 'success')
+                return redirect(url_for('admin_dashboard'))
 
-        # Regular user login
-        user = User.query.filter_by(phone_number=phone_number).first()
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('chat'))
+            # Regular user login
+            user = User.query.filter_by(phone_number=phone_number).first()
+            if user and user.check_password(password):
+                login_user(user)
+                return redirect(url_for('chat'))
 
-        flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
-        return redirect(url_for('login'))
+            flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
+            return redirect(url_for('login'))
 
     return render_template('login.html')
 
