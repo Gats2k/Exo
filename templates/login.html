@@ -92,24 +92,91 @@
         .register-link a:hover, .forgot-link a:hover {
             text-decoration: underline;
         }
+        .login-options {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .login-option-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 10px 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 33%;
+            font-size: 0.9em;
+        }
+
+        .login-option-btn:hover {
+            background-color: rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .login-option-btn i {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+
+        .login-option-btn.telegram i {
+            color: #0088cc;
+        }
+
+        .login-option-btn.whatsapp i {
+            color: #25D366;
+        }
+        .login-option-btn.active {
+            background-color: rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .login-option-btn.web i {
+            color: #4ADE80;
+        }
     </style>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
 </head>
 <body>
     <h1 class="main-title">Ah te revoilà !</h1>
     <p class="main-subtitle">Votre assistant personnel pour réussir vos études</p>
-
     <div class="container">
         <form method="POST" action="{{ url_for('login') }}">
+            <div class="login-options">
+                <button type="button" class="login-option-btn web active">
+                    <i class="bi bi-globe"></i>
+                    Web
+                </button>
+                <button type="button" class="login-option-btn telegram">
+                    <i class="bi bi-telegram"></i>
+                    Telegram
+                </button>
+                <button type="button" class="login-option-btn whatsapp">
+                    <i class="bi bi-whatsapp"></i>
+                    WhatsApp
+                </button>
+            </div>
+            <div id="telegram-field" class="form-group" style="display: none;">
+                <label for="telegram_id">ID Telegram</label>
+                <input type="text" id="telegram_id" name="telegram_id">
+            </div>
             <div class="form-group">
                 <label for="phone_number">Numéro de téléphone</label>
                 <input type="tel" id="phone_number" name="phone_number" required>
             </div>
-
             <div class="form-group">
                 <label for="password">Mot de passe</label>
                 <input type="password" id="password" name="password" required>
             </div>
-
             <button type="submit">SE CONNECTER</button>
             <p class="forgot-link">
                 <a href="{{ url_for('forgot_password') }}">Mot de passe oublié ?</a>
@@ -119,5 +186,87 @@
             </p>
         </form>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Éléments du formulaire
+            const webBtn = document.querySelector('.login-option-btn.web');
+            const telegramBtn = document.querySelector('.login-option-btn.telegram');
+            const whatsappBtn = document.querySelector('.login-option-btn.whatsapp');
+            const standardFields = document.querySelectorAll('.form-group:not(#telegram-field)');
+            const telegramField = document.getElementById('telegram-field');
+            const loginForm = document.querySelector('form');
+
+            // Ajouter un champ caché pour le mode de connexion
+            const loginModeInput = document.createElement('input');
+            loginModeInput.type = 'hidden';
+            loginModeInput.name = 'login_mode';
+            loginModeInput.value = 'web';
+            loginForm.appendChild(loginModeInput);
+
+            // Fonction pour réinitialiser tous les boutons
+            const resetAllButtons = () => {
+                [webBtn, telegramBtn, whatsappBtn].forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.style.backgroundColor = '';
+                    btn.style.borderColor = '';
+                });
+            };
+
+            // Gestionnaire pour le bouton Web
+            webBtn.addEventListener('click', function() {
+                // Cacher le champ Telegram
+                telegramField.style.display = 'none';
+
+                // Afficher les champs standard
+                standardFields.forEach(field => {
+                    field.style.display = 'block';
+                });
+
+                // Mettre à jour le mode de connexion
+                loginModeInput.value = 'web';
+
+                // Mettre en évidence le bouton sélectionné
+                resetAllButtons();
+                webBtn.classList.add('active');
+            });
+
+            // Gestionnaire pour le bouton Telegram
+            telegramBtn.addEventListener('click', function() {
+                // Cacher les champs standard
+                standardFields.forEach(field => {
+                    field.style.display = 'none';
+                });
+
+                // Afficher le champ Telegram
+                telegramField.style.display = 'block';
+
+                // Mettre à jour le mode de connexion
+                loginModeInput.value = 'telegram';
+
+                // Mettre en évidence le bouton sélectionné
+                resetAllButtons();
+                telegramBtn.classList.add('active');
+            });
+
+            // Gestionnaire pour le bouton WhatsApp
+            whatsappBtn.addEventListener('click', function() {
+                // Cacher le champ Telegram
+                telegramField.style.display = 'none';
+
+                // Afficher les champs standard
+                standardFields.forEach(field => {
+                    field.style.display = 'block';
+                });
+
+                // Mettre à jour le mode de connexion
+                loginModeInput.value = 'whatsapp';
+
+                // Mettre en évidence le bouton sélectionné
+                resetAllButtons();
+                whatsappBtn.classList.add('active');
+            });
+        });
+    </script>
 </body>
 </html>

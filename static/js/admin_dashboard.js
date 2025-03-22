@@ -1528,34 +1528,153 @@ function setupRealtimeUpdates() {
         // Réutiliser l'instance existante ou en créer une nouvelle si nécessaire
         if (!socketInstance) {
             socketInstance = io();
-            
+
             // Ajouter un écouteur d'événement une seule fois
             socketInstance.on('feedback_stats_updated', function(data) {
                 console.log('Received real-time feedback stats update:', data);
-                
+
                 // Mettre à jour uniquement la statistique de satisfaction
                 if (data.satisfaction_rate !== undefined) {
                     // Mettre à jour l'affichage du taux de satisfaction
                     document.querySelectorAll('.stat-value')[2].textContent = `${data.satisfaction_rate}%`;
-                    
+
                     // Ajouter une animation pour attirer l'attention sur la mise à jour
                     const satisfactionElement = document.querySelectorAll('.stat-card')[2];
                     satisfactionElement.classList.add('highlight-update');
-                    
+
                     // Supprimer la classe d'animation après un court délai
                     setTimeout(() => {
                         satisfactionElement.classList.remove('highlight-update');
                     }, 2000);
-                    
+
                     // Ajouter une notification pour la mise à jour
                     addNotification(`Taux de satisfaction mis à jour: ${data.satisfaction_rate}%`, 'info');
                 }
             });
-            
+
+            // Configuration des écouteurs d'événements pour Telegram
+            setupTelegramUpdates();
+
             console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
         }
     } else {
         console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+    }
+}
+
+function setupTelegramUpdates() {
+    if (typeof io !== 'undefined' && socketInstance) {
+        // Écouteur pour les nouveaux utilisateurs Telegram
+        socketInstance.on('new_telegram_user', function(userData) {
+            console.log('Received new Telegram user:', userData);
+
+            // Mettre à jour les statistiques du tableau de bord
+            updateDashboardStatistics(userData.platform);
+
+            // Animer la carte des utilisateurs pour attirer l'attention
+            const userStatsElement = document.querySelectorAll('.stat-card')[0];
+            if (userStatsElement) {
+                userStatsElement.classList.add('highlight-update');
+                setTimeout(() => {
+                    userStatsElement.classList.remove('highlight-update');
+                }, 2000);
+            }
+
+            // Ajouter une notification
+            addNotification(`Nouvel utilisateur Telegram: ${userData.first_name} ${userData.last_name}`, 'info');
+
+            // Mettre à jour la liste des utilisateurs si nous sommes dans la section utilisateurs
+            if (document.getElementById('users-section').style.display === 'block') {
+                fetchAllUsers(currentPlatform);
+            }
+        });
+
+        // Écouteur pour les nouvelles conversations Telegram
+        socketInstance.on('new_telegram_conversation', function(conversationData) {
+            console.log('Received new Telegram conversation:', conversationData);
+
+            // Mettre à jour les statistiques du tableau de bord
+            updateDashboardStatistics(conversationData.platform);
+
+            // Animer la carte des conversations pour attirer l'attention
+            const conversationStatsElement = document.querySelectorAll('.stat-card')[1];
+            if (conversationStatsElement) {
+                conversationStatsElement.classList.add('highlight-update');
+                setTimeout(() => {
+                    conversationStatsElement.classList.remove('highlight-update');
+                }, 2000);
+            }
+
+            // Ajouter une notification
+            addNotification(`Nouvelle conversation Telegram: ${conversationData.title}`, 'info');
+
+            // Mettre à jour la liste des conversations si nous sommes dans la section conversations
+            if (document.getElementById('conversations-section').style.display === 'block') {
+                fetchAllConversations(currentPlatform);
+            }
+        });
+
+        console.log('Telegram update listeners configured successfully');
+    } else {
+        console.error("Socket.IO n'est pas disponible pour les mises à jour Telegram");
+    }
+}
+
+// Fonction pour mettre à jour les statistiques du tableau de bord
+function updateDashboardStatistics(platform) {
+    // Ne mettre à jour que si la plateforme actuellement affichée correspond
+    if (currentPlatform === platform || currentPlatform === 'all') {
+        fetchPlatformData(currentPlatform);
+    }
+}
+
+function updateDashboardCounts() {
+    // On vérifie que nous sommes sur la page dashboard
+    if (document.getElementById('dashboard-section').style.display === 'block') {
+        // Mettre à jour les statistiques générales
+        fetch(`/admin/data/${currentPlatform}/stats`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Mettre à jour le nombre d'utilisateurs actifs
+                const activeUsersElement = document.querySelectorAll('.stat-value')[0];
+                if (activeUsersElement) {
+                    activeUsersElement.textContent = data.active_users;
+
+                    // Animation pour attirer l'attention
+                    const userStatsElement = document.querySelectorAll('.stat-card')[0];
+                    userStatsElement.classList.add('highlight-update');
+                    setTimeout(() => {
+                        userStatsElement.classList.remove('highlight-update');
+                    }, 2000);
+                }
+
+                // Mettre à jour le nombre d'utilisateurs actifs aujourd'hui
+                const activeUsersTodayElement = document.querySelectorAll('.stat-subtitle')[0];
+                if (activeUsersTodayElement) {
+                    activeUsersTodayElement.textContent = `+${data.active_users_today} aujourd'hui`;
+                }
+
+                // Mettre à jour le nombre de conversations aujourd'hui
+                const todayConversationsElement = document.querySelectorAll('.stat-value')[1];
+                if (todayConversationsElement) {
+                    todayConversationsElement.textContent = data.today_conversations;
+
+                    // Animation pour attirer l'attention
+                    const convStatsElement = document.querySelectorAll('.stat-card')[1];
+                    convStatsElement.classList.add('highlight-update');
+                    setTimeout(() => {
+                        convStatsElement.classList.remove('highlight-update');
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching dashboard stats:', error);
+            });
     }
 }
 

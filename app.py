@@ -1144,6 +1144,67 @@ def admin_platform_data(platform):
 
     return jsonify(data)
 
+@app.route('/admin/data/<platform>/stats')
+def admin_platform_stats(platform):
+    """Get only stats for a platform without full data lists"""
+    today = datetime.today().date()
+
+    if platform == 'web':
+        # Get web platform statistics
+        users = User.query.all()
+        conversations = Conversation.query.all()
+
+        # Calculate satisfaction rate for web platform
+        total_feedbacks = MessageFeedback.query.count()
+        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': satisfaction_rate
+        }
+
+    elif platform == 'telegram':
+        # For telegram, query telegram-specific data
+        users = TelegramUser.query.all()
+        conversations = TelegramConversation.query.all()
+
+        data = {
+            'active_users': len(users),
+            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
+            'satisfaction_rate': 0
+        }
+
+    elif platform == 'whatsapp':
+        # Get WhatsApp statistics
+        messages = WhatsAppMessage.query.all()
+        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+
+        # Calculate today's statistics
+        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_users = db.session.query(WhatsAppMessage.from_number)\
+            .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
+            .distinct().all()
+
+        # Get conversations grouped by thread_id
+        conversations = db.session.query(
+            WhatsAppMessage.thread_id,
+            db.func.min(WhatsAppMessage.timestamp).label('created_at'),
+            db.func.count().label('message_count')
+        ).group_by(WhatsAppMessage.thread_id).all()
+
+        data = {
+            'active_users': len(unique_users),
+            'active_users_today': len(today_users),
+            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate': 0
+        }
+
+    return jsonify(data)
+
 
 @login_manager.unauthorized_handler
 def unauthorized():

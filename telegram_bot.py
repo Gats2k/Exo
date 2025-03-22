@@ -101,12 +101,18 @@ def db_retry_session(max_retries=3, retry_delay=1):
             logger.warning(f"Database operation failed, retrying... (attempt {attempt + 1}/{max_retries})")
             time.sleep(retry_delay)
 
-async def get_or_create_telegram_user(user_id: int, first_name: str = None, last_name: str = None) -> TelegramUser:
-    """Get or create a TelegramUser record with name information."""
+async def get_or_create_telegram_user(user_id: int, first_name: str = None, last_name: str = None):
+    """Get or create a TelegramUser record with name information.
+
+    Returns:
+        tuple: (TelegramUser, is_new_user) - l'objet utilisateur et un booléen indiquant s'il a été créé
+    """
     try:
         with db_retry_session() as session:
             logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
             user = TelegramUser.query.get(user_id)
+            is_new_user = False
+
             if not user:
                 logger.info(f"Creating new TelegramUser for ID: {user_id}")
                 user = TelegramUser(
@@ -117,6 +123,7 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                 session.add(user)
                 session.commit()
                 logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
+                is_new_user = True
             else:
                 # Mettre à jour les noms s'ils ont changé
                 updated = False
@@ -130,7 +137,21 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
                     session.commit()
                     logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
                 logger.info(f"Found existing TelegramUser: {user.telegram_id}")
-            return user
+
+            # Émettre un événement Socket.IO pour notifier le tableau de bord si nouveau utilisateur
+            if is_new_user:
+                from app import socketio
+                user_data = {
+                    'telegram_id': user.telegram_id,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'created_at': user.created_at.strftime('%d/%m/%Y'),
+                    'platform': 'telegram'
+                }
+                socketio.emit('new_telegram_user', user_data)
+                logger.info(f"Emitted new_telegram_user event for user {user_id}")
+
+            return user, is_new_user
     except Exception as e:
         logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
         raise
@@ -148,6 +169,26 @@ async def create_telegram_conversation(user_id: int, thread_id: str) -> Telegram
             session.add(conversation)
             session.commit()
             logger.info(f"Successfully created TelegramConversation: {conversation.id}")
+
+            # Émettre un événement Socket.IO pour notifier le tableau de bord
+            from app import socketio
+
+            # Obtenir les informations sur l'utilisateur pour la notification
+            user = TelegramUser.query.get(user_id)
+            user_name = f"{user.first_name} {user.last_name}" if user else f"Telegram User {user_id}"
+
+            conversation_data = {
+                'id': conversation.id,
+                'title': conversation.title,
+                'thread_id': thread_id,
+                'telegram_user_id': user_id,
+                'user_name': user_name,
+                'created_at': conversation.created_at.strftime('%d/%m/%Y %H:%M'),
+                'platform': 'telegram'
+            }
+            socketio.emit('new_telegram_conversation', conversation_data)
+            logger.info(f"Emitted new_telegram_conversation event for conversation {conversation.id}")
+
             return conversation
     except Exception as e:
         logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
@@ -178,7 +219,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_name = update.effective_user.last_name
     try:
         # Create or get the user in our database
-        await get_or_create_telegram_user(user_id, first_name, last_name)
+        user, is_new_user = await get_or_create_telegram_user(user_id, first_name, last_name)
 
         # Create a new thread for the user
         thread = openai_client.beta.threads.create()
@@ -188,9 +229,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Create a new conversation in our database
         await create_telegram_conversation(user_id, thread.id)
 
+        # Envoyer le premier message avec l'emoji
         await update.message.reply_text(
             '🤓'
         )
+
+        # Envoyer le second message avec l'ID Telegram si c'est un nouvel utilisateur
+        if is_new_user:
+            await asyncio.sleep(1)  # Attendre un peu entre les messages
+            await update.message.reply_text(
+                f"⚠️ *IMPORTANT* ⚠️\n\n"
+                f"🔑 Votre ID Telegram est: *{user_id}*\n\n"
+                f"📝 Notez cet identifiant précieusement! Il vous permettra de vous connecter à notre plateforme web et d'accéder à davantage de fonctionnalités.\n\n"
+                f"🔐 Ne partagez jamais cet identifiant avec d'autres personnes.",
+                parse_mode=constants.ParseMode.MARKDOWN
+            )
+            logger.info(f"Sent Telegram ID information to new user {user_id}")
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}", exc_info=True)
         await update.message.reply_text(
@@ -215,7 +269,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id, first_name, last_name)
+        user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         # Ensure user_threads dict is initialized for this user
@@ -379,7 +433,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_name = update.effective_user.last_name or ""  # Handle None values
     try:
         # Get or create user first
-        user = await get_or_create_telegram_user(user_id, first_name, last_name)
+        user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
         # Ensure user_threads dict is initialized for this user
