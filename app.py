@@ -1226,6 +1226,24 @@ def admin_logout():
     session.pop('is_admin', None)
     flash('Vous avez été déconnecté.', 'success')
     return redirect(url_for('login'))
+    
+@app.route('/logout')
+def logout():
+    """Logout route for regular and Telegram users"""
+    # Check if user is a Telegram user
+    if session.get('is_telegram_user'):
+        session.pop('is_telegram_user', None)
+        session.pop('telegram_id', None)
+        session.pop('telegram_name', None)
+        flash('Déconnecté avec succès.', 'success')
+    else:
+        # Regular web user logout
+        logout_user()
+        flash('Déconnecté avec succès.', 'success')
+    
+    # Clear any conversation thread
+    session.pop('thread_id', None)
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
