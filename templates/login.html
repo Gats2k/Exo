@@ -168,14 +168,19 @@
             <div id="telegram-field" class="form-group" style="display: none;">
                 <label for="telegram_id">ID Telegram</label>
                 <input type="text" id="telegram_id" name="telegram_id">
+                <p class="help-text" style="font-size: 0.8em; margin-top: 4px; color: #aaa;">
+                    Entrez votre ID Telegram pour vous connecter à vos conversations existantes.
+                </p>
             </div>
-            <div class="form-group">
-                <label for="phone_number">Numéro de téléphone</label>
-                <input type="tel" id="phone_number" name="phone_number" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Mot de passe</label>
-                <input type="password" id="password" name="password" required>
+            <div id="standard-fields">
+                <div class="form-group">
+                    <label for="phone_number">Numéro de téléphone</label>
+                    <input type="tel" id="phone_number" name="phone_number" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
             </div>
             <button type="submit">SE CONNECTER</button>
             <p class="forgot-link">
@@ -193,8 +198,11 @@
             const webBtn = document.querySelector('.login-option-btn.web');
             const telegramBtn = document.querySelector('.login-option-btn.telegram');
             const whatsappBtn = document.querySelector('.login-option-btn.whatsapp');
-            const standardFields = document.querySelectorAll('.form-group:not(#telegram-field)');
+            const standardFields = document.getElementById('standard-fields');
             const telegramField = document.getElementById('telegram-field');
+            const phoneInput = document.getElementById('phone_number');
+            const passwordInput = document.getElementById('password');
+            const telegramIdInput = document.getElementById('telegram_id');
             const loginForm = document.querySelector('form');
 
             // Ajouter un champ caché pour le mode de connexion
@@ -213,18 +221,32 @@
                 });
             };
 
+            // Helper function to toggle required attributes
+            function toggleRequiredFields(mode) {
+                if (mode === 'telegram') {
+                    // Telegram login mode - only telegram_id is required
+                    telegramIdInput.setAttribute('required', 'required');
+                    phoneInput.removeAttribute('required');
+                    passwordInput.removeAttribute('required');
+                } else {
+                    // Web or WhatsApp login mode - phone and password are required
+                    telegramIdInput.removeAttribute('required');
+                    phoneInput.setAttribute('required', 'required');
+                    passwordInput.setAttribute('required', 'required');
+                }
+            }
+
             // Gestionnaire pour le bouton Web
             webBtn.addEventListener('click', function() {
                 // Cacher le champ Telegram
                 telegramField.style.display = 'none';
 
                 // Afficher les champs standard
-                standardFields.forEach(field => {
-                    field.style.display = 'block';
-                });
+                standardFields.style.display = 'block';
 
                 // Mettre à jour le mode de connexion
                 loginModeInput.value = 'web';
+                toggleRequiredFields('web');
 
                 // Mettre en évidence le bouton sélectionné
                 resetAllButtons();
@@ -234,15 +256,14 @@
             // Gestionnaire pour le bouton Telegram
             telegramBtn.addEventListener('click', function() {
                 // Cacher les champs standard
-                standardFields.forEach(field => {
-                    field.style.display = 'none';
-                });
+                standardFields.style.display = 'none';
 
                 // Afficher le champ Telegram
                 telegramField.style.display = 'block';
 
                 // Mettre à jour le mode de connexion
                 loginModeInput.value = 'telegram';
+                toggleRequiredFields('telegram');
 
                 // Mettre en évidence le bouton sélectionné
                 resetAllButtons();
@@ -255,16 +276,34 @@
                 telegramField.style.display = 'none';
 
                 // Afficher les champs standard
-                standardFields.forEach(field => {
-                    field.style.display = 'block';
-                });
+                standardFields.style.display = 'block';
 
                 // Mettre à jour le mode de connexion
                 loginModeInput.value = 'whatsapp';
+                toggleRequiredFields('whatsapp');
 
                 // Mettre en évidence le bouton sélectionné
                 resetAllButtons();
                 whatsappBtn.classList.add('active');
+            });
+
+            // Form validation before submit
+            loginForm.addEventListener('submit', function(event) {
+                const mode = loginModeInput.value;
+                
+                if (mode === 'telegram') {
+                    // Validate Telegram ID is provided
+                    if (!telegramIdInput.value.trim()) {
+                        event.preventDefault();
+                        alert('Veuillez entrer votre ID Telegram.');
+                    }
+                } else {
+                    // Validate phone and password for web/whatsapp
+                    if (!phoneInput.value.trim() || !passwordInput.value.trim()) {
+                        event.preventDefault();
+                        alert('Veuillez remplir tous les champs obligatoires.');
+                    }
+                }
             });
         });
     </script>
