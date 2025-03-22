@@ -229,56 +229,8 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None, telegram_id=None):
-    """
-    Get an existing conversation or create a new one.
-    
-    Args:
-        thread_id (str, optional): Existing thread ID to look up.
-        telegram_id (int, optional): Telegram user ID for Telegram users.
-        
-    Returns:
-        Conversation or TelegramConversation: The conversation object.
-    """
+def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
-        # Handle Telegram users
-        if telegram_id or session.get('is_telegram_user'):
-            # Get telegram_id either from the parameter or from the session
-            telegram_user_id = telegram_id or session.get('telegram_id')
-            
-            if not telegram_user_id:
-                # If no telegram ID available, fall back to regular conversation
-                logger.warning("No Telegram ID available despite telegram mode. Falling back to regular conversation.")
-            else:
-                # Check if there's an existing conversation with this thread_id
-                if thread_id:
-                    conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
-                    if conversation:
-                        return conversation
-                
-                # Create new thread and conversation for Telegram user
-                if CURRENT_MODEL == 'openai':
-                    # Only create thread for OpenAI
-                    client = get_ai_client()
-                    thread = client.beta.threads.create()
-                    thread_id = thread.id
-                else:
-                    # For other models, generate a UUID as thread_id
-                    thread_id = str(uuid.uuid4())
-                
-                # Create a new Telegram conversation
-                conversation = TelegramConversation(
-                    telegram_user_id=telegram_user_id,
-                    thread_id=thread_id,
-                    title="Nouvelle conversation"
-                )
-                session.add(conversation)
-                session.commit()
-                
-                logger.info(f"Created new TelegramConversation for user {telegram_user_id}")
-                return conversation
-        
-        # Handle regular web users (non-Telegram)
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
             if conversation:
@@ -305,109 +257,35 @@ def get_or_create_conversation(thread_id=None, telegram_id=None):
         return conversation
 
 @app.route('/')
+@login_required
 def chat():
-    # Check first if user is authenticated through regular Flask-Login
-    if current_user.is_authenticated:
-        is_telegram_user = False
-    # Then check if user is authenticated through Telegram session
-    elif session.get('is_telegram_user'):
-        is_telegram_user = True
-    else:
-        # If not authenticated through any method, redirect to login
-        return redirect(url_for('login'))
-        
     try:
         with db_retry_session() as db_session:
+            # Get recent non-deleted conversations for sidebar
+            recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
             conversation_history = []
-            
-            # Handle different user types (regular web user vs Telegram user)
-            if is_telegram_user:
-                # Get telegram user from session
-                telegram_id = session.get('telegram_id')
-                if not telegram_id:
-                    # If telegram_id is not in session, redirect to login
-                    session.pop('is_telegram_user', None)
-                    return redirect(url_for('login'))
-                    
-                # Fetch Telegram conversations
-                telegram_user = TelegramUser.query.filter_by(telegram_id=telegram_id).first()
-                if not telegram_user:
-                    session.pop('is_telegram_user', None)
-                    session.pop('telegram_id', None)
-                    flash('Utilisateur Telegram non trouvé.', 'error')
-                    return redirect(url_for('login'))
-                    
-                recent_conversations = TelegramConversation.query.filter_by(
-                    telegram_user_id=telegram_id
-                ).order_by(TelegramConversation.updated_at.desc()).limit(5).all()
-                
-                for conv in recent_conversations:
-                    conversation_history.append({
-                        'id': conv.id,
-                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                        'subject': 'Telegram',
-                        'time': conv.created_at.strftime('%H:%M')
-                    })
-                    
-                # Clear any existing thread_id from Flask's session
-                if 'thread_id' in session:
-                    session.pop('thread_id')
-                    
-                # Get all conversations for this Telegram user, not just recent ones
-                all_conversations = TelegramConversation.query.filter_by(
-                    telegram_user_id=telegram_id
-                ).order_by(TelegramConversation.updated_at.desc()).all()
-                
-                # Create a comprehensive conversation history list
-                conversation_history = []
-                for conv in all_conversations:
-                    # Get the last message to use as preview
-                    last_message = TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first()
-                    conversation_history.append({
-                        'id': conv.id,
-                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                        'subject': 'Telegram',
-                        'time': conv.created_at.strftime('%H:%M'),
-                        'preview': last_message.content[:50] + "..." if last_message and len(last_message.content) > 50 else (last_message.content if last_message else "")
-                    })
-                    
-                return render_template('chat.html', 
-                                   history=[], 
-                                   conversation_history=conversation_history,
-                                   is_telegram_user=True,
-                                   telegram_id=telegram_id,
-                                   telegram_name=session.get('telegram_name', 'Utilisateur Telegram'),
-                                   credits=42)
-            else:
-                # Regular web user - Get recent non-deleted conversations for sidebar
-                recent_conversations = Conversation.query.filter_by(
-                    deleted=False, 
-                    user_id=current_user.id
-                ).order_by(Conversation.updated_at.desc()).limit(5).all()
 
-                for conv in recent_conversations:
-                    conversation_history.append({
-                        'id': conv.id,
-                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                        'subject': 'Général',
-                        'time': conv.created_at.strftime('%H:%M')
-                    })
+            for conv in recent_conversations:
+                conversation_history.append({
+                    'id': conv.id,
+                    'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                    'subject': 'Général',
+                    'time': conv.created_at.strftime('%H:%M')
+                })
 
-                # Clear any existing thread_id from Flask's session
-                if 'thread_id' in session:
-                    session.pop('thread_id')
+            # Clear any existing thread_id from Flask's session
+            if 'thread_id' in session:
+                session.pop('thread_id')
 
-                return render_template('chat.html', 
-                                   history=[], 
-                                   conversation_history=conversation_history,
-                                   is_telegram_user=False, 
-                                   credits=42)
+            return render_template('chat.html', 
+                               history=[], 
+                               conversation_history=conversation_history, 
+                               credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
         return render_template('chat.html', 
                           history=[], 
                           conversation_history=[], 
-                          is_telegram_user=is_telegram_user if 'is_telegram_user' in locals() else False,
                           credits=42,
                           error="Une erreur est survenue. Veuillez réessayer.")
 
@@ -446,32 +324,15 @@ def get_interleaved_messages(conversation_id, current_message=None):
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Determine if the user is a Telegram user
-        is_telegram_user = session.get('is_telegram_user', False)
-        telegram_id = session.get('telegram_id') if is_telegram_user else None
-        
         # Get current conversation or create a new one
         thread_id = session.get('thread_id')
         conversation = None
-        
-        # Handle different user types
-        if is_telegram_user:
-            # Looking up existing TelegramConversation
-            if thread_id:
-                conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
-            
-            # Create a new TelegramConversation if needed
-            if not conversation:
-                conversation = get_or_create_conversation(thread_id=thread_id, telegram_id=telegram_id)
-                session['thread_id'] = conversation.thread_id
-        else:
-            # Regular web user flow
-            if thread_id:
-                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-                
-            if not conversation:
-                conversation = get_or_create_conversation(thread_id=thread_id)
-                session['thread_id'] = conversation.thread_id
+        if thread_id:
+            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+
+        if not conversation:
+            conversation = get_or_create_conversation()
+            session['thread_id'] = conversation.thread_id
 
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
@@ -503,21 +364,13 @@ def handle_message(data):
                 else:
                     user_store_content = user_content
 
-                # Store user message with image and extracted content - handle different conversation types
-                if isinstance(conversation, TelegramConversation):
-                    user_message = TelegramMessage(
-                        conversation_id=conversation.id,
-                        role='user',
-                        content=user_store_content,
-                        image_url=image_url
-                    )
-                else:
-                    user_message = Message(
-                        conversation_id=conversation.id,
-                        role='user',
-                        content=user_store_content,
-                        image_url=image_url
-                    )
+                # Store user message with image and extracted content
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role='user',
+                    content=user_store_content,
+                    image_url=image_url
+                )
                 db.session.add(user_message)
 
                 # Prepare message text for assistant
@@ -598,19 +451,12 @@ def handle_message(data):
                 logger.error(f"Image processing error: {str(img_error)}")
                 raise Exception("Failed to process image. Please make sure it's a valid image file.")
         else:
-            # Store text-only message - handle different conversation types
-            if isinstance(conversation, TelegramConversation):
-                user_message = TelegramMessage(
-                    conversation_id=conversation.id,
-                    role='user',
-                    content=data.get('message', '')
-                )
-            else:
-                user_message = Message(
-                    conversation_id=conversation.id,
-                    role='user',
-                    content=data.get('message', '')
-                )
+            # Store text-only message
+            user_message = Message(
+                conversation_id=conversation.id,
+                role='user',
+                content=data.get('message', '')
+            )
             db.session.add(user_message)
 
             if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
@@ -683,19 +529,12 @@ def handle_message(data):
                 messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
                 assistant_message = messages.data[0].content[0].text.value
 
-        # Store assistant response in database - handle different conversation types
-        if isinstance(conversation, TelegramConversation):
-            db_message = TelegramMessage(
-                conversation_id=conversation.id,
-                role='assistant',
-                content=assistant_message
-            )
-        else:
-            db_message = Message(
-                conversation_id=conversation.id,
-                role='assistant',
-                content=assistant_message
-            )
+        # Store assistant response in database
+        db_message = Message(
+            conversation_id=conversation.id,
+            role='assistant',
+            content=assistant_message
+        )
         db.session.add(db_message)
 
         # Generate and set conversation title if this is the first message
@@ -733,146 +572,72 @@ def handle_message(data):
 @socketio.on('rename_conversation')
 def handle_rename(data):
     try:
-        # Check if this is a Telegram user session
-        is_telegram_user = session.get('is_telegram_user', False)
-        
-        if is_telegram_user:
-            # Handle Telegram conversation rename
-            conversation = TelegramConversation.query.get(data['id'])
-            if conversation:
-                conversation.title = data['title']
-                db.session.commit()
-                emit('conversation_updated', {'success': True})
-            else:
-                raise Exception("Telegram conversation not found")
-        else:
-            # Regular web user conversation rename
-            conversation = Conversation.query.get(data['id'])
-            if conversation:
-                conversation.title = data['title']
-                db.session.commit()
-                emit('conversation_updated', {'success': True})
-            else:
-                raise Exception("Conversation not found")
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
+            conversation.title = data['title']
+            db.session.commit()
+            emit('conversation_updated', {'success': True})
     except Exception as e:
-        logger.error(f"Error renaming conversation: {str(e)}")
         emit('conversation_updated', {'success': False, 'error': str(e)})
 
 @socketio.on('delete_conversation')
 def handle_delete(data):
     try:
-        # Check if this is a Telegram user session
-        is_telegram_user = session.get('is_telegram_user', False)
-        
-        if is_telegram_user:
-            # Handle Telegram conversation deletion
-            conversation = TelegramConversation.query.get(data['id'])
-            if conversation:
-                # Delete associated messages first
-                TelegramMessage.query.filter_by(conversation_id=conversation.id).delete()
-                db.session.delete(conversation)
-                db.session.commit()
-                emit('conversation_deleted', {'success': True})
-            else:
-                raise Exception("Telegram conversation not found")
-        else:
-            # Regular web user conversation deletion
-            conversation = Conversation.query.get(data['id'])
-            if conversation:
-                # Delete associated messages first
-                Message.query.filter_by(conversation_id=conversation.id).delete()
-                db.session.delete(conversation)
-                db.session.commit()
-                emit('conversation_deleted', {'success': True})
-            else:
-                raise Exception("Conversation not found")
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
+            # Delete associated messages first
+            Message.query.filter_by(conversation_id=conversation.id).delete()
+            db.session.delete(conversation)
+            db.session.commit()
+            emit('conversation_deleted', {'success': True})
     except Exception as e:
-        logger.error(f"Error deleting conversation: {str(e)}")
         emit('conversation_deleted', {'success': False, 'error': str(e)})
 
 
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
     try:
-        # Check if this is a Telegram user session
-        is_telegram_user = session.get('is_telegram_user', False)
-        
-        if is_telegram_user:
-            # Handle Telegram conversation
-            conversation = TelegramConversation.query.get(data['id'])
-            if not conversation:
-                raise Exception("Telegram conversation not found")
-                
+        conversation = Conversation.query.get(data['id'])
+        if conversation:
             # Update session with the opened conversation
             session['thread_id'] = conversation.thread_id
-            
+
             # Get messages for this conversation
-            messages = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at).all()
+            messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
             messages_data = []
+
+            # Import needed for current_user
+            from flask_login import current_user
+            user_id = current_user.id if current_user.is_authenticated else None
             
             for msg in messages:
                 # Add base message data
                 message_data = {
-                    'id': msg.id,
+                    'id': msg.id,  # Include message ID for feedback tracking
                     'role': msg.role,
                     'content': msg.content,
                     'image_url': msg.image_url,
                 }
-                messages_data.append(message_data)
                 
+                # If it's an assistant message, check for existing feedback
+                if msg.role == 'assistant':
+                    # Get existing feedback for this message from the current user
+                    feedback = MessageFeedback.query.filter_by(
+                        message_id=msg.id,
+                        user_id=user_id
+                    ).first()
+                    
+                    if feedback:
+                        message_data['feedback'] = feedback.feedback_type
+                
+                messages_data.append(message_data)
+
             emit('conversation_opened', {
                 'success': True,
                 'messages': messages_data,
                 'conversation_id': conversation.id,
-                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
-                'is_telegram': True
+                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
             })
-        else:
-            # Regular web user conversation
-            conversation = Conversation.query.get(data['id'])
-            if conversation:
-                # Update session with the opened conversation
-                session['thread_id'] = conversation.thread_id
-
-                # Get messages for this conversation
-                messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
-                messages_data = []
-
-                # Import needed for current_user
-                from flask_login import current_user
-                user_id = current_user.id if current_user.is_authenticated else None
-                
-                for msg in messages:
-                    # Add base message data
-                    message_data = {
-                        'id': msg.id,  # Include message ID for feedback tracking
-                        'role': msg.role,
-                        'content': msg.content,
-                        'image_url': msg.image_url,
-                    }
-                    
-                    # If it's an assistant message, check for existing feedback
-                    if msg.role == 'assistant':
-                        # Get existing feedback for this message from the current user
-                        feedback = MessageFeedback.query.filter_by(
-                            message_id=msg.id,
-                            user_id=user_id
-                        ).first()
-                        
-                        if feedback:
-                            message_data['feedback'] = feedback.feedback_type
-                    
-                    messages_data.append(message_data)
-
-                emit('conversation_opened', {
-                    'success': True,
-                    'messages': messages_data,
-                    'conversation_id': conversation.id,
-                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
-                    'is_telegram': False
-                })
-            else:
-                raise Exception("Conversation not found")
     except Exception as e:
         app.logger.error(f"Error opening conversation: {str(e)}")
         emit('conversation_opened', {
@@ -999,55 +764,24 @@ def cleanup_uploads():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        login_mode = request.form.get('login_mode', 'web')
-        
-        # Handle Telegram login mode
-        if login_mode == 'telegram':
-            telegram_id = request.form.get('telegram_id')
-            
-            if not telegram_id:
-                flash('Veuillez saisir votre ID Telegram.', 'error')
-                return redirect(url_for('login'))
-                
-            try:
-                # Check if the Telegram ID exists in the database
-                telegram_user = TelegramUser.query.filter_by(telegram_id=telegram_id).first()
-                
-                if telegram_user:
-                    # Store Telegram user information in the session
-                    session['is_telegram_user'] = True
-                    session['telegram_id'] = telegram_user.telegram_id
-                    session['telegram_name'] = f"{telegram_user.first_name} {telegram_user.last_name}".strip()
-                    
-                    flash(f'Connecté en tant qu\'utilisateur Telegram: {telegram_user.first_name}.', 'success')
-                    return redirect(url_for('chat'))
-                else:
-                    flash('ID Telegram non trouvé. Veuillez vérifier votre ID ou utiliser l\'application Telegram d\'abord.', 'error')
-                    return redirect(url_for('login'))
-            except Exception as e:
-                logger.error(f"Error during Telegram login: {str(e)}")
-                flash('Une erreur est survenue lors de la connexion. Veuillez réessayer.', 'error')
-                return redirect(url_for('login'))
-        else:
-            # Standard web login flow
-            phone_number = request.form.get('phone_number')
-            password = request.form.get('password')
+        phone_number = request.form.get('phone_number')
+        password = request.form.get('password')
 
-            # Check for admin credentials first
-            if phone_number == os.environ.get('ADMIN_PHONE') and \
-               password == os.environ.get('ADMIN_PASSWORD'):
-                session['is_admin'] = True
-                flash('Connecté en tant qu\'administrateur.', 'success')
-                return redirect(url_for('admin_dashboard'))
+        # Check for admin credentials first
+        if phone_number == os.environ.get('ADMIN_PHONE') and \
+           password == os.environ.get('ADMIN_PASSWORD'):
+            session['is_admin'] = True
+            flash('Connecté en tant qu\'administrateur.', 'success')
+            return redirect(url_for('admin_dashboard'))
 
-            # Regular user login
-            user = User.query.filter_by(phone_number=phone_number).first()
-            if user and user.check_password(password):
-                login_user(user)
-                return redirect(url_for('chat'))
+        # Regular user login
+        user = User.query.filter_by(phone_number=phone_number).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('chat'))
 
-            flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
-            return redirect(url_for('login'))
+        flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
+        return redirect(url_for('login'))
 
     return render_template('login.html')
 
@@ -1060,32 +794,20 @@ def admin_dashboard():
         return redirect(url_for('login'))
 
     try:
+        # Get web platform data
+        users = User.query.all()
+        conversations = Conversation.query.all()
         today = datetime.today().date()
-        
-        # Get data for all platforms
-        # Web platform data
-        web_users = User.query.all()
-        web_conversations = Conversation.query.all()
-        
-        # Telegram platform data
-        telegram_users = TelegramUser.query.all()
-        telegram_conversations = TelegramConversation.query.all()
-        
-        # Combined stats across platforms
-        total_users = len(web_users) + len(telegram_users)
-        total_conversations = len(web_conversations) + len(telegram_conversations)
-        
-        # Count today's activity
-        today_web_conversations = sum(1 for conv in web_conversations if conv.created_at.date() == today)
-        today_telegram_conversations = sum(1 for conv in telegram_conversations if conv.created_at.date() == today)
-        today_conversations = today_web_conversations + today_telegram_conversations
-        
+
+        # Count today's conversations
+        today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
+
+        # Get actual number of users
+        active_users = len(users)
         # Count users created today
-        today_web_users = sum(1 for user in web_users if user.created_at.date() == today)
-        today_telegram_users = sum(1 for user in telegram_users if user.created_at.date() == today)
-        active_users_today = today_web_users + today_telegram_users
+        active_users_today = sum(1 for user in users if user.created_at.date() == today)
         
-        # Calculate satisfaction rate based on message feedback (web only for now)
+        # Calculate satisfaction rate based on message feedback
         total_feedbacks = MessageFeedback.query.count()
         positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
         
@@ -1097,15 +819,10 @@ def admin_dashboard():
 
         return render_template(
             'admin_dashboard.html',
-            active_users=total_users,  # Total users across all platforms
+            active_users=active_users,
             active_users_today=active_users_today,
             today_conversations=today_conversations,
             satisfaction_rate=satisfaction_rate,
-            total_conversations=total_conversations,
-            web_users=len(web_users),
-            telegram_users=len(telegram_users),
-            web_conversations=len(web_conversations),
-            telegram_conversations=len(telegram_conversations),
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
             current_model=CURRENT_MODEL,  # Add current model selection
@@ -1260,24 +977,6 @@ def admin_logout():
     """Logout route for admin"""
     session.pop('is_admin', None)
     flash('Vous avez été déconnecté.', 'success')
-    return redirect(url_for('login'))
-    
-@app.route('/logout')
-def logout():
-    """Logout route for regular and Telegram users"""
-    # Check if user is a Telegram user
-    if session.get('is_telegram_user'):
-        session.pop('is_telegram_user', None)
-        session.pop('telegram_id', None)
-        session.pop('telegram_name', None)
-        flash('Déconnecté avec succès.', 'success')
-    else:
-        # Regular web user logout
-        logout_user()
-        flash('Déconnecté avec succès.', 'success')
-    
-    # Clear any conversation thread
-    session.pop('thread_id', None)
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -1477,44 +1176,6 @@ def admin_platform_stats(platform):
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
             'satisfaction_rate': 0
-        }
-        
-    elif platform == 'all':
-        # Get aggregated statistics for all platforms
-        web_users = User.query.all()
-        web_conversations = Conversation.query.all()
-        telegram_users = TelegramUser.query.all()
-        telegram_conversations = TelegramConversation.query.all()
-        
-        # Combined stats across platforms
-        total_users = len(web_users) + len(telegram_users)
-        total_conversations = len(web_conversations) + len(telegram_conversations)
-        
-        # Count today's activity
-        today_web_conversations = sum(1 for conv in web_conversations if conv.created_at.date() == today)
-        today_telegram_conversations = sum(1 for conv in telegram_conversations if conv.created_at.date() == today)
-        today_conversations = today_web_conversations + today_telegram_conversations
-        
-        # Count users created today
-        today_web_users = sum(1 for user in web_users if user.created_at.date() == today)
-        today_telegram_users = sum(1 for user in telegram_users if user.created_at.date() == today)
-        today_users = today_web_users + today_telegram_users
-        
-        # Calculate satisfaction rate based on message feedback (web only for now)
-        total_feedbacks = MessageFeedback.query.count()
-        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
-        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
-        
-        data = {
-            'active_users': total_users,
-            'active_users_today': today_users,
-            'today_conversations': today_conversations,
-            'satisfaction_rate': satisfaction_rate,
-            'total_conversations': total_conversations,
-            'web_users': len(web_users),
-            'telegram_users': len(telegram_users),
-            'web_conversations': len(web_conversations),
-            'telegram_conversations': len(telegram_conversations)
         }
 
     elif platform == 'whatsapp':
