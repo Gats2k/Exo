@@ -353,6 +353,24 @@ def chat():
                 if 'thread_id' in session:
                     session.pop('thread_id')
                     
+                # Get all conversations for this Telegram user, not just recent ones
+                all_conversations = TelegramConversation.query.filter_by(
+                    telegram_user_id=telegram_id
+                ).order_by(TelegramConversation.updated_at.desc()).all()
+                
+                # Create a comprehensive conversation history list
+                conversation_history = []
+                for conv in all_conversations:
+                    # Get the last message to use as preview
+                    last_message = TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first()
+                    conversation_history.append({
+                        'id': conv.id,
+                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject': 'Telegram',
+                        'time': conv.created_at.strftime('%H:%M'),
+                        'preview': last_message.content[:50] + "..." if last_message and len(last_message.content) > 50 else (last_message.content if last_message else "")
+                    })
+                    
                 return render_template('chat.html', 
                                    history=[], 
                                    conversation_history=conversation_history,
