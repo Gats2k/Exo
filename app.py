@@ -1060,20 +1060,32 @@ def admin_dashboard():
         return redirect(url_for('login'))
 
     try:
-        # Get web platform data
-        users = User.query.all()
-        conversations = Conversation.query.all()
         today = datetime.today().date()
-
-        # Count today's conversations
-        today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
-
-        # Get actual number of users
-        active_users = len(users)
-        # Count users created today
-        active_users_today = sum(1 for user in users if user.created_at.date() == today)
         
-        # Calculate satisfaction rate based on message feedback
+        # Get data for all platforms
+        # Web platform data
+        web_users = User.query.all()
+        web_conversations = Conversation.query.all()
+        
+        # Telegram platform data
+        telegram_users = TelegramUser.query.all()
+        telegram_conversations = TelegramConversation.query.all()
+        
+        # Combined stats across platforms
+        total_users = len(web_users) + len(telegram_users)
+        total_conversations = len(web_conversations) + len(telegram_conversations)
+        
+        # Count today's activity
+        today_web_conversations = sum(1 for conv in web_conversations if conv.created_at.date() == today)
+        today_telegram_conversations = sum(1 for conv in telegram_conversations if conv.created_at.date() == today)
+        today_conversations = today_web_conversations + today_telegram_conversations
+        
+        # Count users created today
+        today_web_users = sum(1 for user in web_users if user.created_at.date() == today)
+        today_telegram_users = sum(1 for user in telegram_users if user.created_at.date() == today)
+        active_users_today = today_web_users + today_telegram_users
+        
+        # Calculate satisfaction rate based on message feedback (web only for now)
         total_feedbacks = MessageFeedback.query.count()
         positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
         
@@ -1085,10 +1097,15 @@ def admin_dashboard():
 
         return render_template(
             'admin_dashboard.html',
-            active_users=active_users,
+            active_users=total_users,  # Total users across all platforms
             active_users_today=active_users_today,
             today_conversations=today_conversations,
             satisfaction_rate=satisfaction_rate,
+            total_conversations=total_conversations,
+            web_users=len(web_users),
+            telegram_users=len(telegram_users),
+            web_conversations=len(web_conversations),
+            telegram_conversations=len(telegram_conversations),
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
             current_model=CURRENT_MODEL,  # Add current model selection
@@ -1460,6 +1477,44 @@ def admin_platform_stats(platform):
             'active_users_today': sum(1 for user in users if user.created_at.date() == today),
             'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
             'satisfaction_rate': 0
+        }
+        
+    elif platform == 'all':
+        # Get aggregated statistics for all platforms
+        web_users = User.query.all()
+        web_conversations = Conversation.query.all()
+        telegram_users = TelegramUser.query.all()
+        telegram_conversations = TelegramConversation.query.all()
+        
+        # Combined stats across platforms
+        total_users = len(web_users) + len(telegram_users)
+        total_conversations = len(web_conversations) + len(telegram_conversations)
+        
+        # Count today's activity
+        today_web_conversations = sum(1 for conv in web_conversations if conv.created_at.date() == today)
+        today_telegram_conversations = sum(1 for conv in telegram_conversations if conv.created_at.date() == today)
+        today_conversations = today_web_conversations + today_telegram_conversations
+        
+        # Count users created today
+        today_web_users = sum(1 for user in web_users if user.created_at.date() == today)
+        today_telegram_users = sum(1 for user in telegram_users if user.created_at.date() == today)
+        today_users = today_web_users + today_telegram_users
+        
+        # Calculate satisfaction rate based on message feedback (web only for now)
+        total_feedbacks = MessageFeedback.query.count()
+        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+        
+        data = {
+            'active_users': total_users,
+            'active_users_today': today_users,
+            'today_conversations': today_conversations,
+            'satisfaction_rate': satisfaction_rate,
+            'total_conversations': total_conversations,
+            'web_users': len(web_users),
+            'telegram_users': len(telegram_users),
+            'web_conversations': len(web_conversations),
+            'telegram_conversations': len(telegram_conversations)
         }
 
     elif platform == 'whatsapp':
