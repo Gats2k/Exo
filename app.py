@@ -37,7 +37,10 @@ MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
 IMAGE_MAX_AGE_HOURS = 24
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__,
+       static_url_path='/static',
+       static_folder='static',
+       template_folder='templates')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -2076,6 +2079,11 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 if __name__ == '__main__':
     # Schedule the cleanup task

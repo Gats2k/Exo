@@ -1,0 +1,96 @@
+2025-03-23 23:54:56.73
+d28b95ab
+System
+forwarding local port 5000 to external port 80
+2025-03-23 23:54:57.68
+d28b95ab
+User
+[2025-03-23 23:54:57 +0000] [25] [INFO] Starting gunicorn 23.0.0
+2025-03-23 23:54:57.68
+d28b95ab
+User
+[2025-03-23 23:54:57 +0000] [25] [INFO] Listening at: http://0.0.0.0:5000 (25)
+2025-03-23 23:54:57.68
+d28b95ab
+User
+[2025-03-23 23:54:57 +0000] [25] [INFO] Using worker: sync
+2025-03-23 23:54:57.69
+d28b95ab
+User
+[2025-03-23 23:54:57 +0000] [30] [INFO] Booting worker with pid: 30
+2025-03-23 23:55:40.18
+d28b95ab
+User
+[2025-03-23 23:55:40 +0000] [30] [ERROR] Error handling request
+2025-03-23 23:55:40.18
+d28b95ab
+User
+Traceback (most recent call last):
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/gunicorn/workers/sync.py", line 180, in handle_request
+2025-03-23 23:55:40.18
+d28b95ab
+User
+resp.write_file(respiter)
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/gunicorn/http/wsgi.py", line 393, in write_file
+2025-03-23 23:55:40.18
+d28b95ab
+User
+if not self.sendfile(respiter):
+2025-03-23 23:55:40.18
+d28b95ab
+User
+^^^^^^^^^^^^^^^^^^^^^^^
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/gunicorn/http/wsgi.py", line 383, in sendfile
+2025-03-23 23:55:40.18
+d28b95ab
+User
+self.sock.sendfile(respiter.filelike, offset=offset, count=nbytes)
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/socket.py", line 485, in sendfile
+2025-03-23 23:55:40.18
+d28b95ab
+User
+return self._sendfile_use_sendfile(file, offset, count)
+2025-03-23 23:55:40.18
+d28b95ab
+User
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/socket.py", line 365, in _sendfile_use_sendfile
+2025-03-23 23:55:40.18
+d28b95ab
+User
+raise ValueError("non-blocking sockets are not supported")
+2025-03-23 23:55:40.18
+d28b95ab
+User
+ValueError: non-blocking sockets are not supported
+2025-03-23 23:55:40.18
+d28b95ab
+User
+[2025-03-23 23:55:40 +0000] [30] [ERROR] Error handling request
+2025-03-23 23:55:40.18
+d28b95ab
+User
+Traceback (most recent call last):
+2025-03-23 23:55:40.18
+d28b95ab
+User
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/gunicorn/workers/sync.py", line 180, in handle_request
+2025-03-23 23:55:40.18
+d28b95ab
+User
+resp.write_file(respiter)
