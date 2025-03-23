@@ -1555,6 +1555,9 @@ function setupRealtimeUpdates() {
             // Configuration des écouteurs d'événements pour Telegram
             setupTelegramUpdates();
 
+            // Configuration des écouteurs d'événements pour le Web
+            setupWebUpdates();
+
             console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
         }
     } else {
@@ -1617,6 +1620,64 @@ function setupTelegramUpdates() {
         console.log('Telegram update listeners configured successfully');
     } else {
         console.error("Socket.IO n'est pas disponible pour les mises à jour Telegram");
+    }
+}
+
+function setupWebUpdates() {
+    if (typeof io !== 'undefined' && socketInstance) {
+        // Écouteur pour les nouveaux utilisateurs Web
+        socketInstance.on('new_web_user', function(userData) {
+            console.log('Received new Web user:', userData);
+
+            // Mettre à jour les statistiques du tableau de bord
+            updateDashboardStatistics('web');
+
+            // Animer la carte des utilisateurs pour attirer l'attention
+            const userStatsElement = document.querySelectorAll('.stat-card')[0];
+            if (userStatsElement) {
+                userStatsElement.classList.add('highlight-update');
+                setTimeout(() => {
+                    userStatsElement.classList.remove('highlight-update');
+                }, 2000);
+            }
+
+            // Ajouter une notification
+            addNotification(`Nouvel utilisateur Web: ${userData.first_name} ${userData.last_name}`, 'info');
+
+            // Mettre à jour la liste des utilisateurs si nous sommes dans la section utilisateurs
+            if (document.getElementById('users-section').style.display === 'block') {
+                fetchAllUsers(currentPlatform);
+            }
+        });
+
+        // Écouteur pour les nouvelles conversations Web
+        socketInstance.on('new_web_conversation', function(conversationData) {
+            console.log('Received new Web conversation:', conversationData);
+
+            // Mettre à jour les statistiques du tableau de bord
+            updateDashboardStatistics('web');
+
+            // Animer la carte des conversations pour attirer l'attention
+            const conversationStatsElement = document.querySelectorAll('.stat-card')[1];
+            if (conversationStatsElement) {
+                conversationStatsElement.classList.add('highlight-update');
+                setTimeout(() => {
+                    conversationStatsElement.classList.remove('highlight-update');
+                }, 2000);
+            }
+
+            // Ajouter une notification
+            addNotification(`Nouvelle conversation Web: ${conversationData.title}`, 'info');
+
+            // Mettre à jour la liste des conversations si nous sommes dans la section conversations
+            if (document.getElementById('conversations-section').style.display === 'block') {
+                fetchAllConversations(currentPlatform);
+            }
+        });
+
+        console.log('Web update listeners configured successfully');
+    } else {
+        console.error("Socket.IO n'est pas disponible pour les mises à jour Web");
     }
 }
 

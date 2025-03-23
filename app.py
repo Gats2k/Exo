@@ -233,8 +233,10 @@ def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-            if conversation:
+            # Vérifier si cette conversation appartient à l'utilisateur actuel
+            if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
                 return conversation
+            # Si la conversation n'appartient pas à l'utilisateur actuel, on ignore ce thread_id
 
         # Create new thread and conversation
         client = get_ai_client()
@@ -246,7 +248,7 @@ def get_or_create_conversation(thread_id=None):
             # For other models, generate a UUID as thread_id
             thread_id = str(uuid.uuid4())
 
-        # Associate the conversation with the current logged-in user
+        # Associer la conversation avec l'utilisateur connecté
         user_id = None
         if current_user.is_authenticated:
             user_id = current_user.id
@@ -254,6 +256,14 @@ def get_or_create_conversation(thread_id=None):
         conversation = Conversation(thread_id=thread_id, user_id=user_id)
         session.add(conversation)
         session.commit()
+
+        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
+        socketio.emit('new_web_conversation', {
+            'id': conversation.id,
+            'title': conversation.title or f"Nouvelle conversation",
+            'user_id': user_id
+        })
+
         return conversation
 
 @app.route('/')
@@ -261,33 +271,81 @@ def get_or_create_conversation(thread_id=None):
 def chat():
     try:
         with db_retry_session() as db_session:
-            # Get recent non-deleted conversations for sidebar
-            recent_conversations = Conversation.query.filter_by(deleted=False).order_by(Conversation.updated_at.desc()).limit(5).all()
+            # Vérifier si le thread_id dans la session appartient à l'utilisateur actuel
+            thread_id = session.get('thread_id')
+            if thread_id and current_user.is_authenticated:
+                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                if not conversation or conversation.user_id != current_user.id:
+                    # Ce thread_id n'appartient pas à l'utilisateur actuel, le supprimer
+                    session.pop('thread_id')
+                    logger.warning(f"Thread_id {thread_id} n'appartient pas à l'utilisateur {current_user.id}, nettoyage effectué")
+
             conversation_history = []
 
-            for conv in recent_conversations:
-                conversation_history.append({
-                    'id': conv.id,
-                    'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                    'subject': 'Général',
-                    'time': conv.created_at.strftime('%H:%M')
-                })
+            # Vérifier si l'utilisateur est connecté via Telegram
+            is_telegram_user = session.get('is_telegram_user', False)
+            telegram_id = session.get('telegram_id')
+
+            # Vérifier si l'utilisateur actuel est réellement l'utilisateur Telegram indiqué
+            # Si l'utilisateur actuel a une adresse téléphonique qui ne correspond pas au format Telegram
+            if is_telegram_user and telegram_id and current_user.is_authenticated:
+                if not current_user.phone_number.startswith(f"telegram_{telegram_id}"):
+                    # Les identifiants ne correspondent pas, nettoyer les données Telegram
+                    session.pop('is_telegram_user', None)
+                    session.pop('telegram_id', None)
+                    is_telegram_user = False
+                    telegram_id = None
+                    logger.warning(f"Session Telegram incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué")
+
+            if is_telegram_user and telegram_id:
+                # Charger les conversations Telegram pour cet utilisateur
+                telegram_conversations = TelegramConversation.query.filter_by(
+                    telegram_user_id=int(telegram_id)
+                ).order_by(TelegramConversation.updated_at.desc()).limit(5).all()
+
+                for conv in telegram_conversations:
+                    conversation_history.append({
+                        'id': conv.id,
+                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject': 'Général',
+                        'time': conv.created_at.strftime('%H:%M'),
+                        'is_telegram': True
+                    })
+            else:
+                # Comportement normal pour les utilisateurs web
+                # Important: Filtrer par user_id pour n'afficher que les conversations de l'utilisateur actuel
+                if current_user.is_authenticated:
+                    recent_conversations = Conversation.query.filter_by(
+                        deleted=False, 
+                        user_id=current_user.id
+                    ).order_by(Conversation.updated_at.desc()).limit(5).all()
+                else:
+                    recent_conversations = []
+
+                for conv in recent_conversations:
+                    conversation_history.append({
+                        'id': conv.id,
+                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject': 'Général',
+                        'time': conv.created_at.strftime('%H:%M')
+                    })
 
             # Clear any existing thread_id from Flask's session
             if 'thread_id' in session:
                 session.pop('thread_id')
 
             return render_template('chat.html', 
-                               history=[], 
-                               conversation_history=conversation_history, 
-                               credits=42)
+                                history=[], 
+                                conversation_history=conversation_history, 
+                                is_telegram=is_telegram_user,
+                                credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
         return render_template('chat.html', 
-                          history=[], 
-                          conversation_history=[], 
-                          credits=42,
-                          error="Une erreur est survenue. Veuillez réessayer.")
+                            history=[], 
+                            conversation_history=[], 
+                            credits=42,
+                            error="Une erreur est survenue. Veuillez réessayer.")
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 
@@ -324,15 +382,9 @@ def get_interleaved_messages(conversation_id, current_message=None):
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Get current conversation or create a new one
-        thread_id = session.get('thread_id')
-        conversation = None
-        if thread_id:
-            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-
-        if not conversation:
-            conversation = get_or_create_conversation()
-            session['thread_id'] = conversation.thread_id
+        # Vérifier si l'utilisateur est connecté via Telegram
+        is_telegram_user = session.get('is_telegram_user', False)
+        telegram_id = session.get('telegram_id')
 
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
@@ -341,46 +393,358 @@ def handle_message(data):
         mathpix_result = None
         formatted_summary = None
 
-        # Handle image if present
-        if 'image' in data and data['image']:
-            try:
-                filename = save_base64_image(data['image'])
-                image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+        # Déterminer s'il s'agit d'une conversation Telegram ou Web
+        if is_telegram_user and telegram_id:
+            # Gestion des conversations Telegram
+            thread_id = session.get('thread_id')
+            telegram_conversation = None
 
-                # Process image with Mathpix
-                mathpix_result = process_image_with_mathpix(data['image'])
+            if thread_id:
+                telegram_conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
 
-                # Check if an error occurred
-                if "error" in mathpix_result:
-                    logger.error(f"Mathpix error: {mathpix_result['error']}")
-                    formatted_summary = "Image content extraction failed. I will analyze the image visually."
+            if not telegram_conversation:
+                # Créer une nouvelle conversation Telegram
+                thread_id = f"thread_{telegram_id}_{int(time.time())}"
+                telegram_conversation = TelegramConversation(
+                    telegram_user_id=int(telegram_id),
+                    thread_id=thread_id,
+                    title="Nouvelle conversation"
+                )
+                db.session.add(telegram_conversation)
+                db.session.commit()
+                session['thread_id'] = thread_id
+
+            # Handle image if present
+            if 'image' in data and data['image']:
+                try:
+                    filename = save_base64_image(data['image'])
+                    image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+
+                    # Process image with Mathpix
+                    mathpix_result = process_image_with_mathpix(data['image'])
+
+                    # Check if an error occurred
+                    if "error" in mathpix_result:
+                        logger.error(f"Mathpix error: {mathpix_result['error']}")
+                        formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                    else:
+                        formatted_summary = mathpix_result.get("formatted_summary", "")
+
+                    # Build user message with image extraction
+                    user_content = data.get('message', '')
+                    if formatted_summary:
+                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                    else:
+                        user_store_content = user_content
+
+                    # Store user message with image and extracted content
+                    user_message = TelegramMessage(
+                        conversation_id=telegram_conversation.id,
+                        role='user',
+                        content=user_store_content,
+                        image_url=image_url
+                    )
+                    db.session.add(user_message)
+
+                    # Prepare message text for assistant
+                    message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
+                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+
+                except Exception as img_error:
+                    logger.error(f"Image processing error: {str(img_error)}")
+                    raise Exception("Failed to process image. Please make sure it's a valid image file.")
+            else:
+                # Store text-only message for Telegram user
+                user_message = TelegramMessage(
+                    conversation_id=telegram_conversation.id,
+                    role='user',
+                    content=data.get('message', '')
+                )
+                db.session.add(user_message)
+                message_for_assistant = data.get('message', '')
+
+            # Get previous messages for context
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                # Get properly formatted messages for API call
+                if CURRENT_MODEL == 'deepseek-reasoner':
+                    # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
+                    # ou créer une version spécifique pour les messages Telegram
+                    telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                        .order_by(TelegramMessage.created_at).all()
+
+                    # Start with system message
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+
+                    # Process past messages ensuring alternation
+                    prev_role = None
+                    for msg in telegram_messages:
+                        # Skip consecutive messages with the same role
+                        if msg.role != prev_role:
+                            messages.append({
+                                "role": msg.role,
+                                "content": msg.content
+                            })
+                            prev_role = msg.role
+
+                    # Add current message if needed
+                    if not messages[-1]["role"] == "user":
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
                 else:
-                    formatted_summary = mathpix_result.get("formatted_summary", "")
+                    # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                    telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                        .order_by(TelegramMessage.created_at).all()
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    for msg in telegram_messages:
+                        messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
+                    # Ajouter le message actuel s'il n'est pas déjà dans la liste
+                    if not (telegram_messages and telegram_messages[-1].role == 'user' and 
+                            telegram_messages[-1].content == user_message.content):
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
 
-                # Build user message with image extraction
-                user_content = data.get('message', '')
-                if formatted_summary:
-                    user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                # Génération de réponse avec le modèle approprié
+                if CURRENT_MODEL == 'gemini':
+                    # Send to Gemini AI service
+                    assistant_message = call_gemini_api(messages)
                 else:
-                    user_store_content = user_content
+                    # Send to AI service (DeepSeek or Qwen)
+                    response = ai_client.chat.completions.create(
+                        model=get_model_name(),
+                        messages=messages,
+                        stream=False
+                    )
+                    assistant_message = response.choices[0].message.content
+            else:
+                # Pour OpenAI, créer un thread temporaire pour cette conversation Telegram
+                # On n'utilise pas directement les threads OpenAI avec Telegram pour éviter de mélanger
+                temp_thread = openai_client.beta.threads.create()
 
-                # Store user message with image and extracted content
+                # Ajouter tous les messages précédents au thread temporaire
+                telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                    .order_by(TelegramMessage.created_at).all()
+
+                for msg in telegram_messages:
+                    if msg.role == 'user':
+                        openai_client.beta.threads.messages.create(
+                            thread_id=temp_thread.id,
+                            role="user",
+                            content=msg.content
+                        )
+
+                # Ajouter le message actuel
+                openai_client.beta.threads.messages.create(
+                    thread_id=temp_thread.id,
+                    role="user",
+                    content=message_for_assistant
+                )
+
+                # Exécuter l'assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=temp_thread.id,
+                    assistant_id=ASSISTANT_ID
+                )
+
+                # Attendre la réponse avec timeout
+                timeout = 30
+                start_time = time.time()
+
+                while True:
+                    if time.time() - start_time > timeout:
+                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
+                        return
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=temp_thread.id,
+                        run_id=run.id
+                    )
+
+                    if run_status.status == 'completed':
+                        break
+                    elif run_status.status == 'failed':
+                        emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
+                        return
+
+                    eventlet.sleep(1)
+
+                # Récupérer la réponse d'OpenAI
+                response_messages = openai_client.beta.threads.messages.list(thread_id=temp_thread.id)
+                assistant_message = response_messages.data[0].content[0].text.value
+
+            # Stocker la réponse de l'assistant dans la base de données
+            telegram_db_message = TelegramMessage(
+                conversation_id=telegram_conversation.id,
+                role='assistant',
+                content=assistant_message
+            )
+            db.session.add(telegram_db_message)
+
+            # Générer et définir le titre de la conversation si c'est le premier message
+            if telegram_conversation.title == "Nouvelle conversation":
+                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                if not title:
+                    title = "Nouvelle Conversation"
+                telegram_conversation.title = title
+                db.session.commit()
+
+                # Émettre la nouvelle conversation à tous les clients
+                emit('new_conversation', {
+                    'id': telegram_conversation.id,
+                    'title': telegram_conversation.title,
+                    'subject': 'Général',
+                    'time': telegram_conversation.created_at.strftime('%H:%M'),
+                    'is_telegram': True
+                }, broadcast=True)
+
+            db.session.commit()
+
+            # Envoyer la réponse au client
+            emit('receive_message', {
+                'message': assistant_message,
+                'id': telegram_db_message.id,
+                'is_telegram': True
+            })
+
+        else:
+            # Gestion normale des conversations Web
+            thread_id = session.get('thread_id')
+            conversation = None
+            if thread_id:
+                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+
+            if not conversation:
+                conversation = get_or_create_conversation()
+                session['thread_id'] = conversation.thread_id
+
+            # Handle image if present
+            if 'image' in data and data['image']:
+                try:
+                    filename = save_base64_image(data['image'])
+                    image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+
+                    # Process image with Mathpix
+                    mathpix_result = process_image_with_mathpix(data['image'])
+
+                    # Check if an error occurred
+                    if "error" in mathpix_result:
+                        logger.error(f"Mathpix error: {mathpix_result['error']}")
+                        formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                    else:
+                        formatted_summary = mathpix_result.get("formatted_summary", "")
+
+                    # Build user message with image extraction
+                    user_content = data.get('message', '')
+                    if formatted_summary:
+                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                    else:
+                        user_store_content = user_content
+
+                    # Store user message with image and extracted content
+                    user_message = Message(
+                        conversation_id=conversation.id,
+                        role='user',
+                        content=user_store_content,
+                        image_url=image_url
+                    )
+                    db.session.add(user_message)
+
+                    # Prepare message text for assistant
+                    message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
+                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+
+                    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                        # Get properly formatted messages based on model
+                        if CURRENT_MODEL == 'deepseek-reasoner':
+                            messages = get_interleaved_messages(conversation.id, message_for_assistant)
+                        else:
+                            # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                            conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                                .order_by(Message.created_at).all()
+                            messages = [{"role": "system", "content": get_system_instructions()}]
+                            for msg in conversation_messages:
+                                messages.append({
+                                    "role": msg.role,
+                                    "content": msg.content
+                                })
+                            messages.append({
+                                "role": "user",
+                                "content": message_for_assistant
+                            })
+
+                        if CURRENT_MODEL == 'gemini':
+                            # Send to Gemini AI service
+                            assistant_message = call_gemini_api(messages)
+                        else:
+                            # Send to AI service (DeepSeek or Qwen)
+                            response = ai_client.chat.completions.create(
+                                model=get_model_name(),
+                                messages=messages,
+                                stream=False
+                            )
+                            assistant_message = response.choices[0].message.content
+                    else:
+                        # Use OpenAI's threads API
+                        ai_client.beta.threads.messages.create(
+                            thread_id=conversation.thread_id,
+                            role="user",
+                            content=message_for_assistant
+                        )
+
+                        # Create and run assistant
+                        run = ai_client.beta.threads.runs.create(
+                            thread_id=conversation.thread_id,
+                            assistant_id=ASSISTANT_ID
+                        )
+
+                        # Wait for response with timeout
+                        timeout = 30
+                        start_time = time.time()
+
+                        while True:
+                            if time.time() - start_time > timeout:
+                                emit('receive_message', {'message': 'Request timed out.', 'id': 0})
+                                return
+
+                            run_status = ai_client.beta.threads.runs.retrieve(
+                                thread_id=conversation.thread_id,
+                                run_id=run.id
+                            )
+
+                            if run_status.status == 'completed':
+                                break
+                            elif run_status.status == 'failed':
+                                emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
+                                return
+
+                            eventlet.sleep(1)
+
+                        # Retrieve OpenAI's response
+                        messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
+                        assistant_message = messages.data[0].content[0].text.value
+
+                except Exception as img_error:
+                    logger.error(f"Image processing error: {str(img_error)}")
+                    raise Exception("Failed to process image. Please make sure it's a valid image file.")
+            else:
+                # Store text-only message
                 user_message = Message(
                     conversation_id=conversation.id,
                     role='user',
-                    content=user_store_content,
-                    image_url=image_url
+                    content=data.get('message', '')
                 )
                 db.session.add(user_message)
-
-                # Prepare message text for assistant
-                message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
-                message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
                 if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
                     if CURRENT_MODEL == 'deepseek-reasoner':
-                        messages = get_interleaved_messages(conversation.id, message_for_assistant)
+                        messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
@@ -393,7 +757,7 @@ def handle_message(data):
                             })
                         messages.append({
                             "role": "user",
-                            "content": message_for_assistant
+                            "content": data.get('message', '')
                         })
 
                     if CURRENT_MODEL == 'gemini':
@@ -412,7 +776,7 @@ def handle_message(data):
                     ai_client.beta.threads.messages.create(
                         thread_id=conversation.thread_id,
                         role="user",
-                        content=message_for_assistant
+                        content=data.get('message', '')
                     )
 
                     # Create and run assistant
@@ -447,119 +811,37 @@ def handle_message(data):
                     messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
                     assistant_message = messages.data[0].content[0].text.value
 
-            except Exception as img_error:
-                logger.error(f"Image processing error: {str(img_error)}")
-                raise Exception("Failed to process image. Please make sure it's a valid image file.")
-        else:
-            # Store text-only message
-            user_message = Message(
+            # Store assistant response in database
+            db_message = Message(
                 conversation_id=conversation.id,
-                role='user',
-                content=data.get('message', '')
+                role='assistant',
+                content=assistant_message
             )
-            db.session.add(user_message)
+            db.session.add(db_message)
 
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
-                # Get properly formatted messages based on model
-                if CURRENT_MODEL == 'deepseek-reasoner':
-                    messages = get_interleaved_messages(conversation.id, data.get('message', ''))
-                else:
-                    # Regular DeepSeek chat, Qwen and Gemini can handle all messages
-                    conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
-                        .order_by(Message.created_at).all()
-                    messages = [{"role": "system", "content": get_system_instructions()}]
-                    for msg in conversation_messages:
-                        messages.append({
-                            "role": msg.role,
-                            "content": msg.content
-                        })
-                    messages.append({
-                        "role": "user",
-                        "content": data.get('message', '')
-                    })
+            # Generate and set conversation title if this is the first message
+            if not conversation.title:
+                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                if not title:
+                    title = "New Conversation"
+                conversation.title = title
+                db.session.commit()
 
-                if CURRENT_MODEL == 'gemini':
-                    # Send to Gemini AI service
-                    assistant_message = call_gemini_api(messages)
-                else:
-                    # Send to AI service (DeepSeek or Qwen)
-                    response = ai_client.chat.completions.create(
-                        model=get_model_name(),
-                        messages=messages,
-                        stream=False
-                    )
-                    assistant_message = response.choices[0].message.content
-            else:
-                # Use OpenAI's threads API
-                ai_client.beta.threads.messages.create(
-                    thread_id=conversation.thread_id,
-                    role="user",
-                    content=data.get('message', '')
-                )
+                # Emit the new conversation to all clients
+                emit('new_conversation', {
+                    'id': conversation.id,
+                    'title': conversation.title,
+                    'subject': 'Général',
+                    'time': conversation.created_at.strftime('%H:%M')
+                }, broadcast=True)
 
-                # Create and run assistant
-                run = ai_client.beta.threads.runs.create(
-                    thread_id=conversation.thread_id,
-                    assistant_id=ASSISTANT_ID
-                )
-
-                # Wait for response with timeout
-                timeout = 30
-                start_time = time.time()
-
-                while True:
-                    if time.time() - start_time > timeout:
-                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
-                        return
-
-                    run_status = ai_client.beta.threads.runs.retrieve(
-                        thread_id=conversation.thread_id,
-                        run_id=run.id
-                    )
-
-                    if run_status.status == 'completed':
-                        break
-                    elif run_status.status == 'failed':
-                        emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
-                        return
-
-                    eventlet.sleep(1)
-
-                # Retrieve OpenAI's response
-                messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
-                assistant_message = messages.data[0].content[0].text.value
-
-        # Store assistant response in database
-        db_message = Message(
-            conversation_id=conversation.id,
-            role='assistant',
-            content=assistant_message
-        )
-        db.session.add(db_message)
-
-        # Generate and set conversation title if this is the first message
-        if not conversation.title:
-            title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
-            if not title:
-                title = "New Conversation"
-            conversation.title = title
             db.session.commit()
 
-            # Emit the new conversation to all clients
-            emit('new_conversation', {
-                'id': conversation.id,
-                'title': conversation.title,
-                'subject': 'Général',
-                'time': conversation.created_at.strftime('%H:%M')
-            }, broadcast=True)
-
-        db.session.commit()
-
-        # Send response to client including the message ID for feedback
-        emit('receive_message', {
-            'message': assistant_message,
-            'id': db_message.id
-        })
+            # Send response to client including the message ID for feedback
+            emit('receive_message', {
+                'message': assistant_message,
+                'id': db_message.id
+            })
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}")
@@ -597,6 +879,39 @@ def handle_delete(data):
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
     try:
+        # Vérifier si l'utilisateur est connecté via Telegram
+        is_telegram_user = session.get('is_telegram_user', False)
+
+        if is_telegram_user and 'is_telegram' in data and data.get('is_telegram'):
+            # Obtenir la conversation Telegram
+            conversation = TelegramConversation.query.get(data['id'])
+            if conversation:
+                # Mettre à jour la session avec le thread Telegram
+                session['thread_id'] = conversation.thread_id
+
+                # Obtenir les messages pour cette conversation
+                messages = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at).all()
+                messages_data = []
+
+                for msg in messages:
+                    message_data = {
+                        'id': msg.id,
+                        'role': msg.role,
+                        'content': msg.content,
+                        'image_url': msg.image_url,
+                    }
+                    messages_data.append(message_data)
+
+                emit('conversation_opened', {
+                    'success': True,
+                    'messages': messages_data,
+                    'conversation_id': conversation.id,
+                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
+                    'is_telegram': True
+                })
+                return
+
+        # Si ce n'est pas un utilisateur Telegram ou si c'est une conversation web
         conversation = Conversation.query.get(data['id'])
         if conversation:
             # Update session with the opened conversation
@@ -609,7 +924,7 @@ def handle_open_conversation(data):
             # Import needed for current_user
             from flask_login import current_user
             user_id = current_user.id if current_user.is_authenticated else None
-            
+
             for msg in messages:
                 # Add base message data
                 message_data = {
@@ -618,7 +933,7 @@ def handle_open_conversation(data):
                     'content': msg.content,
                     'image_url': msg.image_url,
                 }
-                
+
                 # If it's an assistant message, check for existing feedback
                 if msg.role == 'assistant':
                     # Get existing feedback for this message from the current user
@@ -626,10 +941,10 @@ def handle_open_conversation(data):
                         message_id=msg.id,
                         user_id=user_id
                     ).first()
-                    
+
                     if feedback:
                         message_data['feedback'] = feedback.feedback_type
-                
+
                 messages_data.append(message_data)
 
             emit('conversation_opened', {
@@ -764,26 +1079,84 @@ def cleanup_uploads():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        phone_number = request.form.get('phone_number')
-        password = request.form.get('password')
+        login_mode = request.form.get('login_mode', 'web')
 
-        # Check for admin credentials first
-        if phone_number == os.environ.get('ADMIN_PHONE') and \
-           password == os.environ.get('ADMIN_PASSWORD'):
-            session['is_admin'] = True
-            flash('Connecté en tant qu\'administrateur.', 'success')
-            return redirect(url_for('admin_dashboard'))
+        if login_mode == 'web' or login_mode == 'whatsapp':
+            # Nettoyer les données Telegram de la session
+            session.pop('is_telegram_user', None)
+            session.pop('telegram_id', None)
 
-        # Regular user login
-        user = User.query.filter_by(phone_number=phone_number).first()
-        if user and user.check_password(password):
+            phone_number = request.form.get('phone_number')
+            password = request.form.get('password')
+
+            # Check for admin credentials first
+            if phone_number == os.environ.get('ADMIN_PHONE') and \
+               password == os.environ.get('ADMIN_PASSWORD'):
+                session['is_admin'] = True
+                flash('Connecté en tant qu\'administrateur.', 'success')
+                return redirect(url_for('admin_dashboard'))
+
+            # Regular user login
+            user = User.query.filter_by(phone_number=phone_number).first()
+
+            # Vérifier si l'utilisateur existe
+            if not user:
+                # Rediriger avec paramètre d'erreur "no_account"
+                return redirect(url_for('login', error='no_account'))
+
+            # Vérifier si le mot de passe est correct
+            if not user.check_password(password):
+                # Rediriger avec paramètre d'erreur "wrong_password"
+                return redirect(url_for('login', error='wrong_password'))
+
+            # Si tout est correct, connecter l'utilisateur
             login_user(user)
             return redirect(url_for('chat'))
 
-        flash('Numéro de téléphone ou mot de passe incorrect.', 'error')
+        elif login_mode == 'telegram':
+            # Code pour Telegram...
+            pass  # Ajout de pass pour éviter l'erreur d'indentation
+
+        flash('Identifiants de connexion incorrects.', 'error')
         return redirect(url_for('login'))
 
     return render_template('login.html')
+
+def get_or_create_web_user_for_telegram(telegram_user):
+    """Crée ou récupère un User associé à un TelegramUser pour l'authentification Flask-Login"""
+    # Vérifier si un User existe déjà pour cet ID Telegram
+    user = User.query.filter_by(phone_number=f"telegram_{telegram_user.telegram_id}").first()
+
+    if not user:
+        # Créer un nouvel utilisateur Web lié à ce TelegramUser
+        user = User(
+            first_name=telegram_user.first_name if telegram_user.first_name != "---" else "Telegram",
+            last_name=telegram_user.last_name if telegram_user.last_name != "---" else "User",
+            age=18,  # Valeur par défaut
+            phone_number=f"telegram_{telegram_user.telegram_id}",  # Format spécial pour identifier les utilisateurs Telegram
+            study_level=telegram_user.study_level if telegram_user.study_level != "---" else "Non spécifié",
+            grade_goals="average"  # Valeur par défaut
+        )
+        # Définir un mot de passe aléatoire (ne sera pas utilisé car l'authentification se fait par ID Telegram)
+        user.set_password(str(uuid.uuid4()))
+
+        db.session.add(user)
+        db.session.commit()
+
+    return user
+
+@app.route('/logout')
+@login_required
+def logout():
+    """Logout route for all users"""
+    # Nettoyer toutes les données de session pertinentes
+    session.pop('is_telegram_user', None)
+    session.pop('telegram_id', None)
+    session.pop('thread_id', None)
+    session.pop('is_admin', None)
+    logout_user()  # Fonction de Flask-Login pour déconnecter l'utilisateur
+    flash('Vous avez été déconnecté.', 'success')
+    return redirect(url_for('login'))
 
 @app.route('/admin')
 def admin_dashboard():
@@ -982,6 +1355,11 @@ def admin_logout():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        # Nettoyer les données Telegram de la session pour les nouveaux utilisateurs
+        session.pop('is_telegram_user', None)
+        session.pop('telegram_id', None)
+        session.pop('thread_id', None)
+
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
         age = request.form.get('age')
@@ -1010,6 +1388,14 @@ def register():
             db.session.add(user)
             db.session.commit()
 
+            # Émettre l'événement de nouvel utilisateur Web pour le tableau de bord
+            socketio.emit('new_web_user', {
+                'id': user.id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number
+            })
+
             # Log the user in
             login_user(user)
             return redirect(url_for('chat'))
@@ -1026,13 +1412,20 @@ def register():
 def forgot_password():
     if request.method == 'POST':
         phone_number = request.form.get('phone_number')
+        new_password = request.form.get('new_password')
+
+        if not new_password:
+            flash('Veuillez entrer un nouveau mot de passe.', 'error')
+            return redirect(url_for('forgot_password'))
+
         user = User.query.filter_by(phone_number=phone_number).first()
 
         if user:
-            # Here we would typically send a reset link or code
-            # For now, we'll just show a success message
-            flash('Instructions de réinitialisation envoyées à votre numéro.', 'success')
-            return redirect(url_for('login'))
+            # Mettre à jour le mot de passe de l'utilisateur
+            user.set_password(new_password)
+            db.session.commit()
+            # Passer un paramètre pour afficher le popup
+            return render_template('forgot_password.html', password_updated=True)
 
         flash('Aucun compte trouvé avec ce numéro.', 'error')
         return redirect(url_for('forgot_password'))

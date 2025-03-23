@@ -1143,3 +1143,111 @@ body {
 .subjects-chevron.rotate {
     transform: rotate(90deg);
 }
+
+/* À AJOUTER */
+.user-menu-container {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+}
+
+.user-menu-button {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+}
+
+.user-menu-button:hover {
+    opacity: 0.8;
+}
+
+.user-menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 180px;
+    z-index: 1000;
+    margin-top: 5px;
+}
+
+.user-menu-dropdown.show {
+    display: block;
+}
+
+.user-menu-item {
+    color: var(--text-light);
+    padding: 10px 16px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background-color 0.2s;
+}
+
+.user-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-light); /* Garde la couleur du texte inchangée au survol */
+}
+
+/* À SUPPRIMER */
+.credits-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    gap: var(--credits-spacing, 5px);
+}
+
+.reload-credits {
+    background-color: var(--accent-color);
+    border: none;
+}
+
+.credits {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    text-align: center;
+}
+
+/* À AJOUTER */
+@media (max-width: 768px) {
+    .user-menu-dropdown {
+        right: 0;
+        min-width: 160px;
+    }
+
+    .user-menu-button {
+        font-size: 1.3rem;
+    }
+}
+
+/* À MODIFIER */
+@media (max-width: 768px) {
+    /* À SUPPRIMER */
+    .reload-credits {
+        right: 10px;
+        padding: 5px 10px;
+        font-size: 0.9em;
+    }
+
+    .credits {
+        right: 10px;
+        font-size: 0.8em;
+    }
+}

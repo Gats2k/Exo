@@ -41,7 +41,7 @@
         <h6 class="history-section-title">Historique récent</h6>
         <div class="recent-history">
             {% for item in conversation_history %}
-            <div class="history-item" onclick="openConversation('{{ item.id }}', event)">
+            <div class="history-item {% if item.is_telegram %}telegram-item{% endif %}" onclick="openConversation('{{ item.id }}', event{% if item.is_telegram %}, true{% endif %})">
                 <div class="history-content">
                     <div class="history-title" id="title-{{ item.id }}">{{ item.title }}</div>
                     <div class="history-title-edit" id="edit-{{ item.id }}" style="display: none;">
@@ -92,9 +92,18 @@
                     <i class="bi bi-pencil-square"></i>
                 </button>
             </div>
-            <div class="credits-container">
-                <button class="btn btn-primary reload-credits">Recharger mes crédits</button>
-                <div class="credits">{{ credits }} crédits restants</div>
+            <div class="user-menu-container">
+                <button class="user-menu-button" id="userMenuButton">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <div class="user-menu-dropdown" id="userMenuDropdown">
+                    <a href="{{ url_for('logout') }}" class="user-menu-item">
+                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    </a>
+                    <a href="#" class="user-menu-item">
+                        <i class="bi bi-star"></i> Abonnement
+                    </a>
+                </div>
             </div>
         </div>
         <div class="chat-container">

@@ -56,6 +56,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+document.addEventListener('DOMContentLoaded', function() {
+    // Ajouter le code d'initialisation du menu utilisateur
+    const userMenuButton = document.getElementById('userMenuButton');
+    const userMenuDropdown = document.getElementById('userMenuDropdown');
+
+    if (userMenuButton && userMenuDropdown) {
+        userMenuButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            userMenuDropdown.classList.toggle('show');
+        });
+
+        // Fermer le menu si on clique ailleurs sur la page
+        document.addEventListener('click', function(e) {
+            if (!userMenuButton.contains(e.target) && !userMenuDropdown.contains(e.target)) {
+                userMenuDropdown.classList.remove('show');
+            }
+        });
+    }
+});
+
 window.startRename = function(id, event) {
     event.preventDefault();
     event.stopPropagation();
@@ -110,9 +130,12 @@ window.deleteConversation = function(id, event) {
     }
 };
 
-window.openConversation = function(id, event) {
+window.openConversation = function(id, event, isTelegram) {
     if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
-        window.socket.emit('open_conversation', { id: id });
+        window.socket.emit('open_conversation', { 
+            id: id,
+            is_telegram: isTelegram || false 
+        });
     }
 };
 
