@@ -174,3 +174,9 @@
     </div>
 </div>
 {% endblock %}
+
+/* À AJOUTER /
+{% block extra_css %}
+<!-- Cette ligne est essentielle, assurez-vous qu'elle est présente dans vos templates -->
+<link href="{{ url_for('static', filename='css/style.css') }}?v={{ range(1, 10000) | random }}" rel="stylesheet">
+{% endblock %}
