@@ -37,9 +37,7 @@ MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
 IMAGE_MAX_AGE_HOURS = 24
 
 # Initialize Flask app
-app = Flask(__name__, 
-    static_url_path='/static',
-    static_folder='static')
+app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
