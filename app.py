@@ -37,7 +37,10 @@ MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
 IMAGE_MAX_AGE_HOURS = 24
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__,
+       static_url_path='/static',
+       static_folder='static',
+       template_folder='templates')
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -54,43 +57,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 from database import db
 db.init_app(app)
 
-# Vérifier si SocketIO doit être désactivé (pour le déploiement)
-disable_socketio = os.environ.get('DISABLE_SOCKETIO') == 'true'
-
-if disable_socketio:
-    print("SocketIO est désactivé pour le déploiement")
-    # Créer un objet factice pour remplacer socketio
-    class DummySocketIO:
-        def on(self, *args, **kwargs):
-            # Décorateur factice qui ne fait rien
-            def decorator(f):
-                return f
-            return decorator
-            
-        def emit(self, *args, **kwargs):
-            # Ne fait rien en mode déploiement
-            pass
-            
-        def run(self, *args, **kwargs):
-            # Ne fait rien, laisse Gunicorn gérer le serveur
-            pass
-    
-    socketio = DummySocketIO()
-    print("Objet SocketIO factice initialisé pour compatibilité")
-else:
-    # Comportement normal avec SocketIO actif
-    # Déterminer le mode SocketIO en fonction de l'environnement
-    socketio_mode = os.environ.get('SOCKETIO_MODE', 'eventlet')
-    
-    # Log the mode being used
-    print(f"Initializing SocketIO with mode: {socketio_mode}")
-    
-    # Initialiser SocketIO avec le mode approprié
-    socketio = SocketIO(app, async_mode=socketio_mode, cors_allowed_origins="*", 
-                       ping_timeout=60, ping_interval=25,
-                       engineio_logger=True)  # Active le logging de SocketIO pour le débogage
-    
-    print(f"SocketIO initialized with {socketio_mode} mode")
+# Initialize SocketIO with eventlet
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -2111,6 +2079,11 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 if __name__ == '__main__':
     # Schedule the cleanup task
