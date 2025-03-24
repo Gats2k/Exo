@@ -1,57 +1,29 @@
 modules = ["python-3.11", "postgresql-16"]
-
 [nix]
 channel = "stable-24_05"
-
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
-
+run = ["sh", "-c", "python bot_service.py & gunicorn --bind 0.0.0.0:5000 --worker-class eventlet --workers 1 --timeout 120 --no-sendfile main:app"]
 [workflows]
 runButton = "Project"
-
 [[workflows.workflow]]
 name = "Project"
-mode = "parallel"
+mode = "serial"
 author = "agent"
-
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Telegram Bot"
-
 [[workflows.workflow]]
 name = "Server"
 author = "agent"
-
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
-
 [[workflows.workflow.tasks]]
 task = "packager.installForAll"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Telegram Bot"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "RUN_TELEGRAM_BOT=true python telegram_bot.py"
-
 [[ports]]
 localPort = 5000
 externalPort = 80

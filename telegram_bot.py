@@ -221,13 +221,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Create or get the user in our database
         user, is_new_user = await get_or_create_telegram_user(user_id, first_name, last_name)
 
-        # Create a new thread for the user
-        thread = openai_client.beta.threads.create()
-        user_threads[user_id] = thread.id
-        logger.info(f"Created new thread {thread.id} for user {user_id}")
+        # Vérifier si l'utilisateur a déjà une conversation active
+        with db_retry_session() as session:
+            existing_conversation = TelegramConversation.query.filter_by(
+                telegram_user_id=user_id
+            ).order_by(TelegramConversation.updated_at.desc()).first()
 
-        # Create a new conversation in our database
-        await create_telegram_conversation(user_id, thread.id)
+            if not existing_conversation:
+                # Create a new thread for the user
+                thread = openai_client.beta.threads.create()
+                user_threads[user_id] = thread.id
+                logger.info(f"Created new thread {thread.id} for user {user_id}")
+
+                # Create a new conversation in our database
+                await create_telegram_conversation(user_id, thread.id)
+            else:
+                # Use existing conversation
+                user_threads[user_id] = existing_conversation.thread_id
+                logger.info(f"Using existing thread {existing_conversation.thread_id} for user {user_id}")
 
         # Envoyer le premier message avec l'emoji
         await update.message.reply_text(
@@ -272,159 +283,161 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
-        # Ensure user_threads dict is initialized for this user
-        if user_id not in user_threads:
-            user_threads[user_id] = None
-
         with db_retry_session() as session:
-            # Get the current model configuration dynamically for thread creation
-            config = get_app_config()
-            CURRENT_MODEL = config['CURRENT_MODEL']
-
-            thread_id = user_threads[user_id]
-            if not thread_id:
-                # Create a new thread ID
-                if CURRENT_MODEL == 'openai':
-                    thread = openai_client.beta.threads.create()
-                    thread_id = thread.id
-                else:
-                    # For other models, create a unique thread ID
-                    thread_id = f"thread_{user_id}_{int(time.time())}"
-                
-                user_threads[user_id] = thread_id
-                logger.info(f"Created new thread {thread_id} for user {user_id}")
-                # Create a new conversation in our database
-                conversation = await create_telegram_conversation(user_id, thread_id)
-            else:
-                # Get existing conversation
-                conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
-                if not conversation:
-                    logger.error(f"No conversation found for thread_id {thread_id}")
-                    conversation = await create_telegram_conversation(user_id, thread_id)
-
-            # Add the user's message to the thread
-            message_text = update.message.text
-            logger.info(f"Received message from user {user_id}: {message_text}")
-
-            # Store the user's message in our database
-            await add_telegram_message(conversation.id, 'user', message_text)
-
-            # Start typing indication
-            await context.bot.send_chat_action(
-                chat_id=update.effective_chat.id,
-                action=constants.ChatAction.TYPING
-            )
+            # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
+            existing_conversation = TelegramConversation.query.filter_by(
+                telegram_user_id=user_id
+            ).order_by(TelegramConversation.updated_at.desc()).first()
 
             # Get the current model configuration dynamically
             config = get_app_config()
             CURRENT_MODEL = config['CURRENT_MODEL']
-            get_ai_client = config['get_ai_client']
-            get_model_name = config['get_model_name']
-            get_system_instructions = config['get_system_instructions']
-            call_gemini_api = config['call_gemini_api']
 
-            logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
+            if existing_conversation:
+                # Utiliser la conversation existante
+                thread_id = existing_conversation.thread_id
+                conversation = existing_conversation
+                logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
 
-            # Different handling based on selected model
-            assistant_message = None
-
-            if CURRENT_MODEL == 'openai':
-                # Use OpenAI's assistant API
-                openai_client.beta.threads.messages.create(
-                    thread_id=thread_id,
-                    role="user",
-                    content=message_text
-                )
-
-                # Run the assistant
-                run = openai_client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=ASSISTANT_ID
-                )
-
-                # Wait for the run to complete while maintaining typing indication
-                while True:
-                    await context.bot.send_chat_action(
-                        chat_id=update.effective_chat.id,
-                        action=constants.ChatAction.TYPING
-                    )
-
-                    run_status = openai_client.beta.threads.runs.retrieve(
-                        thread_id=thread_id,
-                        run_id=run.id
-                    )
-                    if run_status.status == 'completed':
-                        break
-                    elif run_status.status in ['failed', 'cancelled', 'expired']:
-                        error_msg = f"Assistant run failed with status: {run_status.status}"
-                        logger.error(error_msg)
-                        raise Exception(error_msg)
-                    await asyncio.sleep(4.5)
-
-                # Get the assistant's response
-                messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-                assistant_message = messages.data[0].content[0].text.value
+                # Mettre à jour user_threads pour référence en mémoire
+                user_threads[user_id] = thread_id
             else:
-                # For other models (Gemini, Deepseek, Qwen), use direct API calls
-                logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
-                
-                # Get previous messages for context (limit to last 10)
-                previous_messages = []
-                with db_retry_session() as sess:
-                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
-                    for msg in reversed(messages_query):
-                        previous_messages.append({
-                            "role": msg.role,
-                            "content": msg.content
-                        })
-
-                # Add system instruction
-                system_instructions = get_system_instructions()
-                if system_instructions:
-                    previous_messages.insert(0, {
-                        "role": "system",
-                        "content": system_instructions
-                    })
-                
-                # Use Gemini's special call function if Gemini is selected
-                if CURRENT_MODEL == 'gemini':
-                    try:
-                        assistant_message = call_gemini_api(previous_messages)
-                    except Exception as e:
-                        logger.error(f"Error calling Gemini API: {str(e)}")
-                        raise
+                # Aucune conversation existante trouvée, créer une nouvelle
+                if CURRENT_MODEL == 'openai':
+                    thread = openai_client.beta.threads.create()
+                    thread_id = thread.id
                 else:
-                    # For DeepSeek and Qwen models
-                    ai_client = get_ai_client()
-                    model = get_model_name()
-                    
-                    try:
-                        # Format messages for the API call
-                        response = ai_client.chat.completions.create(
-                            model=model,
-                            messages=previous_messages
-                        )
-                        assistant_message = response.choices[0].message.content
-                    except Exception as e:
-                        logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
-                        raise
+                    # Pour les autres modèles, créer un ID de thread unique
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
 
-            # Store the assistant's response in our database
-            await add_telegram_message(conversation.id, 'assistant', assistant_message)
+                user_threads[user_id] = thread_id
+                logger.info(f"Created new thread {thread_id} for user {user_id}")
+                # Créer une nouvelle conversation dans la base de données
+                conversation = await create_telegram_conversation(user_id, thread_id)
 
-            logger.info(f"Sending response to user {user_id}: {assistant_message[:100]}...")
-            await update.message.reply_text(assistant_message)
+        # Add the user's message to the thread
+        message_text = update.message.text
+        logger.info(f"Received message from user {user_id}: {message_text}")
 
-    except OpenAIError as openai_error:
-        logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
-        await update.message.reply_text(
-            "I'm having trouble connecting to my AI brain. Please try again in a moment."
+        # Store the user's message in our database
+        await add_telegram_message(conversation.id, 'user', message_text)
+
+        # Start typing indication
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action=constants.ChatAction.TYPING
         )
-    except Exception as e:
-        logger.error(f"Error handling message: {str(e)}", exc_info=True)
-        await update.message.reply_text(
-            "I apologize, but I encountered an error processing your message. Please try again."
-        )
+
+        # Get the current model configuration dynamically
+        config = get_app_config()
+        CURRENT_MODEL = config['CURRENT_MODEL']
+        get_ai_client = config['get_ai_client']
+        get_model_name = config['get_model_name']
+        get_system_instructions = config['get_system_instructions']
+        call_gemini_api = config['call_gemini_api']
+
+        logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
+
+        # Different handling based on selected model
+        assistant_message = None
+
+        if CURRENT_MODEL == 'openai':
+            # Use OpenAI's assistant API
+            openai_client.beta.threads.messages.create(
+                thread_id=thread_id,
+                role="user",
+                content=message_text
+            )
+
+            # Run the assistant
+            run = openai_client.beta.threads.runs.create(
+                thread_id=thread_id,
+                assistant_id=ASSISTANT_ID
+            )
+
+            # Wait for the run to complete while maintaining typing indication
+            while True:
+                await context.bot.send_chat_action(
+                    chat_id=update.effective_chat.id,
+                    action=constants.ChatAction.TYPING
+                )
+
+                run_status = openai_client.beta.threads.runs.retrieve(
+                    thread_id=thread_id,
+                    run_id=run.id
+                )
+                if run_status.status == 'completed':
+                    break
+                elif run_status.status in ['failed', 'cancelled', 'expired']:
+                    error_msg = f"Assistant run failed with status: {run_status.status}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+                await asyncio.sleep(4.5)
+
+            # Get the assistant's response
+            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+            assistant_message = messages.data[0].content[0].text.value
+        else:
+            # For other models (Gemini, Deepseek, Qwen), use direct API calls
+            logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
+            
+            # Get previous messages for context (limit to last 10)
+            previous_messages = []
+            with db_retry_session() as sess:
+                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
+                for msg in reversed(messages_query):
+                    previous_messages.append({
+                        "role": msg.role,
+                        "content": msg.content
+                    })
+
+            # Add system instruction
+            system_instructions = get_system_instructions()
+            if system_instructions:
+                previous_messages.insert(0, {
+                    "role": "system",
+                    "content": system_instructions
+                })
+            
+            # Use Gemini's special call function if Gemini is selected
+            if CURRENT_MODEL == 'gemini':
+                try:
+                    assistant_message = call_gemini_api(previous_messages)
+                except Exception as e:
+                    logger.error(f"Error calling Gemini API: {str(e)}")
+                    raise
+            else:
+                # For DeepSeek and Qwen models
+                ai_client = get_ai_client()
+                model = get_model_name()
+                
+                try:
+                    # Format messages for the API call
+                    response = ai_client.chat.completions.create(
+                        model=model,
+                        messages=previous_messages
+                    )
+                    assistant_message = response.choices[0].message.content
+                except Exception as e:
+                    logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
+                    raise
+
+        # Store the assistant's response in our database
+        await add_telegram_message(conversation.id, 'assistant', assistant_message)
+
+        logger.info(f"Sending response to user {user_id}: {assistant_message[:100]}...")
+        await update.message.reply_text(assistant_message)
+
+except OpenAIError as openai_error:
+    logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
+    await update.message.reply_text(
+        "I'm having trouble connecting to my AI brain. Please try again in a moment."
+    )
+except Exception as e:
+    logger.error(f"Error handling message: {str(e)}", exc_info=True)
+    await update.message.reply_text(
+        "I apologize, but I encountered an error processing your message. Please try again."
+    )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""
@@ -451,27 +464,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config = get_app_config()
             CURRENT_MODEL = config['CURRENT_MODEL']
 
-            # Get or create thread ID for this user
-            thread_id = user_threads[user_id]
-            if not thread_id:
-                # Create a new thread ID
+            # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
+            existing_conversation = TelegramConversation.query.filter_by(
+                telegram_user_id=user_id
+            ).order_by(TelegramConversation.updated_at.desc()).first()
+
+            if existing_conversation:
+                # Utiliser la conversation existante
+                thread_id = existing_conversation.thread_id
+                conversation = existing_conversation
+                logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
+
+                # Mettre à jour user_threads pour référence en mémoire
+                user_threads[user_id] = thread_id
+            else:
+                # Aucune conversation existante trouvée, créer une nouvelle
                 if CURRENT_MODEL == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
-                    # For other models, create a unique thread ID
+                    # Pour les autres modèles, créer un ID de thread unique
                     thread_id = f"thread_{user_id}_{int(time.time())}"
-                
+
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
-                # Create a new conversation in our database
+                # Créer une nouvelle conversation dans la base de données
                 conversation = await create_telegram_conversation(user_id, thread_id)
-            else:
-                # Get existing conversation
-                conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
-                if not conversation:
-                    logger.error(f"No conversation found for thread_id {thread_id}")
-                    conversation = await create_telegram_conversation(user_id, thread_id)
 
             logger.info(f"Photo details: {update.message.photo[-1]}")
 
@@ -723,15 +741,30 @@ def setup_telegram_bot():
 def run_telegram_bot():
     """Run the Telegram bot."""
     try:
+        # Vérification explicite du token Telegram
+        if not os.environ.get('TELEGRAM_BOT_TOKEN'):
+            logger.error("TELEGRAM_BOT_TOKEN is not set. Telegram bot cannot start.")
+            return
+
         # Only run if explicitly enabled
         if not os.environ.get('RUN_TELEGRAM_BOT'):
             logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
             return
 
+        # Logs détaillés pour le déploiement
+        logger.info("==== TELEGRAM BOT INITIALIZATION STARTED ====")
+        logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'not set')}")
+        logger.info(f"Working directory: {os.getcwd()}")
+
         # Log current configuration (without using imported values)
         config = get_app_config()
         logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
         logger.info(f"System instructions: {config['get_system_instructions']()}")
+
+        # Add a small delay to ensure Flask app is fully initialized
+        logger.info("Waiting for 3 seconds to ensure application is fully initialized...")
+        import time
+        time.sleep(3)
 
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
@@ -742,6 +775,9 @@ def run_telegram_bot():
         application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
+        # Log l'erreur complète avec la trace d'appel pour mieux diagnostiquer
+        import traceback
+        logger.error(f"Full error traceback: {traceback.format_exc()}")
         raise
 
 if __name__ == '__main__':
