@@ -37,10 +37,7 @@ MAX_UPLOAD_FOLDER_SIZE = 500 * 1024 * 1024  # 500 MB
 IMAGE_MAX_AGE_HOURS = 24
 
 # Initialize Flask app
-app = Flask(__name__,
-       static_url_path='/static',
-       static_folder='static',
-       template_folder='templates')
+app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -57,8 +54,16 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 from database import db
 db.init_app(app)
 
-# Initialize SocketIO with eventlet
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+# Initialize SocketIO with the appropriate async mode
+# Si nous sommes en mode déploiement standard, désactiver eventlet
+if os.environ.get('GUNICORN_DEPLOYMENT') == 'standard':
+    # En mode standard Gunicorn, utiliser threading pour éviter l'erreur non-blocking sockets
+    socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
+    print("SocketIO initialized with threading mode for standard deployment")
+else:
+    # En mode développement ou avec worker Gunicorn eventlet
+    socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+    print("SocketIO initialized with eventlet mode")
 
 # Initialize OpenAI clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -2079,11 +2084,6 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
-
-@app.after_request
-def add_header(response):
-    response.headers['Cache-Control'] = 'no-store'
-    return response
 
 if __name__ == '__main__':
     # Schedule the cleanup task
