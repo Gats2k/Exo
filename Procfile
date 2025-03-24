@@ -1,1 +1,1 @@
-web: python deploy.py
+web: gunicorn --workers=1 --log-level=debug deployment_entry:application

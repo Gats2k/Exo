@@ -1,0 +1,96 @@
+2025-03-24 00:12:37.90
+7831651b
+System
+forwarding local port 5000 to external port 80
+2025-03-24 00:13:27.75
+7831651b
+User
+if not self.sendfile(respiter):
+2025-03-24 00:13:27.75
+7831651b
+User
+^^^^^^^^^^^^^^^^^^^^^^^
+2025-03-24 00:13:27.75
+7831651b
+User
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/gunicorn/http/wsgi.py", line 383, in sendfile
+2025-03-24 00:13:27.75
+7831651b
+User
+self.sock.sendfile(respiter.filelike, offset=offset, count=nbytes)
+2025-03-24 00:13:27.75
+7831651b
+User
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/socket.py", line 485, in sendfile
+2025-03-24 00:13:27.75
+7831651b
+User
+return self._sendfile_use_sendfile(file, offset, count)
+2025-03-24 00:13:27.75
+7831651b
+User
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-03-24 00:13:27.75
+7831651b
+User
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/socket.py", line 365, in _sendfile_use_sendfile
+2025-03-24 00:13:27.75
+7831651b
+User
+raise ValueError("non-blocking sockets are not supported")
+2025-03-24 00:13:27.75
+7831651b
+User
+ValueError: non-blocking sockets are not supported
+2025-03-24 00:13:27.75
+7831651b
+User
+[2025-03-24 00:13:27 +0000] [25] [INFO] Handling signal: term
+2025-03-24 00:13:27.75
+7831651b
+System
+system: received signal terminated
+2025-03-24 00:13:27.75
+7831651b
+User
+[2025-03-24 00:13:27 +0000] [31] [INFO] Worker exiting (pid: 31)
+2025-03-24 00:13:28.25
+7831651b
+User
+[2025-03-24 00:13:28 +0000] [25] [INFO] Shutting down: Master
+2025-03-24 00:13:28.28
+7831651b
+System
+command finished successfully with exit code 0
+2025-03-24 00:13:28.28
+7831651b
+System
+main done, exiting
+2025-03-24 00:13:30.69
+7831651b
+System
+starting up user application
+2025-03-24 00:13:30.83
+7831651b
+System
+forwarding local port 5000 to external port 80
+2025-03-24 00:13:31.39
+7831651b
+User
+[2025-03-24 00:13:31 +0000] [28] [INFO] Starting gunicorn 23.0.0
+2025-03-24 00:13:31.39
+7831651b
+User
+[2025-03-24 00:13:31 +0000] [28] [INFO] Listening at: http://0.0.0.0:5000 (28)
+2025-03-24 00:13:31.39
+7831651b
+User
+[2025-03-24 00:13:31 +0000] [28] [INFO] Using worker: sync
+2025-03-24 00:13:31.39
+7831651b
+User
+[2025-03-24 00:13:31 +0000] [33] [INFO] Booting worker with pid: 33
+2025-03-24 00:13:38.15
+7831651b
+User
+[2025-03-24 00:13:38 +0000] [33] [ERROR] Error handling request
