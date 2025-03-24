@@ -1,0 +1,47 @@
+2025-03-24T00:26:16Z info: Deployment: e5679a80-b052-4e6e-8379-7c68375dba23
+2025-03-24T00:26:16Z info: Build: 017198fa-e7b9-4af4-b2c5-19af1a17f205
+2025-03-24T00:26:16Z info: Connecting to builder
+2025-03-24T00:26:19Z info: Builder connected
+2025-03-24T00:26:21Z info: Installing packages
+2025-03-24T00:26:21Z info: Skipping Build as no Build command set
+2025-03-24T00:26:22Z info: Pushing pid1 binary layer...
+2025-03-24T00:26:23Z info: Pushing Repl layer...
+2025-03-24T00:26:23Z info: Pushing hosting layer...
+2025-03-24T00:26:23Z info: Retrieved cached nix layer
+2025-03-24T00:26:23Z info: Created pid1 binary layer
+2025-03-24T00:26:23Z info: Created hosting layer
+2025-03-24T00:26:51Z info: Created Repl layer
+2025-03-24T00:26:51Z info: Pushing Repl (cache) layer...
+2025-03-24T00:26:52Z info: Created Repl (cache) layer
+2025-03-24T00:26:52Z info: Pushed image manifest
+2025-03-24T00:26:53Z info: Pushed soci index manifest
+2025-03-24T00:26:57Z info: Creating Autoscale service
+2025-03-24T00:26:16Z info: Deployment: e5679a80-b052-4e6e-8379-7c68375dba23
+2025-03-24T00:26:16Z info: Build: 017198fa-e7b9-4af4-b2c5-19af1a17f205
+2025-03-24T00:26:16Z info: Connecting to builder
+2025-03-24T00:26:19Z info: Builder connected
+2025-03-24T00:26:21Z info: Installing packages
+2025-03-24T00:26:21Z info: Skipping Build as no Build command set
+2025-03-24T00:26:22Z info: Pushing pid1 binary layer...
+2025-03-24T00:26:23Z info: Pushing Repl layer...
+2025-03-24T00:26:23Z info: Pushing hosting layer...
+2025-03-24T00:26:23Z info: Retrieved cached nix layer
+2025-03-24T00:26:23Z info: Created pid1 binary layer
+2025-03-24T00:26:23Z info: Created hosting layer
+2025-03-24T00:26:51Z info: Created Repl layer
+2025-03-24T00:26:51Z info: Pushing Repl (cache) layer...
+2025-03-24T00:26:52Z info: Created Repl (cache) layer
+2025-03-24T00:26:52Z info: Pushed image manifest
+2025-03-24T00:26:53Z info: Pushed soci index manifest
+2025-03-24T00:26:57Z info: Creating Autoscale service
+[2025-03-24 00:28:08 +0000] [27] [INFO] Listening at: http://0.0.0.0:5000 (27)
+[2025-03-24 00:28:08 +0000] [27] [INFO] Starting gunicorn 23.0.0
+[2025-03-24 00:28:08 +0000] [27] [INFO] Using worker: sync
+2025-03-24 00:28:10,891 - main - INFO - Eventlet initialized and monkey patched.
+[2025-03-24 00:28:08 +0000] [32] [INFO] Booting worker with pid: 32
+forwarding local port 5000 to external port 80
+starting up user application
+Server initialized for eventlet.
+2025-03-24 00:28:20,001 - engineio.server - INFO - Server initialized for eventlet.
+2025-03-24T00:28:28Z info: Waiting for service to be ready
+2025-03-24T00:28:30Z info: Deployment successful
