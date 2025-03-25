@@ -266,6 +266,11 @@ def get_or_create_conversation(thread_id=None):
 
         return conversation
 
+@app.route('/privacy-policy')
+def privacy_policy():
+    """Privacy Policy page"""
+    return render_template('privacy_policy.html')
+
 @app.route('/')
 @login_required
 def chat():

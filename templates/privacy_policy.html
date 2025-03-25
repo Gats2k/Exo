@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-container privacy-policy-container">
+    <div class="privacy-policy-content">
+        <h1>Politique de confidentialité</h1>
+        <p class="last-updated">Dernière mise à jour: 25 Mars 2025</p>
+
+        <section>
+            <h2>1. Introduction</h2>
+            <p>Bienvenue sur Exô. Nous nous engageons à protéger votre vie privée et vos données personnelles. Cette politique de confidentialité explique comment nous collectons, utilisons, divulguons et protégeons vos informations lorsque vous utilisez notre plateforme éducative.</p>
+        </section>
+
+        <section>
+            <h2>2. Informations que nous collectons</h2>
+            <p>Nous collectons différents types d'informations pour fournir et améliorer notre service:</p>
+            <ul>
+                <li><strong>Informations de compte</strong>: prénom, nom, âge, numéro de téléphone, niveau d'études et objectifs scolaires.</li>
+                <li><strong>Contenu des conversations</strong>: questions, réponses et interactions avec notre assistant IA.</li>
+                <li><strong>Données d'utilisation</strong>: fréquence d'utilisation, types de requêtes, retours sur les réponses.</li>
+                <li><strong>Informations techniques</strong>: adresse IP, type d'appareil, navigateur, et cookies.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>3. Comment nous utilisons vos informations</h2>
+            <p>Nous utilisons les informations collectées pour:</p>
+            <ul>
+                <li>Fournir et personnaliser nos services éducatifs</li>
+                <li>Améliorer notre assistant IA et son contenu pédagogique</li>
+                <li>Communiquer avec vous concernant votre compte</li>
+                <li>Gérer les abonnements et paiements</li>
+                <li>Assurer la sécurité de notre plateforme</li>
+                <li>Réaliser des analyses pour améliorer l'expérience utilisateur</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. Partage des informations</h2>
+            <p>Nous ne vendons pas vos données personnelles. Nous pouvons partager certaines informations avec:</p>
+            <ul>
+                <li>Nos fournisseurs de services (hébergement, traitement des paiements)</li>
+                <li>Des partenaires technologiques (services IA, analyses)</li>
+                <li>Des autorités légales si requis par la loi</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>5. Protection des données</h2>
+            <p>Nous mettons en œuvre des mesures de sécurité techniques et organisationnelles pour protéger vos données contre l'accès non autorisé, la perte ou la modification.</p>
+        </section>
+
+        <section>
+            <h2>6. Vos droits</h2>
+            <p>Vous disposez de certains droits concernant vos données personnelles:</p>
+            <ul>
+                <li>Droit d'accès et de rectification</li>
+                <li>Droit à l'effacement</li>
+                <li>Droit à la limitation du traitement</li>
+                <li>Droit à la portabilité des données</li>
+                <li>Droit d'opposition</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>7. Durée de conservation</h2>
+            <p>Nous conservons vos données personnelles aussi longtemps que nécessaire pour fournir nos services ou respecter nos obligations légales.</p>
+        </section>
+
+        <section>
+            <h2>8. Modifications de la politique</h2>
+            <p>Nous pouvons mettre à jour cette politique de confidentialité périodiquement. Nous vous informerons des changements importants par email ou via notre plateforme.</p>
+        </section>
+
+        <section>
+            <h2>9. Nous contacter</h2>
+            <p>Si vous avez des questions concernant cette politique ou vos données personnelles, veuillez nous contacter à: privacy@exo-education.com</p>
+        </section>
+
+        <div class="back-button">
+            <a href="{{ url_for('chat') }}">Retour à l'application</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -3,23 +3,25 @@ modules = ["python-3.11", "postgresql-16"]
 channel = "stable-24_05"
 [deployment]
 deploymentTarget = "autoscale"
-run = ["sh", "-c", "python bot_service.py & gunicorn --bind 0.0.0.0:5000 --worker-class eventlet --workers 1 --timeout 120 --no-sendfile main:app"]
+run = ["sh", "-c", "python main.py"]
 [workflows]
 runButton = "Project"
 [[workflows.workflow]]
 name = "Project"
-mode = "serial"
+mode = "parallel"
 author = "agent"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Server"
+args = "app_server"
 [[workflows.workflow]]
-name = "Server"
+name = "app_server"
 author = "agent"
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
+
 [[workflows.workflow.tasks]]
 task = "packager.installForAll"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"

@@ -776,6 +776,127 @@ body {
     }
 }
 
+/* Privacy Policy Styles */
+.privacy-policy-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 2rem;
+    background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
+    color: var(--text-light);
+}
+
+.privacy-policy-content {
+    max-width: 800px;
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 10px;
+    padding: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.privacy-policy-content h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.privacy-policy-content .last-updated {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+}
+
+.privacy-policy-content section {
+    margin-bottom: 2rem;
+}
+
+.privacy-policy-content h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: var(--text-light);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+}
+
+.privacy-policy-content p, 
+.privacy-policy-content ul {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.privacy-policy-content ul {
+    padding-left: 2rem;
+}
+
+.privacy-policy-content li {
+    margin-bottom: 0.5rem;
+}
+
+.privacy-policy-content .back-button {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.privacy-policy-content .back-button a {
+    display: inline-block;
+    background-color: var(--accent-color);
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.privacy-policy-content .back-button a:hover {
+    background-color: rgba(65, 105, 225, 0.8);
+    transform: translateY(-2px);
+}
+
+/* Privacy Policy Link in Sidebar */
+.sidebar-footer {
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 15px;
+}
+
+.privacy-policy-link {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 10px;
+    padding: 5px;
+    display: block;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.privacy-policy-link:hover {
+    color: var(--text-light);
+}
+
+@media (max-width: 768px) {
+    .privacy-policy-container {
+        padding: 1rem;
+    }
+    
+    .privacy-policy-content {
+        padding: 1.5rem;
+    }
+    
+    .privacy-policy-content h1 {
+        font-size: 1.7rem;
+    }
+    
+    .privacy-policy-content h2 {
+        font-size: 1.2rem;
+    }
+}
+
 /* Add loading indicator styles after the .message styles */
 .message.loading {
     margin-right: auto;
