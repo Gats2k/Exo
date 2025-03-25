@@ -428,16 +428,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Sending response to user {user_id}: {assistant_message[:100]}...")
         await update.message.reply_text(assistant_message)
 
-except OpenAIError as openai_error:
-    logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
-    await update.message.reply_text(
-        "I'm having trouble connecting to my AI brain. Please try again in a moment."
-    )
-except Exception as e:
-    logger.error(f"Error handling message: {str(e)}", exc_info=True)
-    await update.message.reply_text(
-        "I apologize, but I encountered an error processing your message. Please try again."
-    )
+    except OpenAIError as openai_error:
+        logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
+        await update.message.reply_text(
+            "I'm having trouble connecting to my AI brain. Please try again in a moment."
+        )
+    except Exception as e:
+        logger.error(f"Error handling message: {str(e)}", exc_info=True)
+        await update.message.reply_text(
+            "I apologize, but I encountered an error processing your message. Please try again."
+        )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""

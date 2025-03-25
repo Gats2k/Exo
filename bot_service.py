@@ -5,7 +5,6 @@ import os
 import sys
 import time
 
-# Configuration du logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
@@ -16,38 +15,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Force les variables d'environnement
 os.environ['RUN_TELEGRAM_BOT'] = 'true'
 
-logger.info("=== TELEGRAM BOT SERVICE STARTING ===")
-logger.info(f"Current working directory: {os.getcwd()}")
-logger.info(f"Python version: {sys.version}")
-logger.info(f"Environment variables: TELEGRAM_BOT_TOKEN exists: {'yes' if 'TELEGRAM_BOT_TOKEN' in os.environ else 'NO'}")
+def start_bot():
+    try:
+        from telegram_bot import run_telegram_bot
+        logger.info("Successfully imported run_telegram_bot")
+        run_telegram_bot()
+    except Exception as e:
+        logger.error(f"Error starting bot: {str(e)}")
+        return False
+    return True
 
-# Attendre que la base de données soit prête
-logger.info("Waiting 15 seconds for main application to initialize...")
-time.sleep(15)
+def main():
+    logger.info("=== TELEGRAM BOT SERVICE STARTING ===")
+    logger.info(f"Current working directory: {os.getcwd()}")
 
-try:
-    # Import la fonction après avoir défini la variable d'environnement
-    from telegram_bot import run_telegram_bot
-    logger.info("Successfully imported run_telegram_bot")
+    # Initial delay for other services to start
+    time.sleep(10)
 
-    # Lancer le bot
-    logger.info("Launching Telegram bot...")
-    run_telegram_bot()
-except Exception as e:
-    import traceback
-    logger.error(f"CRITICAL ERROR: {str(e)}")
-    logger.error(f"Traceback: {traceback.format_exc()}")
-
-    # Garder le service en vie même en cas d'erreur
-    logger.info("Entering error recovery loop...")
     while True:
-        time.sleep(60)
-        logger.info("Bot service still running in error state, attempting to restart...")
-        try:
-            from telegram_bot import run_telegram_bot
-            run_telegram_bot()
-        except Exception as e2:
-            logger.error(f"Restart failed: {str(e2)}")
+        if start_bot():
+            break
+        logger.info("Retrying bot start in 30 seconds...")
+        time.sleep(30)
+
+if __name__ == "__main__":
+    main()
