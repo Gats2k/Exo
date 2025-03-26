@@ -1930,10 +1930,19 @@ def delete_user(user_id):
         if messages:
             try:
                 with db_retry_session() as session:
-                    for message in messages:
-                        session.delete(message)
+                    # On récupère d'abord tous les thread_id associés à ce numéro
+                    thread_ids = db.session.query(WhatsAppMessage.thread_id)\
+                        .filter(WhatsAppMessage.from_number == user_id)\
+                        .distinct().all()
+                    
+                    # Pour chaque thread_id, on supprime tous les messages associés
+                    for thread_id in thread_ids:
+                        thread_id = thread_id[0]  # Extraction de la valeur depuis le tuple
+                        logger.info(f"Deleting all messages for WhatsApp thread {thread_id}")
+                        WhatsAppMessage.query.filter_by(thread_id=thread_id).delete()
+                        
                     session.commit()
-                    return jsonify({'success': True, 'message': 'WhatsApp user messages deleted successfully'})
+                    return jsonify({'success': True, 'message': 'WhatsApp user and all associated conversations deleted successfully'})
             except Exception as whatsapp_error:
                 logger.error(f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
                 session.rollback()
