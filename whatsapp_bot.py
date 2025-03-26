@@ -562,42 +562,6 @@ def receive_webhook():
                             db.session.add(new_message)
                             db.session.commit()
                             logger.info(f"Stored inbound message ID {message_id}")
-                            
-                            # Émettre un événement Socket.IO pour les nouveaux utilisateurs WhatsApp
-                            # Vérifier si c'est un nouvel utilisateur en comptant ses messages
-                            try:
-                                from app import socketio
-                                
-                                # Compter les messages pour voir si c'est le premier
-                                message_count = WhatsAppMessage.query.filter_by(from_number=sender).count()
-                                
-                                # Si c'est le premier message de cet utilisateur, émettre un événement
-                                if message_count <= 1:
-                                    user_data = {
-                                        'name': f'WhatsApp User {sender}',
-                                        'phone': sender,
-                                        'created_at': datetime.utcnow().strftime('%d/%m/%Y'),
-                                        'platform': 'whatsapp'
-                                    }
-                                    socketio.emit('new_whatsapp_user', user_data)
-                                    logger.info(f"Emitted new_whatsapp_user event for {sender}")
-                                
-                                # Émettre un événement pour une nouvelle conversation WhatsApp
-                                # Si c'est une nouvelle conversation (thread), émettre un événement
-                                thread_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id).count()
-                                if thread_messages <= 1:  # Premier message de ce thread
-                                    conversation_data = {
-                                        'id': thread_id,
-                                        'title': f'Conversation {thread_id}',
-                                        'user_phone': sender,
-                                        'created_at': datetime.utcnow().strftime('%d/%m/%Y %H:%M'),
-                                        'platform': 'whatsapp',
-                                        'content': message_body[:30] + ('...' if len(message_body) > 30 else '')
-                                    }
-                                    socketio.emit('new_whatsapp_conversation', conversation_data)
-                                    logger.info(f"Emitted new_whatsapp_conversation event for thread {thread_id}")
-                            except Exception as socketio_error:
-                                logger.error(f"Error emitting Socket.IO events: {str(socketio_error)}")
                         except Exception as db_error:
                             logger.error(f"Database error storing inbound message: {str(db_error)}")
                             db.session.rollback()

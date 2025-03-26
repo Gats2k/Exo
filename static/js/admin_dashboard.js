@@ -1557,9 +1557,6 @@ function setupRealtimeUpdates() {
 
             // Configuration des écouteurs d'événements pour le Web
             setupWebUpdates();
-            
-            // Configuration des écouteurs d'événements pour WhatsApp
-            setupWhatsAppUpdates();
 
             console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
         }
@@ -1685,64 +1682,6 @@ function setupWebUpdates() {
 }
 
 // Fonction pour mettre à jour les statistiques du tableau de bord
-function setupWhatsAppUpdates() {
-    if (typeof io !== 'undefined' && socketInstance) {
-        // Écouteur pour les nouveaux utilisateurs WhatsApp
-        socketInstance.on('new_whatsapp_user', function(userData) {
-            console.log('Received new WhatsApp user:', userData);
-
-            // Mettre à jour les statistiques du tableau de bord
-            updateDashboardStatistics('whatsapp');
-
-            // Animer la carte des utilisateurs pour attirer l'attention
-            const userStatsElement = document.querySelectorAll('.stat-card')[0];
-            if (userStatsElement) {
-                userStatsElement.classList.add('highlight-update');
-                setTimeout(() => {
-                    userStatsElement.classList.remove('highlight-update');
-                }, 2000);
-            }
-
-            // Ajouter une notification
-            addNotification(`Nouvel utilisateur WhatsApp: ${userData.name}`, 'info');
-
-            // Mettre à jour la liste des utilisateurs si nous sommes dans la section utilisateurs
-            if (document.getElementById('users-section').style.display === 'block') {
-                fetchAllUsers(currentPlatform);
-            }
-        });
-
-        // Écouteur pour les nouvelles conversations WhatsApp
-        socketInstance.on('new_whatsapp_conversation', function(conversationData) {
-            console.log('Received new WhatsApp conversation:', conversationData);
-
-            // Mettre à jour les statistiques du tableau de bord
-            updateDashboardStatistics('whatsapp');
-
-            // Animer la carte des conversations pour attirer l'attention
-            const conversationStatsElement = document.querySelectorAll('.stat-card')[1];
-            if (conversationStatsElement) {
-                conversationStatsElement.classList.add('highlight-update');
-                setTimeout(() => {
-                    conversationStatsElement.classList.remove('highlight-update');
-                }, 2000);
-            }
-
-            // Ajouter une notification
-            addNotification(`Nouvelle conversation WhatsApp: ${conversationData.content || conversationData.title}`, 'info');
-
-            // Mettre à jour la liste des conversations si nous sommes dans la section conversations
-            if (document.getElementById('conversations-section').style.display === 'block') {
-                fetchAllConversations(currentPlatform);
-            }
-        });
-
-        console.log('WhatsApp update listeners configured successfully');
-    } else {
-        console.error("Socket.IO n'est pas disponible pour les mises à jour WhatsApp");
-    }
-}
-
 function updateDashboardStatistics(platform) {
     // Ne mettre à jour que si la plateforme actuellement affichée correspond
     if (currentPlatform === platform || currentPlatform === 'all') {
