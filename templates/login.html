@@ -353,10 +353,26 @@
                 // Cacher le champ Telegram
                 telegramField.style.display = 'none';
 
+                // Cacher tous les messages d'aide existants
+                document.querySelectorAll('.password-help-text').forEach(el => el.remove());
+
                 // Afficher les champs standard
                 standardFields.forEach(field => {
                     field.style.display = 'block';
                 });
+
+                // Ajouter le texte d'aide sous le champ mot de passe
+                const passwordField = document.querySelector('.form-group:has(#password)');
+                const helpText = document.createElement('p');
+                helpText.className = 'password-help-text';
+                helpText.style.fontSize = '0.8rem';
+                helpText.style.color = '#FFD700';
+                helpText.style.marginTop = '5px';
+                helpText.innerHTML = '<i class="bi bi-info-circle"></i> Ce mot de passe sera enregistré pour vos futures connexions web. Mémorisez-le bien.';
+                passwordField.appendChild(helpText);
+
+                // Définir le placeholder pour le numéro WhatsApp
+                phoneInput.placeholder = "22512345678";
 
                 // Mettre à jour le mode de connexion
                 loginModeInput.value = 'whatsapp';

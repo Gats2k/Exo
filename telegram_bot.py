@@ -87,7 +87,7 @@ except Exception as e:
 user_threads = defaultdict(lambda: None)
 
 @contextmanager
-def db_retry_session(max_retries=3, retry_delay=1):
+def db_retry_session(max_retries=3, retry_delay=0.5):
     """Context manager for database operations with retry logic"""
     for attempt in range(max_retries):
         try:
@@ -372,7 +372,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     error_msg = f"Assistant run failed with status: {run_status.status}"
                     logger.error(error_msg)
                     raise Exception(error_msg)
-                await asyncio.sleep(4.5)
+                await asyncio.sleep(1)
 
             # Get the assistant's response
             messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
@@ -380,11 +380,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # For other models (Gemini, Deepseek, Qwen), use direct API calls
             logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
-            
+
             # Get previous messages for context (limit to last 10)
             previous_messages = []
             with db_retry_session() as sess:
-                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
+                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(5).all()
                 for msg in reversed(messages_query):
                     previous_messages.append({
                         "role": msg.role,
@@ -398,7 +398,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "role": "system",
                     "content": system_instructions
                 })
-            
+
             # Use Gemini's special call function if Gemini is selected
             if CURRENT_MODEL == 'gemini':
                 try:
@@ -410,7 +410,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # For DeepSeek and Qwen models
                 ai_client = get_ai_client()
                 model = get_model_name()
-                
+
                 try:
                     # Format messages for the API call
                     response = ai_client.chat.completions.create(
@@ -621,7 +621,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         error_msg = f"Assistant run failed with status: {run_status.status}"
                         logger.error(error_msg)
                         raise Exception(error_msg)
-                    await asyncio.sleep(4.5)
+                    await asyncio.sleep(1)
 
                 # Get the assistant's response
                 messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
@@ -629,11 +629,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # For other models (Gemini, Deepseek, Qwen), use direct API calls
                 logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
-                
+
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
                 with db_retry_session() as sess:
-                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(10).all()
+                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(5).all()
                     for msg in reversed(messages_query):
                         if msg.role == 'user' and msg.content == user_store_content:
                             # Skip this message as we're adding it below
@@ -642,7 +642,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             "role": msg.role,
                             "content": msg.content
                         })
-                
+
                 # Add the current message
                 previous_messages.append({
                     "role": "user", 
@@ -656,7 +656,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "role": "system",
                         "content": system_instructions
                     })
-                
+
                 # Use Gemini's special call function if Gemini is selected
                 if CURRENT_MODEL == 'gemini':
                     try:
@@ -668,7 +668,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # For DeepSeek and Qwen models
                     ai_client = get_ai_client()
                     model = get_model_name()
-                    
+
                     try:
                         # Format messages for the API call
                         response = ai_client.chat.completions.create(

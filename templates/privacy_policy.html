@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="app-container privacy-policy-container">
+    <script>
+        // S'assurer que la barre de défilement fonctionne correctement
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.classList.add('policy-page');
+
+            // Forcer le recalcul du défilement
+            setTimeout(function() {
+                window.scrollTo(0, 0);
+                window.scrollTo(0, 1);
+            }, 100);
+        });
+    </script>
     <div class="privacy-policy-content">
         <h1>Politique de confidentialité</h1>
         <p class="last-updated">Dernière mise à jour: 25 Mars 2025</p>

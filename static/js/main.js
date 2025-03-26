@@ -130,11 +130,12 @@ window.deleteConversation = function(id, event) {
     }
 };
 
-window.openConversation = function(id, event, isTelegram) {
+window.openConversation = function(id, event, isTelegram, isWhatsApp) {
     if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
         window.socket.emit('open_conversation', { 
             id: id,
-            is_telegram: isTelegram || false 
+            is_telegram: isTelegram || false,
+            is_whatsapp: isWhatsApp || false
         });
     }
 };

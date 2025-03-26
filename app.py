@@ -211,7 +211,7 @@ def load_user(id):
     return User.query.get(int(id))
 
 @contextmanager
-def db_retry_session(max_retries=3, retry_delay=1):
+def db_retry_session(max_retries=3, retry_delay=0.5):
     """Context manager for database operations with retry logic"""
     for attempt in range(max_retries):
         try:
@@ -287,12 +287,13 @@ def chat():
 
             conversation_history = []
 
-            # Vérifier si l'utilisateur est connecté via Telegram
+            # Vérifier si l'utilisateur est connecté via Telegram ou WhatsApp
             is_telegram_user = session.get('is_telegram_user', False)
             telegram_id = session.get('telegram_id')
+            is_whatsapp_user = session.get('is_whatsapp_user', False)
+            whatsapp_number = session.get('whatsapp_number')
 
             # Vérifier si l'utilisateur actuel est réellement l'utilisateur Telegram indiqué
-            # Si l'utilisateur actuel a une adresse téléphonique qui ne correspond pas au format Telegram
             if is_telegram_user and telegram_id and current_user.is_authenticated:
                 if not current_user.phone_number.startswith(f"telegram_{telegram_id}"):
                     # Les identifiants ne correspondent pas, nettoyer les données Telegram
@@ -301,6 +302,16 @@ def chat():
                     is_telegram_user = False
                     telegram_id = None
                     logger.warning(f"Session Telegram incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué")
+
+            # Vérifier si l'utilisateur actuel est réellement l'utilisateur WhatsApp indiqué
+            if is_whatsapp_user and whatsapp_number and current_user.is_authenticated:
+                if not current_user.phone_number.startswith(f"whatsapp_{whatsapp_number}"):
+                    # Les identifiants ne correspondent pas, nettoyer les données WhatsApp
+                    session.pop('is_whatsapp_user', None)
+                    session.pop('whatsapp_number', None)
+                    is_whatsapp_user = False
+                    whatsapp_number = None
+                    logger.warning(f"Session WhatsApp incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué")
 
             if is_telegram_user and telegram_id:
                 # Charger les conversations Telegram pour cet utilisateur
@@ -316,6 +327,43 @@ def chat():
                         'time': conv.created_at.strftime('%H:%M'),
                         'is_telegram': True
                     })
+            elif is_whatsapp_user and whatsapp_number:
+                # Récupérer les threads WhatsApp distincts pour ce numéro
+                try:
+                    # Obtenir les IDs de thread distincts pour ce numéro WhatsApp
+                    whatsapp_threads = db.session.query(WhatsAppMessage.thread_id)\
+                        .filter(WhatsAppMessage.from_number == whatsapp_number)\
+                        .group_by(WhatsAppMessage.thread_id)\
+                        .order_by(db.func.max(WhatsAppMessage.timestamp).desc())\
+                        .limit(5).all()
+
+                    for thread in whatsapp_threads:
+                        thread_id = thread[0]
+
+                        # Obtenir le premier message pour utiliser comme titre
+                        first_message = WhatsAppMessage.query.filter_by(
+                            thread_id=thread_id,
+                            direction='inbound'
+                        ).order_by(WhatsAppMessage.timestamp.asc()).first()
+
+                        # Obtenir le dernier message pour la date
+                        last_message = WhatsAppMessage.query.filter_by(
+                            thread_id=thread_id
+                        ).order_by(WhatsAppMessage.timestamp.desc()).first()
+
+                        # Créer un titre basé sur le contenu du premier message
+                        title = first_message.content if first_message else "Nouvelle conversation"
+                        title = (title[:25] + '...') if len(title) > 25 else title
+
+                        conversation_history.append({
+                            'id': thread_id,  # Utiliser thread_id comme ID de conversation
+                            'title': title,
+                            'subject': 'WhatsApp',
+                            'time': last_message.timestamp.strftime('%H:%M') if last_message else '',
+                            'is_whatsapp': True  # Marquer comme conversation WhatsApp
+                        })
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération des conversations WhatsApp: {str(e)}")
             else:
                 # Comportement normal pour les utilisateurs web
                 # Important: Filtrer par user_id pour n'afficher que les conversations de l'utilisateur actuel
@@ -881,14 +929,72 @@ def handle_delete(data):
         emit('conversation_deleted', {'success': False, 'error': str(e)})
 
 
+# Modification complète de cette section du code pour corriger le bug
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
     try:
+        # Vérifier si nous avons affaire à une conversation WhatsApp
+        if 'is_whatsapp' in data and data.get('is_whatsapp'):
+            # Le thread_id WhatsApp est passé directement
+            thread_id = str(data['id'])
+            logger.info(f"Ouverture de la conversation WhatsApp avec thread_id: {thread_id}")
+
+            # Vérifier que ce thread existe dans la base
+            messages = WhatsAppMessage.query.filter_by(thread_id=thread_id).all()
+
+            if not messages:
+                logger.warning(f"Aucun message trouvé pour le thread WhatsApp {thread_id}")
+                emit('conversation_opened', {
+                    'success': False,
+                    'error': 'Conversation introuvable'
+                })
+                return
+
+            # Mettre à jour la session avec le thread WhatsApp
+            session['thread_id'] = thread_id
+
+            # Obtenir les messages pour ce thread, triés par horodatage
+            messages = WhatsAppMessage.query.filter_by(
+                thread_id=thread_id
+            ).order_by(WhatsAppMessage.timestamp).all()
+
+            messages_data = []
+
+            for msg in messages:
+                # Déterminer le rôle du message
+                role = 'user' if msg.direction == 'inbound' else 'assistant'
+
+                message_data = {
+                    'id': msg.id,
+                    'role': role,
+                    'content': msg.content,
+                    'created_at': msg.timestamp.isoformat() if msg.timestamp else ''
+                }
+                messages_data.append(message_data)
+
+            # Obtenir le premier message pour le titre
+            first_message = WhatsAppMessage.query.filter_by(
+                thread_id=thread_id, 
+                direction='inbound'
+            ).order_by(WhatsAppMessage.timestamp.asc()).first()
+
+            title = first_message.content if first_message else "Conversation WhatsApp"
+            title = (title[:25] + '...') if len(title) > 25 else title
+
+            emit('conversation_opened', {
+                'success': True,
+                'messages': messages_data,
+                'conversation_id': thread_id,
+                'title': title,
+                'is_whatsapp': True
+            })
+            return
+
         # Vérifier si l'utilisateur est connecté via Telegram
         is_telegram_user = session.get('is_telegram_user', False)
 
         if is_telegram_user and 'is_telegram' in data and data.get('is_telegram'):
-            # Obtenir la conversation Telegram
+            # Obtenir la conversation Telegram par ID numérique
             conversation = TelegramConversation.query.get(data['id'])
             if conversation:
                 # Mettre à jour la session avec le thread Telegram
@@ -916,7 +1022,7 @@ def handle_open_conversation(data):
                 })
                 return
 
-        # Si ce n'est pas un utilisateur Telegram ou si c'est une conversation web
+        # Si ce n'est pas une conversation WhatsApp ou Telegram, c'est une conversation web normale
         conversation = Conversation.query.get(data['id'])
         if conversation:
             # Update session with the opened conversation
@@ -958,6 +1064,11 @@ def handle_open_conversation(data):
                 'conversation_id': conversation.id,
                 'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
             })
+        else:
+            emit('conversation_opened', {
+                'success': False,
+                'error': 'Conversation introuvable'
+            })
     except Exception as e:
         app.logger.error(f"Error opening conversation: {str(e)}")
         emit('conversation_opened', {
@@ -970,7 +1081,7 @@ def handle_clear_session():
     # Clear the thread_id from session
     session.pop('thread_id', None)
     emit('session_cleared', {'success': True})
-    
+
 @socketio.on('submit_feedback')
 def handle_feedback(data):
     """Handle feedback submission for a message"""
@@ -1013,12 +1124,12 @@ def handle_feedback(data):
 
             # Émettre le succès à l'utilisateur qui a soumis le feedback
             emit('feedback_submitted', {'success': True})
-            
+
             # Calculer les nouvelles statistiques de satisfaction
             total_feedbacks = MessageFeedback.query.count()
             positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
             satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
-            
+
             # Émettre la mise à jour à tous les clients connectés (y compris le tableau de bord admin)
             socketio.emit('feedback_stats_updated', {
                 'satisfaction_rate': satisfaction_rate,
@@ -1101,7 +1212,63 @@ def login():
                 flash('Connecté en tant qu\'administrateur.', 'success')
                 return redirect(url_for('admin_dashboard'))
 
-            # Regular user login
+            # Traitement spécifique pour login WhatsApp
+            if login_mode == 'whatsapp':
+                # Formater le numéro pour correspondre au format WhatsApp
+                if not phone_number.startswith('+'):
+                    whatsapp_number = phone_number
+                else:
+                    whatsapp_number = phone_number[1:]  # Enlever le + si présent
+
+                # Vérifier si ce numéro existe dans les messages WhatsApp
+                whatsapp_message = WhatsAppMessage.query.filter_by(from_number=whatsapp_number).first()
+
+                if not whatsapp_message:
+                    # Pas de message WhatsApp trouvé pour ce numéro
+                    flash('Aucun compte WhatsApp trouvé avec ce numéro.', 'error')
+                    return redirect(url_for('login', error='no_whatsapp_account'))
+
+                # Vérifier si un utilisateur web existe déjà pour ce numéro
+                user = User.query.filter_by(phone_number=f"whatsapp_{whatsapp_number}").first()
+
+                if user:
+                    # Si l'utilisateur existe, vérifier le mot de passe
+                    if not user.check_password(password):
+                        return redirect(url_for('login', error='wrong_password'))
+                else:
+                    # Créer un nouvel utilisateur web pour ce numéro WhatsApp
+                    user = User(
+                        first_name="WhatsApp",
+                        last_name="User",
+                        age=18,  # Valeur par défaut
+                        phone_number=f"whatsapp_{whatsapp_number}",  # Format spécial pour identifier les utilisateurs WhatsApp
+                        study_level="Non spécifié",
+                        grade_goals="average"  # Valeur par défaut
+                    )
+                    # Définir le mot de passe entré
+                    user.set_password(password)
+
+                    db.session.add(user)
+                    db.session.commit()
+
+                    # Émettre l'événement de nouvel utilisateur Web pour le tableau de bord
+                    socketio.emit('new_web_user', {
+                        'id': user.id,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'phone_number': user.phone_number
+                    })
+
+                # Définir les variables de session pour indiquer une connexion via WhatsApp
+                session['is_whatsapp_user'] = True
+                session['whatsapp_number'] = whatsapp_number
+
+                # Connecter l'utilisateur et rediriger vers le chat
+                login_user(user)
+                flash('Connecté via WhatsApp avec succès!', 'success')
+                return redirect(url_for('chat'))
+
+            # Logique pour login Web standard (inchangée)
             user = User.query.filter_by(phone_number=phone_number).first()
 
             # Vérifier si l'utilisateur existe
@@ -1119,8 +1286,35 @@ def login():
             return redirect(url_for('chat'))
 
         elif login_mode == 'telegram':
-            # Code pour Telegram...
-            pass  # Ajout de pass pour éviter l'erreur d'indentation
+            # Récupérer l'ID Telegram
+            telegram_id = request.form.get('telegram_id')
+        
+            if not telegram_id or not telegram_id.strip().isdigit():
+                flash('Veuillez entrer un ID Telegram valide (numérique).', 'error')
+                return redirect(url_for('login'))
+        
+            # Convertir en entier
+            telegram_id = int(telegram_id)
+        
+            # Vérifier si cet ID existe dans la base de données
+            telegram_user = TelegramUser.query.get(telegram_id)
+        
+            if not telegram_user:
+                flash('Aucun compte Telegram trouvé avec cet ID.', 'error')
+                return redirect(url_for('login'))
+        
+            # Obtenir ou créer un utilisateur Web associé à cet utilisateur Telegram
+            user = get_or_create_web_user_for_telegram(telegram_user)
+        
+            # Connecter l'utilisateur
+            login_user(user)
+        
+            # Définir des variables de session pour indiquer une connexion via Telegram
+            session['is_telegram_user'] = True
+            session['telegram_id'] = telegram_id
+        
+            flash('Connecté via Telegram avec succès!', 'success')
+            return redirect(url_for('chat'))
 
         flash('Identifiants de connexion incorrects.', 'error')
         return redirect(url_for('login'))
@@ -1184,11 +1378,11 @@ def admin_dashboard():
         active_users = len(users)
         # Count users created today
         active_users_today = sum(1 for user in users if user.created_at.date() == today)
-        
+
         # Calculate satisfaction rate based on message feedback
         total_feedbacks = MessageFeedback.query.count()
         positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
-        
+
         # Calculate satisfaction rate (percentage of positive feedback)
         satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
 
@@ -1416,6 +1610,7 @@ def register():
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
+        account_type = request.form.get('account_type', 'web')
         phone_number = request.form.get('phone_number')
         new_password = request.form.get('new_password')
 
@@ -1423,16 +1618,48 @@ def forgot_password():
             flash('Veuillez entrer un nouveau mot de passe.', 'error')
             return redirect(url_for('forgot_password'))
 
-        user = User.query.filter_by(phone_number=phone_number).first()
+        user = None
+
+        if account_type == 'whatsapp':
+            # Formater le numéro pour correspondre au format WhatsApp
+            if phone_number.startswith('+'):
+                whatsapp_number = phone_number[1:]  # Enlever le + si présent
+            else:
+                whatsapp_number = phone_number
+
+            # Rechercher l'utilisateur avec le préfixe whatsapp_
+            user = User.query.filter_by(phone_number=f"whatsapp_{whatsapp_number}").first()
+
+            # Si l'utilisateur n'existe pas, vérifier s'il y a des messages WhatsApp pour ce numéro
+            if not user:
+                whatsapp_message = WhatsAppMessage.query.filter_by(from_number=whatsapp_number).first()
+
+                if whatsapp_message:
+                    # Créer un nouvel utilisateur pour ce numéro WhatsApp
+                    user = User(
+                        first_name="WhatsApp",
+                        last_name="User",
+                        age=18,  # Valeur par défaut
+                        phone_number=f"whatsapp_{whatsapp_number}",
+                        study_level="Non spécifié",
+                        grade_goals="average"  # Valeur par défaut
+                    )
+                    db.session.add(user)
+                    logger.info(f"Nouvel utilisateur WhatsApp créé lors de la réinitialisation du mot de passe: {whatsapp_number}")
+        else:
+            # Recherche standard pour les utilisateurs web
+            user = User.query.filter_by(phone_number=phone_number).first()
 
         if user:
             # Mettre à jour le mot de passe de l'utilisateur
             user.set_password(new_password)
             db.session.commit()
+            logger.info(f"Mot de passe mis à jour pour l'utilisateur: {user.phone_number}")
+
             # Passer un paramètre pour afficher le popup
             return render_template('forgot_password.html', password_updated=True)
 
-        flash('Aucun compte trouvé avec ce numéro.', 'error')
+        flash(f"Aucun compte {'WhatsApp' if account_type == 'whatsapp' else ''} trouvé avec ce numéro.", 'error')
         return redirect(url_for('forgot_password'))
 
     return render_template('forgot_password.html')
@@ -1445,7 +1672,7 @@ def admin_platform_data(platform):
         # Get web platform statistics
         users = User.query.all()
         conversations = Conversation.query.all()
-        
+
         # Calculate satisfaction rate for web platform
         total_feedbacks = MessageFeedback.query.count()
         positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
