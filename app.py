@@ -439,6 +439,10 @@ def handle_message(data):
         is_telegram_user = session.get('is_telegram_user', False)
         telegram_id = session.get('telegram_id')
 
+        # Log the current thread_id for debugging
+        current_thread_id = session.get('thread_id')
+        logger.debug(f"Current thread_id from session: {current_thread_id}")
+
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
 
@@ -669,10 +673,43 @@ def handle_message(data):
             # Gestion normale des conversations Web
             thread_id = session.get('thread_id')
             conversation = None
-            if thread_id:
+            conversation_id = data.get('conversation_id')
+            
+            # First check if the client provided a conversation_id
+            if conversation_id:
+                logger.debug(f"Client provided conversation_id: {conversation_id}")
+                conversation = Conversation.query.get(conversation_id)
+                if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
+                    # Update session with this conversation's thread_id
+                    logger.debug(f"Found matching conversation with ID: {conversation.id}, thread_id: {conversation.thread_id}")
+                    session['thread_id'] = conversation.thread_id
+                    thread_id = conversation.thread_id
+            
+            # If no conversation from client ID, try with session thread_id
+            if not conversation and thread_id:
+                logger.debug(f"Looking for conversation with thread_id from session: {thread_id}")
                 conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                # Verify this conversation belongs to current user
+                if conversation and current_user.is_authenticated and conversation.user_id != current_user.id:
+                    logger.warning(f"Thread_id {thread_id} belongs to another user, creating new conversation")
+                    conversation = None
+            
+            # If still no conversation, try to find the most recent conversation for this user
+            if not conversation and current_user.is_authenticated:
+                logger.debug(f"Looking for most recent conversation for user ID: {current_user.id}")
+                conversation = Conversation.query.filter_by(
+                    user_id=current_user.id, 
+                    deleted=False
+                ).order_by(Conversation.updated_at.desc()).first()
+                
+                if conversation:
+                    logger.debug(f"Found most recent conversation: {conversation.id}, thread_id: {conversation.thread_id}")
+                    session['thread_id'] = conversation.thread_id
+                    thread_id = conversation.thread_id
 
+            # If we still don't have a conversation, create a new one
             if not conversation:
+                logger.debug("Creating new conversation")
                 conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
 

@@ -335,10 +335,17 @@ document.addEventListener('DOMContentLoaded', function() {
             moveInputToBottom();
             addLoadingIndicator();
 
-            // Send both message and image to the server
+            // Get the current conversation ID if available
+            const titleElement = document.querySelector('.conversation-title');
+            const conversationId = titleElement ? titleElement.dataset.conversationId : null;
+            
+            console.log('Sending message with conversationId:', conversationId);
+
+            // Send message, image, and conversation ID to the server
             socket.emit('send_message', {
                 message: message,
-                image: currentImage
+                image: currentImage,
+                conversation_id: conversationId
             });
 
             // Clear input and image
@@ -405,9 +412,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear current messages
             chatMessages.innerHTML = '';
 
-            // Update the conversation title in header
+            // Update the conversation title in header with the conversation ID as data attribute
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = data.title || "Nouvelle conversation";
+            
+            // Store conversation ID as data attribute for context persistence
+            titleElement.dataset.conversationId = data.conversation_id;
 
             // Add each message from the conversation history
             data.messages.forEach(msg => {
@@ -453,6 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update the header title with the new conversation title
         titleElement.textContent = data.title;
+        
+        // Store the conversation ID for context persistence
+        titleElement.dataset.conversationId = data.id;
 
         // Create new history item
         const historyItem = document.createElement('div');
@@ -605,9 +618,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear messages
             chatMessages.innerHTML = '';
 
-            // Reset title
+            // Reset title and clear conversation ID
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = "Nouvelle conversation";
+            titleElement.dataset.conversationId = "";
 
             // Reset UI state
             inputContainer.classList.add('centered');
