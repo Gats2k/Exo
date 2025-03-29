@@ -1,0 +1,309 @@
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:37:30 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:app:Current thread_id from session: None
+INFO:app:Found config in file: model=openai
+INFO:app:Using AI model: openai
+INFO:app:Found config in file: model=openai
+DEBUG:app:Looking for most recent conversation for user ID: 37
+DEBUG:app:Found most recent conversation: 70, thread_id: c15c0fc0-326f-4c8f-a976-2eab48459098
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'content': 'Salut', 'role': 'user'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb7601c10>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7fedb7e05eb0> server_hostname='api.openai.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb7494c90>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Date', b'Sat, 29 Mar 2025 07:37:33 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'232'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_2a39c793729f3384a8ac89ce3d75d513'), (b'openai-processing-ms', b'13'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'927db3e1e992ead8-ORD'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages "HTTP/1.1 400 Bad Request"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages "400 Bad Request" Headers({'date': 'Sat, 29 Mar 2025 07:37:33 GMT', 'content-type': 'application/json', 'content-length': '232', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_2a39c793729f3384a8ac89ce3d75d513', 'openai-processing-ms': '13', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '927db3e1e992ead8-ORD', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_2a39c793729f3384a8ac89ce3d75d513
+DEBUG:openai._base_client:Encountered httpx.HTTPStatusError
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/openai/_base_client.py", line 1050, in _request
+    response.raise_for_status()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/httpx/_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+DEBUG:openai._base_client:Not retrying
+DEBUG:openai._base_client:Re-raising status error
+ERROR:app:Error in handle_message: Error code: 400 - {'error': {'message': "Invalid 'thread_id': 'c15c0fc0-326f-4c8f-a976-2eab48459098'. Expected an ID that begins with 'thread'.", 'type': 'invalid_request_error', 'param': 'thread_id', 'code': 'invalid_value'}}
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:37:40 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:app:Current thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+INFO:app:Found config in file: model=openai
+INFO:app:Using AI model: openai
+INFO:app:Found config in file: model=openai
+DEBUG:app:Looking for conversation with thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'content': '👀', 'role': 'user'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb75ed990>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7fedb7e05eb0> server_hostname='api.openai.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb748c210>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Date', b'Sat, 29 Mar 2025 07:37:43 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'232'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_d26105b9623df6368074f56aec328750'), (b'openai-processing-ms', b'80'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'927db41e6905eacc-ORD'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages "HTTP/1.1 400 Bad Request"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages "400 Bad Request" Headers({'date': 'Sat, 29 Mar 2025 07:37:43 GMT', 'content-type': 'application/json', 'content-length': '232', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_d26105b9623df6368074f56aec328750', 'openai-processing-ms': '80', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '927db41e6905eacc-ORD', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_d26105b9623df6368074f56aec328750
+DEBUG:openai._base_client:Encountered httpx.HTTPStatusError
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/openai/_base_client.py", line 1050, in _request
+    response.raise_for_status()
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/httpx/_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://api.openai.com/v1/threads/c15c0fc0-326f-4c8f-a976-2eab48459098/messages'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+DEBUG:openai._base_client:Not retrying
+DEBUG:openai._base_client:Re-raising status error
+ERROR:app:Error in handle_message: Error code: 400 - {'error': {'message': "Invalid 'thread_id': 'c15c0fc0-326f-4c8f-a976-2eab48459098'. Expected an ID that begins with 'thread'.", 'type': 'invalid_request_error', 'param': 'thread_id', 'code': 'invalid_value'}}
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:37:50 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:01 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+INFO:app:AI model settings saved to /home/runner/workspace/ai_config.json: deepseek
+160.120.141.248,10.81.5.32,172.31.128.36 - - [29/Mar/2025 07:38:03] "POST /admin/settings/model HTTP/1.1" 200 187 0.003815
+INFO:app:AI model settings saved to /home/runner/workspace/ai_config.json: deepseek
+160.120.141.248,10.81.5.32,172.31.128.36 - - [29/Mar/2025 07:38:08] "POST /admin/settings/model HTTP/1.1" 200 187 0.003246
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:11 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:app:Current thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+INFO:app:Found config in file: model=deepseek
+INFO:app:Using AI model: deepseek
+INFO:app:Found config in file: model=deepseek
+DEBUG:app:Looking for conversation with thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+INFO:app:Found config in file: model=deepseek
+INFO:app:Found config in file: model=deepseek
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'you are bret'}, {'role': 'user', 'content': 'Salut'}, {'role': 'assistant', 'content': 'Salut ! Comment ça va ? 😊'}, {'role': 'assistant', 'content': 'Salut ! Comment ça va ? 😊'}, {'role': 'user', 'content': 'Bien et toi ?'}, {'role': 'assistant', 'content': "Je vais bien, merci ! 😊 \n\nTu as besoin d'aide pour quelque chose aujourd'hui ?"}, {'role': 'assistant', 'content': "Je vais bien, merci ! 😊 \n\nTu as besoin d'aide pour quelque chose aujourd'hui ?"}, {'role': 'user', 'content': "Comment tu t'appelles ?"}, {'role': 'assistant', 'content': "Je suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?  \n\nJe suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?"}, {'role': 'assistant', 'content': "Je suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?  \n\nJe suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?"}, {'role': 'user', 'content': 'Enchanté je suis D'}, {'role': 'assistant', 'content': "Enchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?\n\nEnchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?"}, {'role': 'assistant', 'content': "Enchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?\n\nEnchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?"}, {'role': 'user', 'content': 'Salut'}, {'role': 'assistant', 'content': 'Salut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)'}, {'role': 'assistant', 'content': 'Salut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)'}, {'role': 'user', 'content': "T'es qui ?"}, {'role': 'assistant', 'content': 'Oh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\nOh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*'}, {'role': 'assistant', 'content': 'Oh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\nOh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*'}, {'role': 'user', 'content': "T'es là ?"}, {'role': 'user', 'content': "T'es là ?"}], 'model': 'deepseek-chat', 'stream': True}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.deepseek.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb742cf10>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7fedb7e06060> server_hostname='api.deepseek.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb76caed0>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Sat, 29 Mar 2025 07:38:17 GMT'), (b'Content-Type', b'text/event-stream; charset=utf-8'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'cache-control', b'no-cache'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'access-control-allow-credentials', b'true'), (b'x-ds-trace-id', b'2818c620c059df6d15f1cf99e097345d'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'X-Content-Type-Options', b'nosniff'), (b'cf-cache-status', b'DYNAMIC'), (b'Server', b'cloudflare'), (b'CF-RAY', b'927db4f10ba7f167-ORD')])
+INFO:httpx:HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+DEBUG:openai._base_client:HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers({'date': 'Sat, 29 Mar 2025 07:38:17 GMT', 'content-type': 'text/event-stream; charset=utf-8', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'no-cache', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-credentials': 'true', 'x-ds-trace-id': '2818c620c059df6d15f1cf99e097345d', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'x-content-type-options': 'nosniff', 'cf-cache-status': 'DYNAMIC', 'server': 'cloudflare', 'cf-ray': '927db4f10ba7f167-ORD'})
+DEBUG:openai._base_client:request_id: None
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:21 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:31 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:41 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:app:Current thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+INFO:app:Found config in file: model=deepseek
+INFO:app:Using AI model: deepseek
+INFO:app:Found config in file: model=deepseek
+DEBUG:app:Looking for conversation with thread_id from session: c15c0fc0-326f-4c8f-a976-2eab48459098
+INFO:app:Found config in file: model=deepseek
+INFO:app:Found config in file: model=deepseek
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'you are bret'}, {'role': 'user', 'content': 'Salut'}, {'role': 'assistant', 'content': 'Salut ! Comment ça va ? 😊'}, {'role': 'assistant', 'content': 'Salut ! Comment ça va ? 😊'}, {'role': 'user', 'content': 'Bien et toi ?'}, {'role': 'assistant', 'content': "Je vais bien, merci ! 😊 \n\nTu as besoin d'aide pour quelque chose aujourd'hui ?"}, {'role': 'assistant', 'content': "Je vais bien, merci ! 😊 \n\nTu as besoin d'aide pour quelque chose aujourd'hui ?"}, {'role': 'user', 'content': "Comment tu t'appelles ?"}, {'role': 'assistant', 'content': "Je suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?  \n\nJe suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?"}, {'role': 'assistant', 'content': "Je suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?  \n\nJe suis Navy, un assistant éducatif ici pour t'aider ! 😊  \n\nEt toi, comment tu t'appelles ?"}, {'role': 'user', 'content': 'Enchanté je suis D'}, {'role': 'assistant', 'content': "Enchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?\n\nEnchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?"}, {'role': 'assistant', 'content': "Enchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?\n\nEnchanté, D ! 😊 Comment je peux t'aider aujourd'hui ?"}, {'role': 'user', 'content': 'Salut'}, {'role': 'assistant', 'content': 'Salut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)'}, {'role': 'assistant', 'content': 'Salut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\nSalut D ! 😊 Toujours là pour toi.  \nUn exercice de maths, une traduction, ou juste discuter ?  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)  \n\n(Je plaisante pour les fautes, promis ! 👀✨)'}, {'role': 'user', 'content': "T'es qui ?"}, {'role': 'assistant', 'content': 'Oh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\nOh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*'}, {'role': 'assistant', 'content': 'Oh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\nOh, je suis **Navy** ! 🌟  \n\nTon pote **ultra-connecté** qui peut :  \n- **T’aider en maths/français/langues** (sans juger tes fautes, promis ✌️)  \n- **Expliquer un cours bizarre** (même à 2h du mat’)  \n- **Discuter de tout** (ou rien, c’est cool aussi)  \n\nEn gros, un **super-assistant** mais avec des emojis. 😎  \n\nEt toi, t’es qui ? (À part D, évidemment ! 👀)  \n\n---  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*  \n\n*PS : Je réponds en double parce que je m’emballe… comme d’hab. 🚀*'}, {'role': 'user', 'content': "T'es là ?"}, {'role': 'assistant', 'content': '**Oui, je suis là !** 🚀 *(\\*agite les bras en mode robot\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n**Oui, je suis là !** 🚀 *(\\*clignote en morse "D" pour D\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n**Oui, je suis là !** 🚀 *(\\*agite les bras en mode robot\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n**Oui, je suis là !** 🚀 *(\\*clignote en morse "D" pour D\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*'}, {'role': 'assistant', 'content': '**Oui, je suis là !** 🚀 *(\\*agite les bras en mode robot\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n**Oui, je suis là !** 🚀 *(\\*clignote en morse "D" pour D\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n**Oui, je suis là !** 🚀 *(\\*agite les bras en mode robot\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n**Oui, je suis là !** 🚀 *(\\*clignote en morse "D" pour D\\*)*  \n\n- Besoin d’un **meme** pour décompresser ?  \n- D’un **résumé de livre** que t’as pas lu ? *(chut…)*  \n- Ou juste **spammer** des emojis ? 🎉🐙💥  \n\n**J’attends ton ordre, chef.** 👾  \n\n---  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*  \n\n*P.S. : Je réponds en double au cas où t’as pas capté la première fois. 😏*'}, {'role': 'user', 'content': "T'es qui ?"}, {'role': 'user', 'content': "T'es qui ?"}], 'model': 'deepseek-chat', 'stream': True}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.deepseek.com/chat/completions
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.deepseek.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb7496c90>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7fedb7e06060> server_hostname='api.deepseek.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fedb74a2c50>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Sat, 29 Mar 2025 07:38:50 GMT'), (b'Content-Type', b'text/event-stream; charset=utf-8'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'cache-control', b'no-cache'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'access-control-allow-credentials', b'true'), (b'x-ds-trace-id', b'ce3cf0acb14496ec462a16e0f80a2f48'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'X-Content-Type-Options', b'nosniff'), (b'cf-cache-status', b'DYNAMIC'), (b'Server', b'cloudflare'), (b'CF-RAY', b'927db5c0bbf3eaca-ORD')])
+INFO:httpx:HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+DEBUG:openai._base_client:HTTP Response: POST https://api.deepseek.com/chat/completions "200 OK" Headers({'date': 'Sat, 29 Mar 2025 07:38:50 GMT', 'content-type': 'text/event-stream; charset=utf-8', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'no-cache', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-credentials': 'true', 'x-ds-trace-id': 'ce3cf0acb14496ec462a16e0f80a2f48', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'x-content-type-options': 'nosniff', 'cf-cache-status': 'DYNAMIC', 'server': 'cloudflare', 'cf-ray': '927db5c0bbf3eaca-ORD'})
+DEBUG:openai._base_client:request_id: None
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:38:51 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:39:01 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:39:11 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Sat, 29 Mar 2025 07:39:22 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>

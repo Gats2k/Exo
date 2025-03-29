@@ -378,13 +378,19 @@ def get_or_create_conversation(thread_id=None):
         
         if current_model == 'openai':
             # Only create thread for OpenAI
-            thread = client.beta.threads.create()
-            thread_id = thread.id
-            logger.info(f"Created new OpenAI thread: {thread_id}")
+            try:
+                thread = client.beta.threads.create()
+                thread_id = thread.id
+                logger.info(f"Created new OpenAI thread: {thread_id}")
+            except Exception as e:
+                logger.error(f"Error creating OpenAI thread: {str(e)}")
+                # Fallback to a properly formatted OpenAI thread ID if API fails
+                thread_id = f"thread_{uuid.uuid4().hex}"
+                logger.info(f"Created fallback OpenAI thread ID: {thread_id}")
         else:
-            # For other models, generate a UUID as thread_id
-            thread_id = str(uuid.uuid4())
-            logger.info(f"Created new UUID thread for {current_model}: {thread_id}")
+            # For other models, generate a UUID as thread_id format
+            thread_id = f"thread_{uuid.uuid4().hex}"
+            logger.info(f"Created new thread for {current_model}: {thread_id}")
 
         # Associer la conversation avec l'utilisateur connecté
         user_id = None
