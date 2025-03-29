@@ -869,45 +869,128 @@ def handle_message(data):
                         content=data.get('message', '')
                     )
 
-                    # Create and run assistant
+                    # Create and run assistant with stream=True
                     run = ai_client.beta.threads.runs.create(
                         thread_id=conversation.thread_id,
-                        assistant_id=ASSISTANT_ID
+                        assistant_id=ASSISTANT_ID,
+                        stream=True
                     )
-
-                    # Wait for response with timeout
-                    timeout = 30
-                    start_time = time.time()
-
-                    while True:
-                        if time.time() - start_time > timeout:
-                            emit('receive_message', {'message': 'Request timed out.', 'id': 0})
-                            return
-
-                        run_status = ai_client.beta.threads.runs.retrieve(
-                            thread_id=conversation.thread_id,
-                            run_id=run.id
-                        )
-
-                        if run_status.status == 'completed':
-                            break
-                        elif run_status.status == 'failed':
-                            emit('receive_message', {'message': 'Sorry, there was an error.', 'id': 0})
-                            return
-
-                        eventlet.sleep(1)
-
-                    # Retrieve OpenAI's response
-                    messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
-                    assistant_message = messages.data[0].content[0].text.value
-
-            # Store assistant response in database
-            db_message = Message(
-                conversation_id=conversation.id,
-                role='assistant',
-                content=assistant_message
-            )
-            db.session.add(db_message)
+                    
+                    # Create a new message in the database immediately to get an ID
+                    db_message = Message(
+                        conversation_id=conversation.id,
+                        role='assistant',
+                        content=""  # Start with empty content, will be updated
+                    )
+                    db.session.add(db_message)
+                    db.session.commit()
+                    
+                    # Send initial empty message to establish the message container on client
+                    emit('receive_message', {
+                        'message': '',
+                        'id': db_message.id,
+                        'stream_start': True  # Signal that this is the start of a stream
+                    })
+                    
+                    assistant_message = ""
+                    timeout_occurred = False
+                    
+                    # Process the streaming response
+                    try:
+                        for event in run:
+                            if isinstance(event, dict) and event.get("event") == "timeout":
+                                timeout_occurred = True
+                                break
+                            
+                            if hasattr(event, "event") and event.event == "thread.message.delta":
+                                if hasattr(event.data, "delta") and hasattr(event.data.delta, "content"):
+                                    for content_delta in event.data.delta.content:
+                                        if hasattr(content_delta, "text") and hasattr(content_delta.text, "value"):
+                                            chunk = content_delta.text.value
+                                            assistant_message += chunk
+                                            
+                                            # Stream the token to the client
+                                            emit('message_chunk', {
+                                                'chunk': chunk,
+                                                'id': db_message.id
+                                            })
+                        
+                        # If the stream ended properly (no timeout), we mark it complete
+                        if not timeout_occurred:
+                            emit('message_chunk', {
+                                'chunk': '',
+                                'id': db_message.id,
+                                'stream_end': True  # Signal that streaming is complete
+                            })
+                            
+                    except Exception as stream_error:
+                        logger.error(f"Streaming error: {str(stream_error)}")
+                        emit('message_chunk', {
+                            'chunk': "\n\nAn error occurred during response generation.",
+                            'id': db_message.id,
+                            'stream_end': True,
+                            'error': True
+                        })
+                        assistant_message += "\n\nAn error occurred during response generation."
+                    
+                    # Fallback in case the streaming fails
+                    if not assistant_message:
+                        logger.warning("No streaming content received, falling back to regular message retrieval")
+                        try:
+                            # Wait for the run to complete
+                            while True:
+                                run_status = ai_client.beta.threads.runs.retrieve(
+                                    thread_id=conversation.thread_id,
+                                    run_id=run.id
+                                )
+                                
+                                if run_status.status == 'completed':
+                                    # Get the message content
+                                    messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
+                                    assistant_message = messages.data[0].content[0].text.value
+                                    
+                                    # Send the complete message to the client
+                                    emit('message_chunk', {
+                                        'chunk': assistant_message,
+                                        'id': db_message.id,
+                                        'stream_end': True
+                                    })
+                                    break
+                                elif run_status.status in ['failed', 'cancelled', 'expired']:
+                                    assistant_message = "Sorry, there was an error generating a response."
+                                    emit('message_chunk', {
+                                        'chunk': assistant_message,
+                                        'id': db_message.id,
+                                        'stream_end': True,
+                                        'error': True
+                                    })
+                                    break
+                                
+                                eventlet.sleep(1)
+                        except Exception as fallback_error:
+                            logger.error(f"Fallback retrieval error: {str(fallback_error)}")
+                            assistant_message = "Sorry, I encountered an error while processing your request."
+                            emit('message_chunk', {
+                                'chunk': assistant_message,
+                                'id': db_message.id,
+                                'stream_end': True,
+                                'error': True
+                            })
+                    
+                    # Update the database with the complete message
+                    db_message.content = assistant_message
+                    db.session.commit()
+            
+            # For non-OpenAI models, we need to create the message in database
+            # For OpenAI models, we already created and updated the message during streaming
+            if CURRENT_MODEL != 'openai':
+                # Store assistant response in database
+                db_message = Message(
+                    conversation_id=conversation.id,
+                    role='assistant',
+                    content=assistant_message
+                )
+                db.session.add(db_message)
 
             # Generate and set conversation title if this is the first message
             if not conversation.title:

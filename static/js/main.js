@@ -359,17 +359,61 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Object to track streaming messages by ID
+    const streamingMessages = {};
+
+    // Handler for receiving new complete messages or starting a stream
     socket.on('receive_message', function(data) {
         removeLoadingIndicator();
+
+        // If this is a streaming message start, we create an empty container and return
+        if (data.stream_start) {
+            console.log('Starting streaming message, ID:', data.id);
+            
+            // Create the message container
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant streaming';
+            messageDiv.id = `message-${data.id}`;
+            
+            // Create an empty content container that will be filled with streamed content
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <span class="cursor"></span>
+                </div>
+                <div class="message-feedback">
+                    <button class="feedback-btn thumbs-up" data-message-id="${data.id}" data-feedback-type="positive">
+                        <i class="bi bi-hand-thumbs-up"></i>
+                    </button>
+                    <button class="feedback-btn thumbs-down" data-message-id="${data.id}" data-feedback-type="negative">
+                        <i class="bi bi-hand-thumbs-down"></i>
+                    </button>
+                </div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Store the message for streaming updates
+            streamingMessages[data.id] = {
+                content: '',
+                element: messageDiv.querySelector('.message-content')
+            };
+            
+            return;
+        }
+
+        // Normal non-streaming message
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
+        messageDiv.id = `message-${data.id}`;
+        
         let content = '';
         if (data.image) {
             content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
         }
         content += data.message.replace(/\n/g, '<br>');
 
-        // Déterminer si un feedback existe déjà (sera utilisé si le client a soumis un feedback et reçoit un feedback_submitted event)
+        // Determine if feedback exists already
         const feedbackPositive = data.feedback === 'positive';
         const feedbackNegative = data.feedback === 'negative';
 
@@ -390,6 +434,43 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+    
+    // Handler for receiving streaming message chunks
+    socket.on('message_chunk', function(data) {
+        // Find the message container for this ID
+        if (!streamingMessages[data.id]) {
+            console.warn('Received chunk for unknown message ID:', data.id);
+            return;
+        }
+        
+        // Add the new chunk to the message content
+        streamingMessages[data.id].content += data.chunk;
+        
+        // Update the HTML with the new content, preserving the cursor
+        streamingMessages[data.id].element.innerHTML = streamingMessages[data.id].content
+            .replace(/\n/g, '<br>') + '<span class="cursor"></span>';
+        
+        // Scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // If this is the end of the stream, clean up
+        if (data.stream_end) {
+            console.log('Stream ended for message ID:', data.id);
+            
+            // Remove the cursor by replacing with the final content
+            streamingMessages[data.id].element.innerHTML = streamingMessages[data.id].content
+                .replace(/\n/g, '<br>');
+            
+            // Remove the streaming class
+            const messageElement = document.getElementById(`message-${data.id}`);
+            if (messageElement) {
+                messageElement.classList.remove('streaming');
+            }
+            
+            // Clean up the tracking object
+            delete streamingMessages[data.id];
+        }
     });
 
     // Listen for conversation updates

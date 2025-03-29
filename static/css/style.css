@@ -393,6 +393,23 @@ body.policy-page {
     width: fit-content;
 }
 
+/* Streaming message styling */
+.message.streaming .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 18px;
+    background-color: #fff;
+    animation: blink 0.8s infinite;
+    margin-left: 2px;
+    vertical-align: middle;
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
 .message-content {
     background: rgba(255, 255, 255, 0.1);
     padding: 12px 15px;
