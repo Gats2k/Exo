@@ -149,16 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make socket available globally for our conversation functions
     window.socket = socket;
 
-    // Gérer la reconnexion pour préserver le contexte
-    socket.on('reconnect', function() {
-        console.log('Reconnecté au serveur, récupération de la conversation');
-        // Si nous avons un thread_id dans la session stockée localement, réutilisons-le
-        const storedThreadId = localStorage.getItem('thread_id');
-        if (storedThreadId) {
-            socket.emit('restore_session', { thread_id: storedThreadId });
-        }
-    });
-
     // Si nous sommes sur la page admin, sortir immédiatement pour éviter les erreurs
     if (isAdminPage) {
         console.log('Page administrative détectée, désactivation du script de chat');
@@ -419,11 +409,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = data.title || "Nouvelle conversation";
 
-            // Sauvegarder thread_id dans le stockage local
-            if (data.conversation_id) {
-                localStorage.setItem('thread_id', data.conversation_id);
-            }
-
             // Add each message from the conversation history
             data.messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
@@ -468,11 +453,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update the header title with the new conversation title
         titleElement.textContent = data.title;
-
-        // Sauvegarder thread_id dans le stockage local
-        if (data.id) {
-            localStorage.setItem('thread_id', data.id);
-        }
 
         // Create new history item
         const historyItem = document.createElement('div');
@@ -619,7 +599,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add handler for new conversation button
-    // Add handler for new conversation button
     const newConversationBtn = document.querySelector('.new-conversation-btn');
     if (newConversationBtn) {
         newConversationBtn.addEventListener('click', function() {
@@ -637,9 +616,6 @@ document.addEventListener('DOMContentLoaded', function() {
             suggestionsContainer.classList.add('visible');
             isFirstMessage = true;
 
-            // Supprimer le thread_id du stockage local
-            localStorage.removeItem('thread_id');
-
             // Clear any existing session
             socket.emit('clear_session');
         });
@@ -651,7 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Session cleared successfully');
         }
     });
-    
+
     // Listen for feedback submission confirmation
     socket.on('feedback_submitted', function(data) {
         if (data.success) {
@@ -660,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Il sera maintenant persisté entre les rechargements de page
         }
     });
-    
+
     // Add event handlers for feedback buttons
     document.addEventListener('click', function(event) {
         const feedbackBtn = event.target.closest('.feedback-btn');
@@ -668,29 +644,29 @@ document.addEventListener('DOMContentLoaded', function() {
             event.preventDefault();
             const messageId = feedbackBtn.dataset.messageId;
             const feedbackType = feedbackBtn.dataset.feedbackType;
-            
+
             // Remove active class from both buttons in this message
             const messageFeedback = feedbackBtn.closest('.message-feedback');
             messageFeedback.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Add active class to the clicked button
             feedbackBtn.classList.add('active');
-            
+
             // Stocker ce feedback en mémoire (pour retrouver facilement dans quel état est un message)
             // Cela permettra de conserver l'état visuel même pour les nouveaux messages
             if (!window.userFeedbacks) {
                 window.userFeedbacks = {};
             }
             window.userFeedbacks[messageId] = feedbackType;
-            
+
             // Send feedback to server
             socket.emit('submit_feedback', {
                 message_id: messageId,
                 feedback_type: feedbackType
             });
-            
+
             // Show visual confirmation
             const confirmation = document.createElement('div');
             confirmation.className = 'feedback-confirmation';
@@ -700,9 +676,9 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmation.style.fontSize = '0.8rem';
             confirmation.style.opacity = '0';
             confirmation.style.transition = 'opacity 0.3s ease';
-            
+
             messageFeedback.appendChild(confirmation);
-            
+
             // Fade in and out
             setTimeout(() => {
                 confirmation.style.opacity = '1';

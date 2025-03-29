@@ -97,7 +97,7 @@ class MessageFeedback(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=True)
     feedback_type = db.Column(db.String(10), nullable=False)  # 'positive' or 'negative'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     message = db.relationship('Message', backref=db.backref('feedback', lazy=True))
     user = db.relationship('User', backref=db.backref('feedback', lazy=True))

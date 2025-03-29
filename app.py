@@ -8,7 +8,6 @@ load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
-from flask_session import Session
 from openai import OpenAI
 from werkzeug.utils import secure_filename
 import base64
@@ -48,15 +47,8 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,  # Enable connection pool pre-ping
 }
 
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Increase session lifetime to 7 days
-app.config['SESSION_PERMANENT'] = True
-app.config['SESSION_TYPE'] = 'filesystem'  # More robust session storage
-
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Initialize Session
-Session(app)
 
 # Initialize database
 from database import db
@@ -86,7 +78,6 @@ DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpf
 DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
 QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
 GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
-CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '50'))
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -244,20 +235,7 @@ def get_or_create_conversation(thread_id=None):
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
             # Vérifier si cette conversation appartient à l'utilisateur actuel
             if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
-                # Vérifier si le thread OpenAI existe toujours (uniquement pour le modèle OpenAI)
-                if CURRENT_MODEL == 'openai':
-                    try:
-                        # Tester si le thread existe dans OpenAI
-                        client = get_ai_client()
-                        client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-                        # Si on arrive ici, le thread existe
-                        return conversation
-                    except Exception as e:
-                        logger.warning(f"Thread {thread_id} not found or invalid: {str(e)}")
-                        # On continue pour créer un nouveau thread
-                else:
-                    # Pour les autres modèles, pas besoin de vérifier
-                    return conversation
+                return conversation
             # Si la conversation n'appartient pas à l'utilisateur actuel, on ignore ce thread_id
 
         # Create new thread and conversation
@@ -297,9 +275,6 @@ def privacy_policy():
 @login_required
 def chat():
     try:
-        # Ensure session permanence for conversation continuity
-        session.permanent = True
-        
         with db_retry_session() as db_session:
             # Vérifier si le thread_id dans la session appartient à l'utilisateur actuel
             thread_id = session.get('thread_id')
@@ -342,7 +317,7 @@ def chat():
                 # Charger les conversations Telegram pour cet utilisateur
                 telegram_conversations = TelegramConversation.query.filter_by(
                     telegram_user_id=int(telegram_id)
-                ).order_by(TelegramConversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+                ).order_by(TelegramConversation.updated_at.desc()).limit(5).all()
 
                 for conv in telegram_conversations:
                     conversation_history.append({
@@ -360,7 +335,7 @@ def chat():
                         .filter(WhatsAppMessage.from_number == whatsapp_number)\
                         .group_by(WhatsAppMessage.thread_id)\
                         .order_by(db.func.max(WhatsAppMessage.timestamp).desc())\
-                        .limit(CONTEXT_MESSAGE_LIMIT).all()
+                        .limit(5).all()
 
                     for thread in whatsapp_threads:
                         thread_id = thread[0]
@@ -396,7 +371,7 @@ def chat():
                     recent_conversations = Conversation.query.filter_by(
                         deleted=False, 
                         user_id=current_user.id
-                    ).order_by(Conversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+                    ).order_by(Conversation.updated_at.desc()).limit(5).all()
                 else:
                     recent_conversations = []
 
@@ -470,9 +445,6 @@ def handle_message(data):
         # Variables to store Mathpix results
         mathpix_result = None
         formatted_summary = None
-        
-        # Ensure session permanence for conversation continuity
-        session.permanent = True
 
         # Déterminer s'il s'agit d'une conversation Telegram ou Web
         if is_telegram_user and telegram_id:
@@ -699,15 +671,6 @@ def handle_message(data):
             conversation = None
             if thread_id:
                 conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-                # Vérifier si la conversation est valide et appartient à l'utilisateur actuel
-                if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
-                    logger.info(f"Utilisation de la conversation existante {conversation.id} avec thread_id {thread_id}")
-                    # Mettre à jour la date de dernière modification pour garder la conversation active
-                    conversation.updated_at = datetime.utcnow()
-                    db.session.commit()
-                else:
-                    logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, création d'une nouvelle conversation")
-                    conversation = None
 
             if not conversation:
                 conversation = get_or_create_conversation()
@@ -830,7 +793,6 @@ def handle_message(data):
                     content=data.get('message', '')
                 )
                 db.session.add(user_message)
-                db.session.commit()  # Commit immediately to ensure the message is saved
 
                 if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
@@ -838,22 +800,18 @@ def handle_message(data):
                         messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
-                        # Always fetch complete conversation history from database
-                        # This ensures we maintain context even after delays
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
-                        
-                        logger.info(f"Retrieved {len(conversation_messages)} messages for conversation {conversation.id}")
-                        
                         messages = [{"role": "system", "content": get_system_instructions()}]
                         for msg in conversation_messages:
                             messages.append({
                                 "role": msg.role,
                                 "content": msg.content
                             })
-                            
-                        # Don't add user message again as it's already in conversation_messages after commit
-                        # This prevents duplicate message issues
+                        messages.append({
+                            "role": "user",
+                            "content": data.get('message', '')
+                        })
 
                     if CURRENT_MODEL == 'gemini':
                         # Send to Gemini AI service
@@ -975,9 +933,6 @@ def handle_delete(data):
 @socketio.on('open_conversation')
 def handle_open_conversation(data):
     try:
-        # Ensure session permanence for conversation continuity
-        session.permanent = True
-        
         # Vérifier si nous avons affaire à une conversation WhatsApp
         if 'is_whatsapp' in data and data.get('is_whatsapp'):
             # Le thread_id WhatsApp est passé directement
@@ -995,9 +950,8 @@ def handle_open_conversation(data):
                 })
                 return
 
-            # Mettre à jour la session avec le thread WhatsApp et forcer l'enregistrement dans Flask-Session
+            # Mettre à jour la session avec le thread WhatsApp
             session['thread_id'] = thread_id
-            session.modified = True
 
             # Obtenir les messages pour ce thread, triés par horodatage
             messages = WhatsAppMessage.query.filter_by(
@@ -1043,9 +997,8 @@ def handle_open_conversation(data):
             # Obtenir la conversation Telegram par ID numérique
             conversation = TelegramConversation.query.get(data['id'])
             if conversation:
-                # Mettre à jour la session avec le thread Telegram et forcer l'enregistrement
+                # Mettre à jour la session avec le thread Telegram
                 session['thread_id'] = conversation.thread_id
-                session.modified = True
 
                 # Obtenir les messages pour cette conversation
                 messages = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at).all()
@@ -1072,9 +1025,8 @@ def handle_open_conversation(data):
         # Si ce n'est pas une conversation WhatsApp ou Telegram, c'est une conversation web normale
         conversation = Conversation.query.get(data['id'])
         if conversation:
-            # Update session with the opened conversation and ensure persistence
+            # Update session with the opened conversation
             session['thread_id'] = conversation.thread_id
-            session.modified = True  # Force session data to be saved
 
             # Get messages for this conversation
             messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
@@ -1128,61 +1080,7 @@ def handle_open_conversation(data):
 def handle_clear_session():
     # Clear the thread_id from session
     session.pop('thread_id', None)
-    session.modified = True  # Ensure the session changes are saved
     emit('session_cleared', {'success': True})
-
-@socketio.on('restore_session')
-def handle_restore_session(data):
-    """Restore a previous session based on a stored thread_id"""
-    try:
-        thread_id = data.get('thread_id')
-        if not thread_id:
-            logger.warning("Restore session called without thread_id")
-            return
-
-        logger.info(f"Attempting to restore session with thread_id: {thread_id}")
-
-        # Vérifier si la conversation existe
-        conversation = Conversation.query.filter_by(id=thread_id).first()
-
-        if conversation:
-            # Vérifier si la conversation appartient à l'utilisateur actuel
-            if current_user.is_authenticated and conversation.user_id == current_user.id:
-                # Mettre à jour la session Flask avec le thread_id et persister
-                session['thread_id'] = conversation.thread_id
-                session.permanent = True
-                session.modified = True
-                logger.info(f"Session restored for thread_id: {conversation.thread_id}")
-
-                # Émettre les mêmes événements que lorsqu'une conversation est ouverte
-                messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
-                messages_data = []
-
-                for msg in messages:
-                    message_data = {
-                        'id': msg.id,
-                        'role': msg.role,
-                        'content': msg.content,
-                        'image_url': msg.image_url,
-                    }
-                    messages_data.append(message_data)
-
-                emit('conversation_opened', {
-                    'success': True,
-                    'messages': messages_data,
-                    'conversation_id': conversation.id,
-                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
-                })
-
-                # Mettre à jour la date de dernière modification
-                conversation.updated_at = datetime.utcnow()
-                db.session.commit()
-            else:
-                logger.warning(f"Attempt to restore session for conversation {thread_id} not owned by current user")
-        else:
-            logger.warning(f"Conversation with id {thread_id} not found for session restoration")
-    except Exception as e:
-        logger.error(f"Error restoring session: {str(e)}")
 
 @socketio.on('submit_feedback')
 def handle_feedback(data):
@@ -1390,31 +1288,31 @@ def login():
         elif login_mode == 'telegram':
             # Récupérer l'ID Telegram
             telegram_id = request.form.get('telegram_id')
-        
+
             if not telegram_id or not telegram_id.strip().isdigit():
                 flash('Veuillez entrer un ID Telegram valide (numérique).', 'error')
                 return redirect(url_for('login'))
-        
+
             # Convertir en entier
             telegram_id = int(telegram_id)
-        
+
             # Vérifier si cet ID existe dans la base de données
             telegram_user = TelegramUser.query.get(telegram_id)
-        
+
             if not telegram_user:
                 flash('Aucun compte Telegram trouvé avec cet ID.', 'error')
                 return redirect(url_for('login'))
-        
+
             # Obtenir ou créer un utilisateur Web associé à cet utilisateur Telegram
             user = get_or_create_web_user_for_telegram(telegram_user)
-        
+
             # Connecter l'utilisateur
             login_user(user)
-        
+
             # Définir des variables de session pour indiquer une connexion via Telegram
             session['is_telegram_user'] = True
             session['telegram_id'] = telegram_id
-        
+
             flash('Connecté via Telegram avec succès!', 'success')
             return redirect(url_for('chat'))
 
@@ -1455,7 +1353,6 @@ def logout():
     session.pop('telegram_id', None)
     session.pop('thread_id', None)
     session.pop('is_admin', None)
-    session.modified = True  # Force session changes to be saved
     logout_user()  # Fonction de Flask-Login pour déconnecter l'utilisateur
     flash('Vous avez été déconnecté.', 'success')
     return redirect(url_for('login'))
@@ -2037,13 +1934,13 @@ def delete_user(user_id):
                     thread_ids = db.session.query(WhatsAppMessage.thread_id)\
                         .filter(WhatsAppMessage.from_number == user_id)\
                         .distinct().all()
-                    
+
                     # Pour chaque thread_id, on supprime tous les messages associés
                     for thread_id in thread_ids:
                         thread_id = thread_id[0]  # Extraction de la valeur depuis le tuple
                         logger.info(f"Deleting all messages for WhatsApp thread {thread_id}")
                         WhatsAppMessage.query.filter_by(thread_id=thread_id).delete()
-                        
+
                     session.commit()
                     return jsonify({'success': True, 'message': 'WhatsApp user and all associated conversations deleted successfully'})
             except Exception as whatsapp_error:
