@@ -1282,6 +1282,7 @@ dependencies = [
     { name = "telegram" },
     { name = "trafilatura" },
     { name = "twilio" },
+    { name = "typing-extensions" },
     { name = "werkzeug" },
 ]
 
@@ -1308,6 +1309,7 @@ requires-dist = [
     { name = "telegram", specifier = ">=0.0.1" },
     { name = "trafilatura", specifier = ">=2.0.0" },
     { name = "twilio", specifier = ">=9.4.5" },
+    { name = "typing-extensions", specifier = ">=4.12.2" },
     { name = "werkzeug", specifier = ">=3.1.3" },
 ]
 

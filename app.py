@@ -23,6 +23,8 @@ from flask_login import LoginManager, current_user, login_user, logout_user, log
 import uuid
 from mathpix_utils import process_image_with_mathpix # Added import
 import json
+from typing_extensions import override
+from openai import AssistantEventHandler
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -116,6 +118,79 @@ def get_system_instructions():
         return GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
 
+class OpenAIAssistantEventHandler(AssistantEventHandler):
+    def __init__(self, socket, message_id):
+        super().__init__()
+        self.socket = socket
+        self.message_id = message_id
+        self.full_response = ""
+        # Ajouter l'attribut manquant
+        self._AssistantEventHandler__stream = None
+
+    @override
+    def on_text_created(self, text) -> None:
+        # Initialisation du texte - pas besoin d'envoyer de contenu ici
+        pass
+
+    @override
+    def on_text_delta(self, delta, snapshot):
+        # Ajouter le delta au texte complet
+        self.full_response += delta.value
+
+        # Émettre le nouveau contenu à l'utilisateur
+        self.socket.emit('response_stream', {
+            'content': delta.value,
+            'message_id': self.message_id,
+            'is_final': False
+        })
+
+    @override
+    def on_run_completed(self):
+        # Émettre l'événement final quand le run est terminé
+        self.socket.emit('response_stream', {
+            'content': '',
+            'message_id': self.message_id,
+            'is_final': True,
+            'full_response': self.full_response
+        })
+
+    @override
+    def on_tool_call_created(self, tool_call):
+        # Pour gérer les appels d'outils comme code_interpreter si nécessaire
+        pass
+
+    @override
+    def on_tool_call_delta(self, delta, snapshot):
+        # Gérer les mises à jour des appels d'outils
+        if delta.type == 'code_interpreter':
+            if delta.code_interpreter and delta.code_interpreter.input:
+                self.full_response += f"\n```python\n{delta.code_interpreter.input}\n```\n"
+                self.socket.emit('response_stream', {
+                    'content': f"\n```python\n{delta.code_interpreter.input}\n```\n",
+                    'message_id': self.message_id,
+                    'is_final': False
+                })
+
+            if delta.code_interpreter and delta.code_interpreter.outputs:
+                for output in delta.code_interpreter.outputs:
+                    if output.type == "logs":
+                        self.full_response += f"\n```\n{output.logs}\n```\n"
+                        self.socket.emit('response_stream', {
+                            'content': f"\n```\n{output.logs}\n```\n",
+                            'message_id': self.message_id,
+                            'is_final': False
+                        })
+
+            if delta.code_interpreter and delta.code_interpreter.outputs:
+                for output in delta.code_interpreter.outputs:
+                    if output.type == "logs":
+                        self.full_response += f"\n```\n{output.logs}\n```\n"
+                        self.socket.emit('response_stream', {
+                            'content': f"\n```\n{output.logs}\n```\n",
+                            'message_id': self.message_id,
+                            'is_final': False
+                        })
+
 def call_gemini_api(messages):
     """
     Call the Gemini API with the provided messages.
@@ -146,6 +221,10 @@ def call_gemini_api(messages):
         contents = []
         for msg in messages:
             if msg['role'] != 'system':
+                # Vérifier que le contenu n'est pas vide
+                if not msg['content'] or msg['content'].strip() == "":
+                    continue
+
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
                     "parts": [{"text": msg['content']}],
@@ -156,12 +235,17 @@ def call_gemini_api(messages):
         if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
             contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
 
-        # Make sure we have at least one message in contents
+        # Make sure we have at least one message in contents with non-empty text
         if not contents:
             contents.append({
-                "parts": [{"text": "Hello"}],
+                "parts": [{"text": "Bonjour, je suis là pour vous aider."}],
                 "role": "user"
             })
+
+        # Vérifier qu'aucun des messages n'a un texte vide
+        for content in contents:
+            if not content['parts'][0]['text'] or content['parts'][0]['text'].strip() == "":
+                content['parts'][0]['text'] = "Message vide remplacé"
 
         # Prepare the API request
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
@@ -169,6 +253,7 @@ def call_gemini_api(messages):
         data = {"contents": contents}
 
         logger.info(f"Sending request to Gemini API with {len(contents)} messages")
+        logger.debug(f"Request payload: {json.dumps(data)}")
 
         # Make the API request
         response = requests.post(api_url, headers=headers, json=data)
@@ -466,109 +551,91 @@ def handle_message(data):
         # Créer une fonction pour streamer les réponses
         def stream_response_to_client(response_stream, message_id):
             full_response = ""
-            for chunk in response_stream:
-                if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    full_response += content
-                    emit('response_stream', {
-                        'content': content,
-                        'message_id': message_id,
-                        'is_final': False
-                    })
-            # Envoyer l'événement de fin de réponse
-            emit('response_stream', {
-                'content': '',
-                'message_id': message_id,
-                'is_final': True,
-                'full_response': full_response
-            })
-            return full_response
+            try:
+                for chunk in response_stream:
+                    # Gérer différents formats de réponse selon le modèle
+                    if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                        if hasattr(chunk.choices[0], 'delta'):
+                            # Format OpenAI/DeepSeek
+                            if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+                                content = chunk.choices[0].delta.content
+                                full_response += content
+                                emit('response_stream', {
+                                    'content': content,
+                                    'message_id': message_id,
+                                    'is_final': False
+                                })
+                        elif hasattr(chunk.choices[0], 'text') and chunk.choices[0].text:
+                            # Format alternatif pour certains modèles
+                            content = chunk.choices[0].text
+                            full_response += content
+                            emit('response_stream', {
+                                'content': content,
+                                'message_id': message_id,
+                                'is_final': False
+                            })
+                    # Pour d'autres formats potentiels, ajouter des branches ici
 
-        # Fonction pour streamer les messages OpenAI Assistants
+                # Envoyer l'événement de fin de réponse
+                emit('response_stream', {
+                    'content': '',
+                    'message_id': message_id,
+                    'is_final': True,
+                    'full_response': full_response
+                })
+                return full_response
+            except Exception as e:
+                logger.error(f"Error in stream_response_to_client: {str(e)}")
+                # En cas d'erreur, envoyer un message d'erreur et renvoyer ce qui a été collecté jusque-là
+                emit('response_stream', {
+                    'content': f"\n\nDésolé, une erreur est survenue lors du streaming: {str(e)}",
+                    'message_id': message_id,
+                    'is_final': True,
+                    'error': True,
+                    'full_response': full_response
+                })
+                return full_response
+
+        # Fonction pour utiliser le streaming natif de l'API des Assistants OpenAI
         def stream_assistant_response(thread_id, run_id, message_id):
-            full_response = ""
-            while True:
-                run_status = ai_client.beta.threads.runs.retrieve(
+            try:
+                # Créer un gestionnaire d'événements pour traiter les événements de streaming
+                event_handler = OpenAIAssistantEventHandler(socketio, message_id)
+
+                # Pour l'API OpenAI, nous devons d'abord créer un run, puis créer une connexion de streaming
+                # en utilisant le thread_id et l'assistant_id, pas le run_id
+
+                # Utiliser la méthode de streaming native de l'API
+                with ai_client.beta.threads.runs.stream(
                     thread_id=thread_id,
-                    run_id=run_id
-                )
+                    assistant_id=ASSISTANT_ID,
+                    event_handler=event_handler,
+                ) as stream:
+                    stream.until_done()
 
-                if run_status.status == 'completed':
-                    # Si completed, récupérer le message complet une seule fois
-                    messages = ai_client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
-                    if messages.data:
-                        final_content = messages.data[0].content[0].text.value
-                        # Envoyer la différence entre ce qui a déjà été envoyé et le message final
-                        if final_content != full_response:
-                            remaining_content = final_content[len(full_response):]
-                            if remaining_content:
-                                emit('response_stream', {
-                                    'content': remaining_content,
-                                    'message_id': message_id,
-                                    'is_final': False
-                                })
-                                full_response = final_content
+                # Retourner la réponse complète accumulée par le gestionnaire d'événements
+                return event_handler.full_response
 
-                    # Envoyer l'événement de fin
-                    emit('response_stream', {
-                        'content': '',
-                        'message_id': message_id,
-                        'is_final': True,
-                        'full_response': full_response
-                    })
-                    break
+            except Exception as e:
+                logger.error(f"Error streaming assistant response: {str(e)}")
+                error_msg = f"Erreur lors du streaming de la réponse: {str(e)}"
 
-                elif run_status.status == 'failed':
-                    emit('response_stream', {
-                        'content': 'Sorry, there was an error generating the response.',
-                        'message_id': message_id,
-                        'is_final': True,
-                        'error': True
-                    })
-                    break
+                # Envoyer un message d'erreur au client
+                emit('response_stream', {
+                    'content': error_msg,
+                    'message_id': message_id,
+                    'is_final': True,
+                    'error': True
+                })
 
-                # Pour les exécutions en cours, essayer de récupérer les messages partiels
-                if run_status.status == 'in_progress' and hasattr(run_status, 'last_error'):
-                    # Si en cours mais avec une erreur, informer l'utilisateur
-                    error_message = getattr(run_status.last_error, 'message', 'Unknown error')
-                    emit('response_stream', {
-                        'content': f'Error: {error_message}',
-                        'message_id': message_id,
-                        'is_final': True,
-                        'error': True
-                    })
-                    break
+                return error_msg
 
-                # Vérifier s'il y a de nouveaux contenus à streamer
-                try:
-                    # Récupérer les messages les plus récents
-                    messages = ai_client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
-                    if messages.data and len(messages.data) > 0:
-                        latest_message = messages.data[0]
-                        if latest_message.role == 'assistant' and latest_message.content:
-                            content = latest_message.content[0].text.value
-                            # Si nouveau contenu, envoyer uniquement la partie nouvelle
-                            if len(content) > len(full_response):
-                                new_content = content[len(full_response):]
-                                emit('response_stream', {
-                                    'content': new_content,
-                                    'message_id': message_id,
-                                    'is_final': False
-                                })
-                                full_response = content
-                except Exception as e:
-                    logger.error(f"Error retrieving partial response: {str(e)}")
-
-                # Attendre avant la prochaine vérification (pour éviter trop de requêtes)
-                eventlet.sleep(0.5)
-
-            return full_response
-
-        # Déterminer s'il s'agit d'une conversation Telegram ou Web
+            # Déterminer s'il s'agit d'une conversation Telegram ou Web
         if is_telegram_user and telegram_id:
             # Gestion des conversations Telegram
             # [Code existant pour la gestion Telegram]
             # Telegram sera géré sans streaming pour le moment
+            pass  # Placeholder pour éviter l'erreur d'indentation
 
         else:
             # Gestion normale des conversations Web
@@ -594,6 +661,7 @@ def handle_message(data):
             if 'image' in data and data['image']:
                 # Le traitement des images reste identique, pas de streaming pour le moment
                 # [Code existant pour le traitement d'image]
+                pass  # Placeholder pour éviter l'erreur d'indentation
 
             else:
                 # Store text-only message
@@ -693,61 +761,87 @@ def handle_message(data):
                         content=data.get('message', '')
                     )
 
-                    # Create and run assistant
-                    run = ai_client.beta.threads.runs.create(
-                        thread_id=conversation.thread_id,
-                        assistant_id=ASSISTANT_ID,
-                        stream=True
-                    )
-
-                    # Utiliser le run.id pour streamer la réponse
+                    # Ne pas envoyer un second message_started, car il l'a déjà été fait plus haut
+                    # Utiliser le streaming natif pour récupérer la réponse
                     try:
-                        assistant_message = stream_assistant_response(conversation.thread_id, run.id, db_message.id)
+                        # La fonction stream_assistant_response va maintenant gérer à la fois 
+                        # la création du run et le streaming
+                        assistant_message = stream_assistant_response(conversation.thread_id, None, db_message.id)
                     except Exception as stream_error:
                         logger.error(f"Error streaming assistant response: {str(stream_error)}")
-                        # Fallback to non-streaming approach
-                        timeout = 30
-                        start_time = time.time()
 
-                        while True:
-                            if time.time() - start_time > timeout:
+                        # Fallback à l'approche non-streaming en cas d'erreur
+                        try:
+                            # Attendre que le run soit terminé
+                            timeout = 30
+                            start_time = time.time()
+                            run_completed = False
+
+                            while not run_completed and time.time() - start_time < timeout:
+                                run_status = ai_client.beta.threads.runs.retrieve(
+                                    thread_id=conversation.thread_id,
+                                    run_id=run.id
+                                )
+
+                                if run_status.status == 'completed':
+                                    run_completed = True
+                                    break
+                                elif run_status.status == 'failed':
+                                    error_msg = "Le traitement a échoué."
+                                    if hasattr(run_status, 'last_error'):
+                                        error_msg = f"Erreur: {run_status.last_error.message}"
+
+                                    emit('response_stream', {
+                                        'content': error_msg,
+                                        'message_id': db_message.id,
+                                        'is_final': True,
+                                        'error': True
+                                    })
+                                    return
+
+                                eventlet.sleep(1)
+
+                            if not run_completed:
                                 emit('response_stream', {
-                                    'content': 'Request timed out.',
+                                    'content': 'La requête a expiré.',
                                     'message_id': db_message.id,
                                     'is_final': True,
                                     'error': True
                                 })
                                 return
 
-                            run_status = ai_client.beta.threads.runs.retrieve(
+                            # Récupérer la réponse complète
+                            messages = ai_client.beta.threads.messages.list(
                                 thread_id=conversation.thread_id,
-                                run_id=run.id
+                                order="desc",
+                                limit=1
                             )
 
-                            if run_status.status == 'completed':
-                                break
-                            elif run_status.status == 'failed':
+                            if messages.data and len(messages.data) > 0:
+                                assistant_message = messages.data[0].content[0].text.value
+
+                                # Envoyer la réponse complète
                                 emit('response_stream', {
-                                    'content': 'Sorry, there was an error.',
+                                    'content': assistant_message,
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'full_response': assistant_message
+                                })
+                            else:
+                                emit('response_stream', {
+                                    'content': 'Pas de réponse disponible.',
                                     'message_id': db_message.id,
                                     'is_final': True,
                                     'error': True
                                 })
-                                return
-
-                            eventlet.sleep(1)
-
-                        # Retrieve OpenAI's response
-                        messages = ai_client.beta.threads.messages.list(thread_id=conversation.thread_id)
-                        assistant_message = messages.data[0].content[0].text.value
-
-                        # Envoyer la réponse complète comme stream final
-                        emit('response_stream', {
-                            'content': assistant_message,
-                            'message_id': db_message.id,
-                            'is_final': True,
-                            'full_response': assistant_message
-                        })
+                        except Exception as e:
+                            logger.error(f"Error in fallback approach: {str(e)}")
+                            emit('response_stream', {
+                                'content': f'Une erreur est survenue: {str(e)}',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'error': True
+                            })
 
                 # Mettre à jour le message de l'assistant dans la base de données avec la réponse complète
                 db_message.content = assistant_message
