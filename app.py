@@ -190,6 +190,89 @@ def call_gemini_api(messages):
         logger.error(f"Exception in call_gemini_api: {str(e)}", exc_info=True)
         return f"I apologize, but I encountered an error processing your request. Error: {str(e)}"
 
+def call_gemini_streaming_api(messages):
+    """
+    Call the Gemini API with streaming enabled.
+
+    Args:
+        messages: List of message dictionaries with 'role' and 'content'
+
+    Returns:
+        A generator that yields chunks of the response
+    """
+    import json
+    import requests
+
+    logger.info(f"Calling Gemini streaming API with {len(messages)} messages")
+
+    try:
+        # Format messages for Gemini API
+        system_content = None
+        for msg in messages:
+            if msg['role'] == 'system':
+                system_content = msg['content']
+                break
+
+        # Process conversation messages
+        contents = []
+        for msg in messages:
+            if msg['role'] != 'system':
+                role = "user" if msg['role'] == 'user' else "model"
+                contents.append({
+                    "parts": [{"text": msg['content']}],
+                    "role": role
+                })
+
+        # Add system message as prefix if it exists
+        if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
+            contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
+
+        # Make sure we have at least one message
+        if not contents:
+            contents.append({
+                "parts": [{"text": "Hello"}],
+                "role": "user"
+            })
+
+        # Prepare API request for streaming
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key={GEMINI_API_KEY}"
+        headers = {'Content-Type': 'application/json'}
+        data = {"contents": contents}
+
+        # Make streaming request
+        response = requests.post(api_url, headers=headers, json=data, stream=True)
+
+        if response.status_code != 200:
+            logger.error(f"Gemini API streaming error: {response.status_code} - {response.text}")
+            yield f"I apologize, but I encountered an error communicating with my AI brain. Error: {response.status_code}"
+            return
+
+        # Process streaming response
+        for line in response.iter_lines():
+            if line:
+                # Lines starting with "data: " contain the actual content
+                if line.startswith(b'data: '):
+                    try:
+                        # Parse JSON data
+                        json_data = json.loads(line[6:].decode('utf-8'))
+
+                        # Extract text content from the chunk
+                        if 'candidates' in json_data and len(json_data['candidates']) > 0:
+                            candidate = json_data['candidates'][0]
+                            if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+                                text_chunk = candidate['content']['parts'][0].get('text', '')
+                                if text_chunk:
+                                    yield text_chunk
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Error decoding JSON from Gemini streaming response: {str(e)}")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error processing Gemini streaming chunk: {str(e)}")
+                        continue
+    except Exception as e:
+        logger.error(f"Exception in call_gemini_streaming_api: {str(e)}", exc_info=True)
+        yield f"I apologize, but I encountered an error processing your request. Error: {str(e)}"
+
 # Initialize LoginManager
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -768,17 +851,94 @@ def handle_message(data):
                                 "content": message_for_assistant
                             })
 
+                        # Create a new message in the database immediately to get an ID
+                        db_message = Message(
+                            conversation_id=conversation.id,
+                            role='assistant',
+                            content=""  # Start with empty content, will be updated
+                        )
+                        db.session.add(db_message)
+                        db.session.commit()
+
+                        # Send initial empty message to establish the message container on client
+                        emit('receive_message', {
+                            'message': '',
+                            'id': db_message.id,
+                            'stream_start': True  # Signal that this is the start of a stream
+                        })
+
+                        assistant_message = ""
+
                         if CURRENT_MODEL == 'gemini':
-                            # Send to Gemini AI service
-                            assistant_message = call_gemini_api(messages)
+                            # Use streaming for Gemini
+                            try:
+                                # Process each chunk as it arrives
+                                for chunk in call_gemini_streaming_api(messages):
+                                    if chunk:
+                                        assistant_message += chunk
+                                        emit('message_chunk', {
+                                            'chunk': chunk,
+                                            'id': db_message.id
+                                        })
+
+                                # Signal end of stream
+                                emit('message_chunk', {
+                                    'chunk': '',
+                                    'id': db_message.id,
+                                    'stream_end': True
+                                })
+                            except Exception as e:
+                                logger.error(f"Gemini streaming error: {str(e)}")
+                                error_message = f"\n\nAn error occurred during Gemini response generation: {str(e)}"
+                                assistant_message += error_message
+                                emit('message_chunk', {
+                                    'chunk': error_message,
+                                    'id': db_message.id,
+                                    'stream_end': True,
+                                    'error': True
+                                })
                         else:
-                            # Send to AI service (DeepSeek or Qwen)
-                            response = ai_client.chat.completions.create(
-                                model=get_model_name(),
-                                messages=messages,
-                                stream=False
-                            )
-                            assistant_message = response.choices[0].message.content
+                            # Stream from DeepSeek or Qwen
+                            try:
+                                # Send to AI service with streaming enabled
+                                response = ai_client.chat.completions.create(
+                                    model=get_model_name(),
+                                    messages=messages,
+                                    stream=True
+                                )
+
+                                # Process streaming response
+                                for chunk in response:
+                                    if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                        delta = chunk.choices[0].delta
+                                        # Check if there's content in this chunk
+                                        if hasattr(delta, 'content') and delta.content:
+                                            assistant_message += delta.content
+                                            emit('message_chunk', {
+                                                'chunk': delta.content,
+                                                'id': db_message.id
+                                            })
+
+                                # Signal end of stream
+                                emit('message_chunk', {
+                                    'chunk': '',
+                                    'id': db_message.id,
+                                    'stream_end': True
+                                })
+                            except Exception as e:
+                                logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
+                                error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
+                                assistant_message += error_message
+                                emit('message_chunk', {
+                                    'chunk': error_message,
+                                    'id': db_message.id,
+                                    'stream_end': True,
+                                    'error': True
+                                })
+
+                        # Update the database with the complete message
+                        db_message.content = assistant_message
+                        db.session.commit()
                     else:
                         # Use OpenAI's threads API
                         ai_client.beta.threads.messages.create(
@@ -850,17 +1010,94 @@ def handle_message(data):
                             "content": data.get('message', '')
                         })
 
+                    # Create a new message in the database immediately to get an ID
+                    db_message = Message(
+                        conversation_id=conversation.id,
+                        role='assistant',
+                        content=""  # Start with empty content, will be updated
+                    )
+                    db.session.add(db_message)
+                    db.session.commit()
+
+                    # Send initial empty message to establish the message container on client
+                    emit('receive_message', {
+                        'message': '',
+                        'id': db_message.id,
+                        'stream_start': True  # Signal that this is the start of a stream
+                    })
+
+                    assistant_message = ""
+
                     if CURRENT_MODEL == 'gemini':
-                        # Send to Gemini AI service
-                        assistant_message = call_gemini_api(messages)
+                        # Use streaming for Gemini
+                        try:
+                            # Process each chunk as it arrives
+                            for chunk in call_gemini_streaming_api(messages):
+                                if chunk:
+                                    assistant_message += chunk
+                                    emit('message_chunk', {
+                                        'chunk': chunk,
+                                        'id': db_message.id
+                                    })
+
+                            # Signal end of stream
+                            emit('message_chunk', {
+                                'chunk': '',
+                                'id': db_message.id,
+                                'stream_end': True
+                            })
+                        except Exception as e:
+                            logger.error(f"Gemini streaming error: {str(e)}")
+                            error_message = f"\n\nAn error occurred during Gemini response generation: {str(e)}"
+                            assistant_message += error_message
+                            emit('message_chunk', {
+                                'chunk': error_message,
+                                'id': db_message.id,
+                                'stream_end': True,
+                                'error': True
+                            })
                     else:
-                        # Send to AI service (DeepSeek or Qwen)
-                        response = ai_client.chat.completions.create(
-                            model=get_model_name(),
-                            messages=messages,
-                            stream=False
-                        )
-                        assistant_message = response.choices[0].message.content
+                        # Stream from DeepSeek or Qwen
+                        try:
+                            # Send to AI service with streaming enabled
+                            response = ai_client.chat.completions.create(
+                                model=get_model_name(),
+                                messages=messages,
+                                stream=True
+                            )
+
+                            # Process streaming response
+                            for chunk in response:
+                                if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                    delta = chunk.choices[0].delta
+                                    # Check if there's content in this chunk
+                                    if hasattr(delta, 'content') and delta.content:
+                                        assistant_message += delta.content
+                                        emit('message_chunk', {
+                                            'chunk': delta.content,
+                                            'id': db_message.id
+                                        })
+
+                            # Signal end of stream
+                            emit('message_chunk', {
+                                'chunk': '',
+                                'id': db_message.id,
+                                'stream_end': True
+                            })
+                        except Exception as e:
+                            logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
+                            error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
+                            assistant_message += error_message
+                            emit('message_chunk', {
+                                'chunk': error_message,
+                                'id': db_message.id,
+                                'stream_end': True,
+                                'error': True
+                            })
+
+                    # Update the database with the complete message
+                    db_message.content = assistant_message
+                    db.session.commit()
                 else:
                     # Use OpenAI's threads API
                     ai_client.beta.threads.messages.create(
@@ -1010,7 +1247,8 @@ def handle_message(data):
 
             db.session.commit()
 
-            # Send response to client including the message ID for feedback
+        # Send response to client including the message ID for feedback
+        if not assistant_message or (CURRENT_MODEL not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']):
             emit('receive_message', {
                 'message': assistant_message,
                 'id': db_message.id
