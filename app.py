@@ -81,35 +81,59 @@ GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful e
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
-    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
+    # Optionally get latest configuration
+    app_config = get_app_config()
+    current_model = app_config['CURRENT_MODEL']
+    
+    # Update global to maintain compatibility with existing code
+    global CURRENT_MODEL
+    CURRENT_MODEL = current_model
+    
+    if current_model in ['deepseek', 'deepseek-reasoner']:
         return deepseek_client
-    elif CURRENT_MODEL == 'qwen':
+    elif current_model == 'qwen':
         return qwen_client
     else:
         return openai_client  # Default to OpenAI
 
 def get_model_name():
     """Returns the appropriate model name based on the current model setting"""
-    if CURRENT_MODEL == 'deepseek':
+    # Get latest configuration
+    app_config = get_app_config()
+    current_model = app_config['CURRENT_MODEL']
+    
+    # Update global to maintain compatibility with existing code
+    global CURRENT_MODEL
+    CURRENT_MODEL = current_model
+    
+    if current_model == 'deepseek':
         return "deepseek-chat"
-    elif CURRENT_MODEL == 'deepseek-reasoner':
+    elif current_model == 'deepseek-reasoner':
         return "deepseek-reasoner"
-    elif CURRENT_MODEL == 'qwen':
+    elif current_model == 'qwen':
         return "qwen-max"
-    elif CURRENT_MODEL == 'gemini':
+    elif current_model == 'gemini':
         return "gemini-2.0-flash"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
     """Returns the appropriate system instructions based on the current model setting"""
-    if CURRENT_MODEL == 'deepseek':
-        return DEEPSEEK_INSTRUCTIONS
-    elif CURRENT_MODEL == 'deepseek-reasoner':
-        return DEEPSEEK_REASONER_INSTRUCTIONS
-    elif CURRENT_MODEL == 'qwen':
-        return QWEN_INSTRUCTIONS
-    elif CURRENT_MODEL == 'gemini':
-        return GEMINI_INSTRUCTIONS
+    # Get latest configuration 
+    app_config = get_app_config()
+    current_model = app_config['CURRENT_MODEL']
+    
+    # Update global to maintain compatibility with existing code
+    global CURRENT_MODEL
+    CURRENT_MODEL = current_model
+    
+    if current_model == 'deepseek':
+        return app_config['DEEPSEEK_INSTRUCTIONS']
+    elif current_model == 'deepseek-reasoner':
+        return app_config['DEEPSEEK_REASONER_INSTRUCTIONS'] 
+    elif current_model == 'qwen':
+        return app_config['QWEN_INSTRUCTIONS']
+    elif current_model == 'gemini':
+        return app_config['GEMINI_INSTRUCTIONS']
     return None  # For OpenAI, instructions are set in the assistant
 
 def call_gemini_api(messages):
@@ -525,7 +549,16 @@ def handle_message(data):
         # Log the current thread_id for debugging
         current_thread_id = session.get('thread_id')
         logger.debug(f"Current thread_id from session: {current_thread_id}")
-
+        
+        # Get the latest model configuration
+        app_config = get_app_config()
+        current_model = app_config['CURRENT_MODEL']
+        logger.info(f"Using AI model: {current_model}")
+        
+        # Ensure global CURRENT_MODEL matches the config to maintain compatibility
+        global CURRENT_MODEL
+        CURRENT_MODEL = current_model
+        
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
 
@@ -1765,6 +1798,44 @@ def admin_dashboard():
         logger.error(f"Error in admin dashboard: {str(e)}")
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
+
+def get_app_config():
+    """
+    Récupère dynamiquement les configurations actuelles depuis le fichier de configuration.
+    Cela permet de toujours obtenir les dernières valeurs sans redémarrer l'application.
+    """
+    # Utiliser un chemin absolu pour le fichier de configuration
+    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+
+    # Essayer d'abord de lire depuis le fichier de configuration
+    try:
+        if os.path.exists(config_file_path):
+            with open(config_file_path, 'r') as f:
+                config_data = json.load(f)
+
+            # Log la configuration trouvée pour débogage
+            logger.info(f"Found config in file: model={config_data['CURRENT_MODEL']}")
+
+            # Retourner les configurations depuis le fichier
+            return {
+                'CURRENT_MODEL': config_data['CURRENT_MODEL'],
+                'DEEPSEEK_INSTRUCTIONS': config_data.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant'),
+                'DEEPSEEK_REASONER_INSTRUCTIONS': config_data.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving'),
+                'QWEN_INSTRUCTIONS': config_data.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers'),
+                'GEMINI_INSTRUCTIONS': config_data.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
+            }
+    except Exception as e:
+        logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
+
+    # Fallback aux variables d'environnement actuelles
+    logger.info(f"Using config from environment variables: {os.environ.get('CURRENT_MODEL', 'openai')}")
+    return {
+        'CURRENT_MODEL': os.environ.get('CURRENT_MODEL', 'openai'),
+        'DEEPSEEK_INSTRUCTIONS': os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant'),
+        'DEEPSEEK_REASONER_INSTRUCTIONS': os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving'),
+        'QWEN_INSTRUCTIONS': os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers'),
+        'GEMINI_INSTRUCTIONS': os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
+    }
 
 def reload_model_settings():
     """
