@@ -166,6 +166,11 @@ def call_gemini_api(messages):
         contents = []
         for msg in messages:
             if msg['role'] != 'system':
+                # Skip empty messages
+                if not msg.get('content'):
+                    logger.warning(f"Skipping empty message with role: {msg['role']}")
+                    continue
+                    
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
                     "parts": [{"text": msg['content']}],
@@ -178,10 +183,17 @@ def call_gemini_api(messages):
 
         # Make sure we have at least one message in contents
         if not contents:
+            logger.warning("No valid messages found for Gemini API, using default message")
             contents.append({
-                "parts": [{"text": "Hello"}],
+                "parts": [{"text": "Hello, please introduce yourself."}],
                 "role": "user"
             })
+
+        # Debug the contents being sent
+        logger.info(f"Sending {len(contents)} messages to Gemini API")
+        for i, content in enumerate(contents):
+            text_sample = content['parts'][0]['text'][:50] + "..." if len(content['parts'][0]['text']) > 50 else content['parts'][0]['text']
+            logger.info(f"Message {i+1}: role={content['role']}, text={text_sample}")
 
         # Prepare the API request
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
@@ -241,6 +253,11 @@ def call_gemini_streaming_api(messages):
         contents = []
         for msg in messages:
             if msg['role'] != 'system':
+                # Skip empty messages
+                if not msg.get('content'):
+                    logger.warning(f"Skipping empty message with role: {msg['role']}")
+                    continue
+                    
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
                     "parts": [{"text": msg['content']}],
@@ -253,10 +270,17 @@ def call_gemini_streaming_api(messages):
 
         # Make sure we have at least one message
         if not contents:
+            logger.warning("No valid messages found for Gemini API, using default message")
             contents.append({
-                "parts": [{"text": "Hello"}],
+                "parts": [{"text": "Hello, please introduce yourself."}],
                 "role": "user"
             })
+
+        # Debug the contents being sent
+        logger.info(f"Sending {len(contents)} messages to Gemini API")
+        for i, content in enumerate(contents):
+            text_sample = content['parts'][0]['text'][:50] + "..." if len(content['parts'][0]['text']) > 50 else content['parts'][0]['text']
+            logger.info(f"Message {i+1}: role={content['role']}, text={text_sample}")
 
         # Prepare API request for streaming
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key={GEMINI_API_KEY}"
@@ -347,13 +371,20 @@ def get_or_create_conversation(thread_id=None):
 
         # Create new thread and conversation
         client = get_ai_client()
-        if CURRENT_MODEL == 'openai':
+        
+        # Get current model from config rather than global
+        app_config = get_app_config()
+        current_model = app_config['CURRENT_MODEL']
+        
+        if current_model == 'openai':
             # Only create thread for OpenAI
             thread = client.beta.threads.create()
             thread_id = thread.id
+            logger.info(f"Created new OpenAI thread: {thread_id}")
         else:
             # For other models, generate a UUID as thread_id
             thread_id = str(uuid.uuid4())
+            logger.info(f"Created new UUID thread for {current_model}: {thread_id}")
 
         # Associer la conversation avec l'utilisateur connecté
         user_id = None
@@ -637,9 +668,10 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '')
 
             # Get previous messages for context
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            # Use current_model from app_config instead of global CURRENT_MODEL
+            if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages for API call
-                if CURRENT_MODEL == 'deepseek-reasoner':
+                if current_model == 'deepseek-reasoner':
                     # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
                     # ou créer une version spécifique pour les messages Telegram
                     telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
@@ -684,7 +716,7 @@ def handle_message(data):
                         })
 
                 # Génération de réponse avec le modèle approprié
-                if CURRENT_MODEL == 'gemini':
+                if current_model == 'gemini':
                     # Send to Gemini AI service
                     assistant_message = call_gemini_api(messages)
                 else:
@@ -865,9 +897,10 @@ def handle_message(data):
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                     message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                    # Get properly formatted messages based on model from config
+                    if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                         # Get properly formatted messages based on model
-                        if CURRENT_MODEL == 'deepseek-reasoner':
+                        if current_model == 'deepseek-reasoner':
                             messages = get_interleaved_messages(conversation.id, message_for_assistant)
                         else:
                             # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -902,7 +935,7 @@ def handle_message(data):
 
                         assistant_message = ""
 
-                        if CURRENT_MODEL == 'gemini':
+                        if current_model == 'gemini':
                             # Use streaming for Gemini
                             try:
                                 # Process each chunk as it arrives
@@ -959,8 +992,8 @@ def handle_message(data):
                                     'stream_end': True
                                 })
                             except Exception as e:
-                                logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
-                                error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
+                                logger.error(f"Streaming error with {current_model}: {str(e)}")
+                                error_message = f"\n\nAn error occurred during response generation with {current_model}."
                                 assistant_message += error_message
                                 emit('message_chunk', {
                                     'chunk': error_message,
@@ -1024,9 +1057,10 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
 
-                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                # Use current_model from app_config
+                if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
-                    if CURRENT_MODEL == 'deepseek-reasoner':
+                    if current_model == 'deepseek-reasoner':
                         messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -1061,7 +1095,7 @@ def handle_message(data):
 
                     assistant_message = ""
 
-                    if CURRENT_MODEL == 'gemini':
+                    if current_model == 'gemini':
                         # Use streaming for Gemini
                         try:
                             # Process each chunk as it arrives
@@ -1118,8 +1152,8 @@ def handle_message(data):
                                 'stream_end': True
                             })
                         except Exception as e:
-                            logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
-                            error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
+                            logger.error(f"Streaming error with {current_model}: {str(e)}")
+                            error_message = f"\n\nAn error occurred during response generation with {current_model}."
                             assistant_message += error_message
                             emit('message_chunk', {
                                 'chunk': error_message,
@@ -1253,7 +1287,7 @@ def handle_message(data):
             
             # For non-OpenAI models, we need to create the message in database
             # For OpenAI models, we already created and updated the message during streaming
-            if CURRENT_MODEL != 'openai':
+            if current_model != 'openai':
                 # Store assistant response in database
                 db_message = Message(
                     conversation_id=conversation.id,
@@ -1281,7 +1315,7 @@ def handle_message(data):
             db.session.commit()
 
         # Send response to client including the message ID for feedback
-        if not assistant_message or (CURRENT_MODEL not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']):
+        if not assistant_message or (current_model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']):
             emit('receive_message', {
                 'message': assistant_message,
                 'id': db_message.id

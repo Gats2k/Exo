@@ -57,9 +57,11 @@ def get_app_config():
         logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
 
     # Fallback aux configurations du module app
-    logger.info(f"Using config from app module: {app.CURRENT_MODEL}")
+    app_config = app.get_app_config()
+    current_model = app_config.get('CURRENT_MODEL', 'deepseek')
+    logger.info(f"Using config from app module: {current_model}")
     return {
-        'CURRENT_MODEL': app.CURRENT_MODEL,
+        'CURRENT_MODEL': current_model,
         'get_ai_client': app.get_ai_client,
         'get_model_name': app.get_model_name,
         'get_system_instructions': app.get_system_instructions,

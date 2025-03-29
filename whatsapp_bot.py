@@ -707,7 +707,7 @@ def get_app_config():
     """
     import json
     import os
-    from app import CURRENT_MODEL, get_ai_client, get_model_name, get_system_instructions, call_gemini_api
+    from app import get_app_config, get_ai_client, get_model_name, get_system_instructions, call_gemini_api
 
     # Utiliser un chemin absolu pour le fichier de configuration
     config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
@@ -733,9 +733,11 @@ def get_app_config():
         logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
 
     # Fallback aux configurations du module app
-    logger.info(f"Using config from app module: {CURRENT_MODEL}")
+    app_config = get_app_config()
+    current_model = app_config.get('CURRENT_MODEL', 'deepseek')
+    logger.info(f"Using config from app module: {current_model}")
     return {
-        'CURRENT_MODEL': CURRENT_MODEL,
+        'CURRENT_MODEL': current_model,
         'get_ai_client': get_ai_client,
         'get_model_name': get_model_name,
         'get_system_instructions': get_system_instructions,
