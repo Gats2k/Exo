@@ -319,7 +319,7 @@ def generate_ai_response(message_body, thread_id, sender=None):
         else:
             # Pour DeepSeek et Qwen
             ai_client = get_ai_client()
-            model = get_model_name()
+            model = get_model_name() if current_model == CURRENT_MODEL else current_model
 
             try:
                 completion = ai_client.chat.completions.create(

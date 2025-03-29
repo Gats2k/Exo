@@ -382,6 +382,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configuration de Socket.IO pour les mises à jour en temps réel
     setupRealtimeUpdates();
+
+    // Configuration des mises à jour en temps réel pour le modèle d'IA
+    setupRealtimeModelUpdates();
 });
 
 function updateDashboardStats(data) {
@@ -1565,6 +1568,46 @@ function setupRealtimeUpdates() {
         }
     } else {
         console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+    }
+}
+
+function get_current_config() {
+    // Fonction qui récupère la configuration actuelle du modèle d'IA
+    // en faisant une requête au serveur
+    return fetch('/api/current-model')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            return data;
+        })
+        .catch(error => {
+            console.error('Error fetching current model config:', error);
+            // En cas d'erreur, utiliser une valeur par défaut
+            return { model: 'openai' };
+        });
+}
+
+// Fonction pour mettre à jour dynamiquement le modèle utilisé dans la session en cours
+function setupRealtimeModelUpdates() {
+    if (typeof io !== 'undefined' && window.socket) {
+        // Écouter les mises à jour de configuration du modèle
+        window.socket.on('model_config_updated', function(data) {
+            console.log('Received model config update:', data);
+            // Pas besoin de faire autre chose, la prochaine requête utilisera la config mise à jour
+        });
+
+        // Vérifier périodiquement les mises à jour de configuration (toutes les 30 secondes)
+        setInterval(() => {
+            get_current_config().then(config => {
+                console.log('Current model configuration:', config.model);
+            });
+        }, 30000);
+    } else {
+        console.error("Socket.IO n'est pas disponible pour les mises à jour du modèle");
     }
 }
 

@@ -409,7 +409,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # For DeepSeek and Qwen models
                 ai_client = get_ai_client()
-                model = get_model_name()
+                model = get_model_name() if current_model == CURRENT_MODEL else current_model
 
                 try:
                     # Format messages for the API call
@@ -667,7 +667,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     # For DeepSeek and Qwen models
                     ai_client = get_ai_client()
-                    model = get_model_name()
+                    model = get_model_name() if current_model == CURRENT_MODEL else current_model
 
                     try:
                         # Format messages for the API call
