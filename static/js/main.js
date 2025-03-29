@@ -149,6 +149,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make socket available globally for our conversation functions
     window.socket = socket;
 
+    // Gérer la reconnexion pour préserver le contexte
+    socket.on('reconnect', function() {
+        console.log('Reconnecté au serveur, récupération de la conversation');
+        // Si nous avons un thread_id dans la session stockée localement, réutilisons-le
+        const storedThreadId = localStorage.getItem('thread_id');
+        if (storedThreadId) {
+            socket.emit('restore_session', { thread_id: storedThreadId });
+        }
+    });
+
     // Si nous sommes sur la page admin, sortir immédiatement pour éviter les erreurs
     if (isAdminPage) {
         console.log('Page administrative détectée, désactivation du script de chat');
@@ -409,6 +419,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = data.title || "Nouvelle conversation";
 
+            // Sauvegarder thread_id dans le stockage local
+            if (data.conversation_id) {
+                localStorage.setItem('thread_id', data.conversation_id);
+            }
+
             // Add each message from the conversation history
             data.messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
@@ -453,6 +468,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update the header title with the new conversation title
         titleElement.textContent = data.title;
+
+        // Sauvegarder thread_id dans le stockage local
+        if (data.id) {
+            localStorage.setItem('thread_id', data.id);
+        }
 
         // Create new history item
         const historyItem = document.createElement('div');
@@ -599,6 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add handler for new conversation button
+    // Add handler for new conversation button
     const newConversationBtn = document.querySelector('.new-conversation-btn');
     if (newConversationBtn) {
         newConversationBtn.addEventListener('click', function() {
@@ -615,6 +636,9 @@ document.addEventListener('DOMContentLoaded', function() {
             welcomeContainer.classList.add('visible');
             suggestionsContainer.classList.add('visible');
             isFirstMessage = true;
+
+            // Supprimer le thread_id du stockage local
+            localStorage.removeItem('thread_id');
 
             // Clear any existing session
             socket.emit('clear_session');

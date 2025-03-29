@@ -56,6 +56,25 @@ def get_or_create_thread(phone_number, force_new=False):
 
             logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
 
+            # Émettre un événement pour le tableau de bord si c'est un nouvel utilisateur
+            try:
+                # Vérifier si c'est la première interaction de cet utilisateur
+                is_new_user = WhatsAppMessage.query.filter_by(from_number=phone_number).count() == 0
+                if is_new_user and force_new:
+                    # Émettre l'événement de nouvel utilisateur
+                    from app import socketio
+                    user_data = {
+                        'name': f'WhatsApp User {phone_number}',
+                        'phone': phone_number,
+                        'platform': 'whatsapp',
+                        'created_at': datetime.now().strftime('%d/%m/%Y')
+                    }
+                    socketio.emit('new_whatsapp_user', user_data)
+                    logger.info(f"Emitted new_whatsapp_user event for {phone_number}")
+            except Exception as event_error:
+                logger.error(f"Error emitting new user event: {str(event_error)}")
+                # Continuer malgré l'erreur d'émission
+
             # Mettre à jour les messages récents
             try:
                 recent_messages = WhatsAppMessage.query.filter(
@@ -194,7 +213,7 @@ def generate_ai_response(message_body, thread_id, sender=None):
         previous_messages = []
         messages_query = WhatsAppMessage.query.filter_by(
             thread_id=thread_id
-        ).order_by(WhatsAppMessage.timestamp.desc()).limit(5).all()
+        ).order_by(WhatsAppMessage.timestamp.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
 
         for msg in reversed(messages_query):
             role = 'user' if msg.direction == 'inbound' else 'assistant'
@@ -476,6 +495,29 @@ def receive_webhook():
                                 else:
                                     logger.warning(f"Thread error (attempt {attempt+1}): {str(thread_error)}")
                                     time.sleep(1)
+
+                        # Vérifier si c'est une nouvelle conversation 
+                        try:
+                            is_new_conversation = not WhatsAppMessage.query.filter_by(thread_id=thread_id).first()
+                            if is_new_conversation:
+                                # Émettre l'événement de nouvelle conversation
+                                from app import socketio
+                                # Obtenir un titre préliminaire pour la conversation (on ne connaît pas encore message_body)
+                                title = "Nouvelle conversation"
+
+                                conversation_data = {
+                                    'id': thread_id,
+                                    'title': f"Conversation WhatsApp",
+                                    'thread_id': thread_id,
+                                    'user_phone': sender,
+                                    'created_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                                    'platform': 'whatsapp'
+                                }
+                                socketio.emit('new_whatsapp_conversation', conversation_data)
+                                logger.info(f"Emitted new_whatsapp_conversation event for thread {thread_id}")
+                        except Exception as event_error:
+                            logger.error(f"Error emitting new conversation event: {str(event_error)}")
+                            # Continuer malgré l'erreur d'émission
 
                         # Traiter différemment selon le type de message
                         message_body = None

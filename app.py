@@ -47,6 +47,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,  # Enable connection pool pre-ping
 }
 
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_PERMANENT'] = True
+
 # Create upload folder if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -78,6 +81,7 @@ DEEPSEEK_INSTRUCTIONS = os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpf
 DEEPSEEK_REASONER_INSTRUCTIONS = os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving')
 QWEN_INSTRUCTIONS = os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers')
 GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
+CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '50'))
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -235,7 +239,20 @@ def get_or_create_conversation(thread_id=None):
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
             # Vérifier si cette conversation appartient à l'utilisateur actuel
             if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
-                return conversation
+                # Vérifier si le thread OpenAI existe toujours (uniquement pour le modèle OpenAI)
+                if CURRENT_MODEL == 'openai':
+                    try:
+                        # Tester si le thread existe dans OpenAI
+                        client = get_ai_client()
+                        client.beta.threads.messages.list(thread_id=thread_id, limit=1)
+                        # Si on arrive ici, le thread existe
+                        return conversation
+                    except Exception as e:
+                        logger.warning(f"Thread {thread_id} not found or invalid: {str(e)}")
+                        # On continue pour créer un nouveau thread
+                else:
+                    # Pour les autres modèles, pas besoin de vérifier
+                    return conversation
             # Si la conversation n'appartient pas à l'utilisateur actuel, on ignore ce thread_id
 
         # Create new thread and conversation
@@ -317,7 +334,7 @@ def chat():
                 # Charger les conversations Telegram pour cet utilisateur
                 telegram_conversations = TelegramConversation.query.filter_by(
                     telegram_user_id=int(telegram_id)
-                ).order_by(TelegramConversation.updated_at.desc()).limit(5).all()
+                ).order_by(TelegramConversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
 
                 for conv in telegram_conversations:
                     conversation_history.append({
@@ -335,7 +352,7 @@ def chat():
                         .filter(WhatsAppMessage.from_number == whatsapp_number)\
                         .group_by(WhatsAppMessage.thread_id)\
                         .order_by(db.func.max(WhatsAppMessage.timestamp).desc())\
-                        .limit(5).all()
+                        .limit(CONTEXT_MESSAGE_LIMIT).all()
 
                     for thread in whatsapp_threads:
                         thread_id = thread[0]
@@ -371,7 +388,7 @@ def chat():
                     recent_conversations = Conversation.query.filter_by(
                         deleted=False, 
                         user_id=current_user.id
-                    ).order_by(Conversation.updated_at.desc()).limit(5).all()
+                    ).order_by(Conversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
                 else:
                     recent_conversations = []
 
@@ -671,6 +688,15 @@ def handle_message(data):
             conversation = None
             if thread_id:
                 conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                # Vérifier si la conversation est valide et appartient à l'utilisateur actuel
+                if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
+                    logger.info(f"Utilisation de la conversation existante {conversation.id} avec thread_id {thread_id}")
+                    # Mettre à jour la date de dernière modification pour garder la conversation active
+                    conversation.updated_at = datetime.utcnow()
+                    db.session.commit()
+                else:
+                    logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, création d'une nouvelle conversation")
+                    conversation = None
 
             if not conversation:
                 conversation = get_or_create_conversation()
@@ -1081,6 +1107,57 @@ def handle_clear_session():
     # Clear the thread_id from session
     session.pop('thread_id', None)
     emit('session_cleared', {'success': True})
+
+@socketio.on('restore_session')
+def handle_restore_session(data):
+    """Restore a previous session based on a stored thread_id"""
+    try:
+        thread_id = data.get('thread_id')
+        if not thread_id:
+            logger.warning("Restore session called without thread_id")
+            return
+
+        logger.info(f"Attempting to restore session with thread_id: {thread_id}")
+
+        # Vérifier si la conversation existe
+        conversation = Conversation.query.filter_by(id=thread_id).first()
+
+        if conversation:
+            # Vérifier si la conversation appartient à l'utilisateur actuel
+            if current_user.is_authenticated and conversation.user_id == current_user.id:
+                # Mettre à jour la session Flask avec le thread_id
+                session['thread_id'] = conversation.thread_id
+                logger.info(f"Session restored for thread_id: {conversation.thread_id}")
+
+                # Émettre les mêmes événements que lorsqu'une conversation est ouverte
+                messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+                messages_data = []
+
+                for msg in messages:
+                    message_data = {
+                        'id': msg.id,
+                        'role': msg.role,
+                        'content': msg.content,
+                        'image_url': msg.image_url,
+                    }
+                    messages_data.append(message_data)
+
+                emit('conversation_opened', {
+                    'success': True,
+                    'messages': messages_data,
+                    'conversation_id': conversation.id,
+                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
+                })
+
+                # Mettre à jour la date de dernière modification
+                conversation.updated_at = datetime.utcnow()
+                db.session.commit()
+            else:
+                logger.warning(f"Attempt to restore session for conversation {thread_id} not owned by current user")
+        else:
+            logger.warning(f"Conversation with id {thread_id} not found for session restoration")
+    except Exception as e:
+        logger.error(f"Error restoring session: {str(e)}")
 
 @socketio.on('submit_feedback')
 def handle_feedback(data):
