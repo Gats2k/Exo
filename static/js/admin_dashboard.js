@@ -1162,7 +1162,7 @@ document.getElementById('save-ai-settings').addEventListener('click', function()
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showNotification('Les paramètres ont été sauvegardés avec succès. Le modèle est maintenant actif pour toutes les conversations.', 'success');
+            showNotification('Les paramètres ont été sauvegardés avec succès', 'success');
         } else {
             showNotification('Une erreur est survenue lors de la sauvegarde', 'error');
         }
@@ -1560,13 +1560,6 @@ function setupRealtimeUpdates() {
 
             // Configuration des écouteurs d'événements pour le Web
             setupWebUpdates();
-            
-            // Listener for model settings updates - shows notification when model changes
-            socketInstance.on('model_settings_updated', function(data) {
-                console.log('AI model settings updated:', data);
-                // Show a notification to all admins viewing the dashboard
-                addNotification(`Modèle IA mis à jour: ${data.model}`, 'success');
-            });
 
             console.log('Socket.IO initialisé avec succès pour les mises à jour en temps réel');
         }

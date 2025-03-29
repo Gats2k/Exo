@@ -731,13 +731,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Il sera maintenant persisté entre les rechargements de page
         }
     });
-    
-    // Listen for model settings updates - this allows the chat to use the latest model without page reload
-    socket.on('model_settings_updated', function(data) {
-        console.log('AI model settings updated:', data.model);
-        // The next message sent will automatically use the new model settings
-        // no UI update needed as model selection is transparent to the user
-    });
 
     // Add event handlers for feedback buttons
     document.addEventListener('click', function(event) {

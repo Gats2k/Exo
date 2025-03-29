@@ -1872,12 +1872,6 @@ def update_model_settings():
 
         # Recharger les paramètres du modèle
         reload_model_settings()
-        
-        # Notify all clients about the model change
-        socketio.emit('model_settings_updated', {
-            'model': model,
-            'timestamp': time.time()
-        })
 
         return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:
