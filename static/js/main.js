@@ -338,26 +338,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get the current conversation ID if available
             const titleElement = document.querySelector('.conversation-title');
             const conversationId = titleElement ? titleElement.dataset.conversationId : null;
-
+            
             console.log('Sending message with conversationId:', conversationId);
 
-            // Vérifier la configuration actuelle du modèle avant d'envoyer le message
-            get_current_config().then(config => {
-                console.log('Using model for message:', config.model);
-
-                // Send message, image, and conversation ID to the server
-                socket.emit('send_message', {
-                    message: message,
-                    image: currentImage,
-                    conversation_id: conversationId
-                });
-            }).catch(error => {
-                // En cas d'erreur, envoyer quand même le message
-                socket.emit('send_message', {
-                    message: message,
-                    image: currentImage,
-                    conversation_id: conversationId
-                });
+            // Send message, image, and conversation ID to the server
+            socket.emit('send_message', {
+                message: message,
+                image: currentImage,
+                conversation_id: conversationId
             });
 
             // Clear input and image

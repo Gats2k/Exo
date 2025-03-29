@@ -526,31 +526,8 @@ def handle_message(data):
         current_thread_id = session.get('thread_id')
         logger.debug(f"Current thread_id from session: {current_thread_id}")
 
-        # Récupérer la configuration actuelle du modèle depuis le fichier
-        config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
-        current_model = CURRENT_MODEL  # Valeur par défaut
-
-        try:
-            if os.path.exists(config_file_path):
-                with open(config_file_path, 'r') as f:
-                    config_data = json.load(f)
-                current_model = config_data.get('CURRENT_MODEL', CURRENT_MODEL)
-                logger.debug(f"Using model from config file: {current_model}")
-            else:
-                logger.debug(f"Config file not found, using default model: {current_model}")
-        except Exception as e:
-            logger.error(f"Error reading config file: {str(e)}")
-
         # Get the appropriate AI client based on current model setting
-        if current_model == 'deepseek' or current_model == 'deepseek-reasoner':
-            ai_client = deepseek_client
-        elif current_model == 'qwen':
-            ai_client = qwen_client
-        elif current_model == 'gemini':
-            # Gemini utilise une fonction spéciale, pas de client standard
-            ai_client = openai_client  # Valeur par défaut, sera ignorée
-        else:
-            ai_client = openai_client  # Default to OpenAI
+        ai_client = get_ai_client()
 
         # Variables to store Mathpix results
         mathpix_result = None
@@ -627,9 +604,9 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '')
 
             # Get previous messages for context
-            if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages for API call
-                if current_model == 'deepseek-reasoner':
+                if CURRENT_MODEL == 'deepseek-reasoner':
                     # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
                     # ou créer une version spécifique pour les messages Telegram
                     telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
@@ -674,7 +651,7 @@ def handle_message(data):
                         })
 
                 # Génération de réponse avec le modèle approprié
-                if current_model == 'gemini':
+                if CURRENT_MODEL == 'gemini':
                     # Send to Gemini AI service
                     assistant_message = call_gemini_api(messages)
                 else:
@@ -855,9 +832,9 @@ def handle_message(data):
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                     message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                    if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                         # Get properly formatted messages based on model
-                        if current_model == 'deepseek-reasoner':
+                        if CURRENT_MODEL == 'deepseek-reasoner':
                             messages = get_interleaved_messages(conversation.id, message_for_assistant)
                         else:
                             # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -892,7 +869,7 @@ def handle_message(data):
 
                         assistant_message = ""
 
-                        if current_model == 'gemini':
+                        if CURRENT_MODEL == 'gemini':
                             # Use streaming for Gemini
                             try:
                                 # Process each chunk as it arrives
@@ -1014,9 +991,9 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
 
-                if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
-                    if current_model == 'deepseek-reasoner':
+                    if CURRENT_MODEL == 'deepseek-reasoner':
                         messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -1051,7 +1028,7 @@ def handle_message(data):
 
                     assistant_message = ""
 
-                    if current_model == 'gemini':
+                    if CURRENT_MODEL == 'gemini':
                         # Use streaming for Gemini
                         try:
                             # Process each chunk as it arrives
@@ -1896,12 +1873,6 @@ def update_model_settings():
         # Recharger les paramètres du modèle
         reload_model_settings()
 
-        # Émettre un événement pour informer tous les clients de la mise à jour
-        socketio.emit('model_config_updated', {
-            'model': CURRENT_MODEL,
-            'timestamp': time.time()
-        })
-
         return jsonify({'success': True, 'message': 'Model settings updated successfully'})
     except Exception as e:
         logger.error(f"Error updating model settings: {str(e)}")
@@ -2704,27 +2675,6 @@ def delete_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error deleting subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/current-model')
-def get_current_model():
-    """Return current model configuration"""
-    try:
-        config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
-        if os.path.exists(config_file_path):
-            with open(config_file_path, 'r') as f:
-                config_data = json.load(f)
-            return jsonify({
-                'model': config_data.get('CURRENT_MODEL', 'openai'),
-                'timestamp': config_data.get('timestamp', time.time())
-            })
-        else:
-            return jsonify({
-                'model': CURRENT_MODEL,
-                'timestamp': time.time()
-            })
-    except Exception as e:
-        logger.error(f"Error fetching current model config: {str(e)}")
-        return jsonify({'model': 'openai', 'timestamp': time.time()})
 
 
 if __name__ == '__main__':
