@@ -57,11 +57,9 @@ def get_app_config():
         logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
 
     # Fallback aux configurations du module app
-    app_config = app.get_app_config()
-    current_model = app_config.get('CURRENT_MODEL', 'deepseek')
-    logger.info(f"Using config from app module: {current_model}")
+    logger.info(f"Using config from app module: {app.CURRENT_MODEL}")
     return {
-        'CURRENT_MODEL': current_model,
+        'CURRENT_MODEL': app.CURRENT_MODEL,
         'get_ai_client': app.get_ai_client,
         'get_model_name': app.get_model_name,
         'get_system_instructions': app.get_system_instructions,
@@ -293,7 +291,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Get the current model configuration dynamically
             config = get_app_config()
-            # Configuration is retrieved for each request to ensure the latest model is used
+            CURRENT_MODEL = config['CURRENT_MODEL']
 
             if existing_conversation:
                 # Utiliser la conversation existante
@@ -305,24 +303,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_threads[user_id] = thread_id
             else:
                 # Aucune conversation existante trouvée, créer une nouvelle
-                config = get_app_config()
-                if config.get("CURRENT_MODEL") == "openai":
-                    try:
-                        thread = openai_client.beta.threads.create()
-                        thread_id = thread.id
-                        logger.info(f"Created new OpenAI thread: {thread_id}")
-                    except Exception as e:
-                        logger.error(f"Error creating OpenAI thread: {str(e)}")
-                        # Fallback to a properly formatted OpenAI thread ID if API fails
-                        thread_id = f"thread_{uuid.uuid4().hex}"
-                        logger.info(f"Created fallback OpenAI thread ID: {thread_id}")
+                if CURRENT_MODEL == 'openai':
+                    thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
                     # Pour les autres modèles, créer un ID de thread unique
-                    # Pour les autres modèles, créer un ID de thread unique au format compatible avec OpenAI
-                        current_model = config.get("CURRENT_MODEL", "unknown")
-                        logger.info(f"Created new thread for {current_model}: {thread_id}")
-                    logger.info(f"Created new thread for {CURRENT_MODEL}: {thread_id}")
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
+
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
                 # Créer une nouvelle conversation dans la base de données
@@ -341,17 +328,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action=constants.ChatAction.TYPING
         )
 
+        # Get the current model configuration dynamically
         config = get_app_config()
-        config = get_app_config()
+        CURRENT_MODEL = config['CURRENT_MODEL']
         get_ai_client = config['get_ai_client']
         get_model_name = config['get_model_name']
         get_system_instructions = config['get_system_instructions']
-        current_model = config.get("CURRENT_MODEL", "deepseek")
-        logger.info(f"Using AI model: {current_model} with instructions: {get_system_instructions()}")
+        call_gemini_api = config['call_gemini_api']
 
         logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
 
-        if current_model == "openai":
+        # Different handling based on selected model
         assistant_message = None
 
         if CURRENT_MODEL == 'openai':
@@ -389,7 +376,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Get the assistant's response
             messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-            logger.info(f"Using alternative model: {current_model} with model name: {get_model_name()}")
+            assistant_message = messages.data[0].content[0].text.value
         else:
             # For other models (Gemini, Deepseek, Qwen), use direct API calls
             logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
@@ -410,7 +397,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 previous_messages.insert(0, {
                     "role": "system",
                     "content": system_instructions
-            if current_model == "gemini":
+                })
 
             # Use Gemini's special call function if Gemini is selected
             if CURRENT_MODEL == 'gemini':
@@ -429,7 +416,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     response = ai_client.chat.completions.create(
                         model=model,
                         messages=previous_messages
-                    logger.error(f"Error calling AI API ({current_model}): {str(e)}")
+                    )
                     assistant_message = response.choices[0].message.content
                 except Exception as e:
                     logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
@@ -472,9 +459,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not update.message or not update.message.photo:
                 logger.error("No photo found in the message")
                 return
-            config = get_app_config()
+
             # Get the current model configuration dynamically for thread creation
             config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
 
             # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
             existing_conversation = TelegramConversation.query.filter_by(
@@ -485,12 +473,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Utiliser la conversation existante
                 thread_id = existing_conversation.thread_id
                 conversation = existing_conversation
-                    current_model = config.get("CURRENT_MODEL", "unknown")
-                    logger.info(f"Created new thread for {current_model}: {thread_id}")
-                    # Pour les autres modèles, créer un ID de thread unique au format compatible avec OpenAI
-                    thread_id = f"thread_{uuid.uuid4().hex}"
-                current_model = config.get("CURRENT_MODEL", "deepseek")
-                if current_model == "openai":
+                logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
+
+                # Mettre à jour user_threads pour référence en mémoire
                 user_threads[user_id] = thread_id
             else:
                 # Aucune conversation existante trouvée, créer une nouvelle
@@ -585,17 +570,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 session.commit()
                 logger.info(f"Updated conversation title to: {new_title}")
 
-            config = get_app_config()
+            # Store the user's message in our database
             await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
 
             # Get the current model configuration dynamically
             config = get_app_config()
-            current_model = config.get("CURRENT_MODEL", "deepseek")
-            logger.info(f"Using AI model for image processing: {current_model}")
+            CURRENT_MODEL = config['CURRENT_MODEL']
+            get_ai_client = config['get_ai_client']
             get_model_name = config['get_model_name']
             get_system_instructions = config['get_system_instructions']
             call_gemini_api = config['call_gemini_api']
-            if current_model == "openai":
+
             logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
             # Different handling based on selected model
@@ -637,7 +622,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         logger.error(error_msg)
                         raise Exception(error_msg)
                     await asyncio.sleep(1)
-                logger.info(f"Using alternative model for image: {current_model} with model name: {get_model_name()}")
+
                 # Get the assistant's response
                 messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
                 assistant_message = messages.data[0].content[0].text.value
@@ -667,7 +652,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Add system instruction
                 system_instructions = get_system_instructions()
                 if system_instructions:
-                if current_model == "gemini":
+                    previous_messages.insert(0, {
                         "role": "system",
                         "content": system_instructions
                     })
@@ -686,7 +671,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     try:
                         # Format messages for the API call
-                        logger.error(f"Error calling AI API ({current_model}) for image processing: {str(e)}")
+                        response = ai_client.chat.completions.create(
                             model=model,
                             messages=previous_messages
                         )
@@ -767,8 +752,7 @@ def run_telegram_bot():
             return
 
         # Logs détaillés pour le déploiement
-        config = get_app_config()
-        logger.info(f"Telegram bot starting with model: {config.get("CURRENT_MODEL", "deepseek")}")
+        logger.info("==== TELEGRAM BOT INITIALIZATION STARTED ====")
         logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'not set')}")
         logger.info(f"Working directory: {os.getcwd()}")
 

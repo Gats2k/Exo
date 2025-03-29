@@ -81,59 +81,35 @@ GEMINI_INSTRUCTIONS = os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful e
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
-    # Optionally get latest configuration
-    app_config = get_app_config()
-    current_model = app_config['CURRENT_MODEL']
-    
-    # Update global to maintain compatibility with existing code
-    global CURRENT_MODEL
-    CURRENT_MODEL = current_model
-    
-    if current_model in ['deepseek', 'deepseek-reasoner']:
+    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
         return deepseek_client
-    elif current_model == 'qwen':
+    elif CURRENT_MODEL == 'qwen':
         return qwen_client
     else:
         return openai_client  # Default to OpenAI
 
 def get_model_name():
     """Returns the appropriate model name based on the current model setting"""
-    # Get latest configuration
-    app_config = get_app_config()
-    current_model = app_config['CURRENT_MODEL']
-    
-    # Update global to maintain compatibility with existing code
-    global CURRENT_MODEL
-    CURRENT_MODEL = current_model
-    
-    if current_model == 'deepseek':
+    if CURRENT_MODEL == 'deepseek':
         return "deepseek-chat"
-    elif current_model == 'deepseek-reasoner':
+    elif CURRENT_MODEL == 'deepseek-reasoner':
         return "deepseek-reasoner"
-    elif current_model == 'qwen':
+    elif CURRENT_MODEL == 'qwen':
         return "qwen-max"
-    elif current_model == 'gemini':
+    elif CURRENT_MODEL == 'gemini':
         return "gemini-2.0-flash"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
     """Returns the appropriate system instructions based on the current model setting"""
-    # Get latest configuration 
-    app_config = get_app_config()
-    current_model = app_config['CURRENT_MODEL']
-    
-    # Update global to maintain compatibility with existing code
-    global CURRENT_MODEL
-    CURRENT_MODEL = current_model
-    
-    if current_model == 'deepseek':
-        return app_config['DEEPSEEK_INSTRUCTIONS']
-    elif current_model == 'deepseek-reasoner':
-        return app_config['DEEPSEEK_REASONER_INSTRUCTIONS'] 
-    elif current_model == 'qwen':
-        return app_config['QWEN_INSTRUCTIONS']
-    elif current_model == 'gemini':
-        return app_config['GEMINI_INSTRUCTIONS']
+    if CURRENT_MODEL == 'deepseek':
+        return DEEPSEEK_INSTRUCTIONS
+    elif CURRENT_MODEL == 'deepseek-reasoner':
+        return DEEPSEEK_REASONER_INSTRUCTIONS
+    elif CURRENT_MODEL == 'qwen':
+        return QWEN_INSTRUCTIONS
+    elif CURRENT_MODEL == 'gemini':
+        return GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
 
 def call_gemini_api(messages):
@@ -166,11 +142,6 @@ def call_gemini_api(messages):
         contents = []
         for msg in messages:
             if msg['role'] != 'system':
-                # Skip empty messages
-                if not msg.get('content'):
-                    logger.warning(f"Skipping empty message with role: {msg['role']}")
-                    continue
-                    
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
                     "parts": [{"text": msg['content']}],
@@ -183,17 +154,10 @@ def call_gemini_api(messages):
 
         # Make sure we have at least one message in contents
         if not contents:
-            logger.warning("No valid messages found for Gemini API, using default message")
             contents.append({
-                "parts": [{"text": "Hello, please introduce yourself."}],
+                "parts": [{"text": "Hello"}],
                 "role": "user"
             })
-
-        # Debug the contents being sent
-        logger.info(f"Sending {len(contents)} messages to Gemini API")
-        for i, content in enumerate(contents):
-            text_sample = content['parts'][0]['text'][:50] + "..." if len(content['parts'][0]['text']) > 50 else content['parts'][0]['text']
-            logger.info(f"Message {i+1}: role={content['role']}, text={text_sample}")
 
         # Prepare the API request
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
@@ -253,11 +217,6 @@ def call_gemini_streaming_api(messages):
         contents = []
         for msg in messages:
             if msg['role'] != 'system':
-                # Skip empty messages
-                if not msg.get('content'):
-                    logger.warning(f"Skipping empty message with role: {msg['role']}")
-                    continue
-                    
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
                     "parts": [{"text": msg['content']}],
@@ -270,17 +229,10 @@ def call_gemini_streaming_api(messages):
 
         # Make sure we have at least one message
         if not contents:
-            logger.warning("No valid messages found for Gemini API, using default message")
             contents.append({
-                "parts": [{"text": "Hello, please introduce yourself."}],
+                "parts": [{"text": "Hello"}],
                 "role": "user"
             })
-
-        # Debug the contents being sent
-        logger.info(f"Sending {len(contents)} messages to Gemini API")
-        for i, content in enumerate(contents):
-            text_sample = content['parts'][0]['text'][:50] + "..." if len(content['parts'][0]['text']) > 50 else content['parts'][0]['text']
-            logger.info(f"Message {i+1}: role={content['role']}, text={text_sample}")
 
         # Prepare API request for streaming
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key={GEMINI_API_KEY}"
@@ -371,26 +323,13 @@ def get_or_create_conversation(thread_id=None):
 
         # Create new thread and conversation
         client = get_ai_client()
-        
-        # Get current model from config rather than global
-        app_config = get_app_config()
-        current_model = app_config['CURRENT_MODEL']
-        
-        if current_model == 'openai':
+        if CURRENT_MODEL == 'openai':
             # Only create thread for OpenAI
-            try:
-                thread = client.beta.threads.create()
-                thread_id = thread.id
-                logger.info(f"Created new OpenAI thread: {thread_id}")
-            except Exception as e:
-                logger.error(f"Error creating OpenAI thread: {str(e)}")
-                # Fallback to a properly formatted OpenAI thread ID if API fails
-                thread_id = f"thread_{uuid.uuid4().hex}"
-                logger.info(f"Created fallback OpenAI thread ID: {thread_id}")
+            thread = client.beta.threads.create()
+            thread_id = thread.id
         else:
-            # For other models, generate a UUID as thread_id format
-            thread_id = f"thread_{uuid.uuid4().hex}"
-            logger.info(f"Created new thread for {current_model}: {thread_id}")
+            # For other models, generate a UUID as thread_id
+            thread_id = str(uuid.uuid4())
 
         # Associer la conversation avec l'utilisateur connecté
         user_id = None
@@ -586,16 +525,7 @@ def handle_message(data):
         # Log the current thread_id for debugging
         current_thread_id = session.get('thread_id')
         logger.debug(f"Current thread_id from session: {current_thread_id}")
-        
-        # Get the latest model configuration
-        app_config = get_app_config()
-        current_model = app_config['CURRENT_MODEL']
-        logger.info(f"Using AI model: {current_model}")
-        
-        # Ensure global CURRENT_MODEL matches the config to maintain compatibility
-        global CURRENT_MODEL
-        CURRENT_MODEL = current_model
-        
+
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
 
@@ -674,10 +604,9 @@ def handle_message(data):
                 message_for_assistant = data.get('message', '')
 
             # Get previous messages for context
-            # Use current_model from app_config instead of global CURRENT_MODEL
-            if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                 # Get properly formatted messages for API call
-                if current_model == 'deepseek-reasoner':
+                if CURRENT_MODEL == 'deepseek-reasoner':
                     # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
                     # ou créer une version spécifique pour les messages Telegram
                     telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
@@ -722,7 +651,7 @@ def handle_message(data):
                         })
 
                 # Génération de réponse avec le modèle approprié
-                if current_model == 'gemini':
+                if CURRENT_MODEL == 'gemini':
                     # Send to Gemini AI service
                     assistant_message = call_gemini_api(messages)
                 else:
@@ -903,10 +832,9 @@ def handle_message(data):
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                     message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
-                    # Get properly formatted messages based on model from config
-                    if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                         # Get properly formatted messages based on model
-                        if current_model == 'deepseek-reasoner':
+                        if CURRENT_MODEL == 'deepseek-reasoner':
                             messages = get_interleaved_messages(conversation.id, message_for_assistant)
                         else:
                             # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -941,7 +869,7 @@ def handle_message(data):
 
                         assistant_message = ""
 
-                        if current_model == 'gemini':
+                        if CURRENT_MODEL == 'gemini':
                             # Use streaming for Gemini
                             try:
                                 # Process each chunk as it arrives
@@ -998,8 +926,8 @@ def handle_message(data):
                                     'stream_end': True
                                 })
                             except Exception as e:
-                                logger.error(f"Streaming error with {current_model}: {str(e)}")
-                                error_message = f"\n\nAn error occurred during response generation with {current_model}."
+                                logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
+                                error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
                                 assistant_message += error_message
                                 emit('message_chunk', {
                                     'chunk': error_message,
@@ -1063,10 +991,9 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
 
-                # Use current_model from app_config
-                if current_model in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
                     # Get properly formatted messages based on model
-                    if current_model == 'deepseek-reasoner':
+                    if CURRENT_MODEL == 'deepseek-reasoner':
                         messages = get_interleaved_messages(conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
@@ -1101,7 +1028,7 @@ def handle_message(data):
 
                     assistant_message = ""
 
-                    if current_model == 'gemini':
+                    if CURRENT_MODEL == 'gemini':
                         # Use streaming for Gemini
                         try:
                             # Process each chunk as it arrives
@@ -1158,8 +1085,8 @@ def handle_message(data):
                                 'stream_end': True
                             })
                         except Exception as e:
-                            logger.error(f"Streaming error with {current_model}: {str(e)}")
-                            error_message = f"\n\nAn error occurred during response generation with {current_model}."
+                            logger.error(f"Streaming error with {CURRENT_MODEL}: {str(e)}")
+                            error_message = f"\n\nAn error occurred during response generation with {CURRENT_MODEL}."
                             assistant_message += error_message
                             emit('message_chunk', {
                                 'chunk': error_message,
@@ -1293,7 +1220,7 @@ def handle_message(data):
             
             # For non-OpenAI models, we need to create the message in database
             # For OpenAI models, we already created and updated the message during streaming
-            if current_model != 'openai':
+            if CURRENT_MODEL != 'openai':
                 # Store assistant response in database
                 db_message = Message(
                     conversation_id=conversation.id,
@@ -1321,7 +1248,7 @@ def handle_message(data):
             db.session.commit()
 
         # Send response to client including the message ID for feedback
-        if not assistant_message or (current_model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']):
+        if not assistant_message or (CURRENT_MODEL not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen']):
             emit('receive_message', {
                 'message': assistant_message,
                 'id': db_message.id
@@ -1838,44 +1765,6 @@ def admin_dashboard():
         logger.error(f"Error in admin dashboard: {str(e)}")
         flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
         return redirect(url_for('login'))
-
-def get_app_config():
-    """
-    Récupère dynamiquement les configurations actuelles depuis le fichier de configuration.
-    Cela permet de toujours obtenir les dernières valeurs sans redémarrer l'application.
-    """
-    # Utiliser un chemin absolu pour le fichier de configuration
-    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
-
-    # Essayer d'abord de lire depuis le fichier de configuration
-    try:
-        if os.path.exists(config_file_path):
-            with open(config_file_path, 'r') as f:
-                config_data = json.load(f)
-
-            # Log la configuration trouvée pour débogage
-            logger.info(f"Found config in file: model={config_data['CURRENT_MODEL']}")
-
-            # Retourner les configurations depuis le fichier
-            return {
-                'CURRENT_MODEL': config_data['CURRENT_MODEL'],
-                'DEEPSEEK_INSTRUCTIONS': config_data.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant'),
-                'DEEPSEEK_REASONER_INSTRUCTIONS': config_data.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving'),
-                'QWEN_INSTRUCTIONS': config_data.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers'),
-                'GEMINI_INSTRUCTIONS': config_data.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
-            }
-    except Exception as e:
-        logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
-
-    # Fallback aux variables d'environnement actuelles
-    logger.info(f"Using config from environment variables: {os.environ.get('CURRENT_MODEL', 'openai')}")
-    return {
-        'CURRENT_MODEL': os.environ.get('CURRENT_MODEL', 'openai'),
-        'DEEPSEEK_INSTRUCTIONS': os.environ.get('DEEPSEEK_INSTRUCTIONS', 'You are a helpful educational assistant'),
-        'DEEPSEEK_REASONER_INSTRUCTIONS': os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS', 'You are a helpful educational assistant focused on reasoning and problem-solving'),
-        'QWEN_INSTRUCTIONS': os.environ.get('QWEN_INSTRUCTIONS', 'You are a helpful educational assistant focused on providing accurate and comprehensive answers'),
-        'GEMINI_INSTRUCTIONS': os.environ.get('GEMINI_INSTRUCTIONS', 'You are a helpful educational assistant specialized in explaining complex concepts clearly')
-    }
 
 def reload_model_settings():
     """
