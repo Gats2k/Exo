@@ -384,7 +384,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Get previous messages for context (limit to last 10)
             previous_messages = []
             with db_retry_session() as sess:
-                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(5).all()
+                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
                 for msg in reversed(messages_query):
                     previous_messages.append({
                         "role": msg.role,
@@ -633,7 +633,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Get previous messages for context (limit to last 10)
                 previous_messages = []
                 with db_retry_session() as sess:
-                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(5).all()
+                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
                     for msg in reversed(messages_query):
                         if msg.role == 'user' and msg.content == user_store_content:
                             # Skip this message as we're adding it below

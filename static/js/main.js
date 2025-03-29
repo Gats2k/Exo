@@ -149,6 +149,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make socket available globally for our conversation functions
     window.socket = socket;
 
+    // Gérer la reconnexion pour préserver le contexte
+    socket.on('reconnect', function() {
+        console.log('Reconnecté au serveur, récupération de la conversation');
+        // Si nous avons un thread_id dans la session stockée localement, réutilisons-le
+        const storedThreadId = localStorage.getItem('thread_id');
+        if (storedThreadId) {
+            socket.emit('restore_session', { thread_id: storedThreadId });
+        }
+    });
+
     // Si nous sommes sur la page admin, sortir immédiatement pour éviter les erreurs
     if (isAdminPage) {
         console.log('Page administrative détectée, désactivation du script de chat');
@@ -171,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let isFirstMessage = true;
     let sidebarTimeout;
     let currentImage = null;
+    let activeStreamMessages = {};
 
     // Vérifier que tous les éléments nécessaires existent
     if (!inputContainer || !responseTime || !chatMessages || !welcomeContainer || !suggestionsContainer) {
@@ -335,17 +346,10 @@ document.addEventListener('DOMContentLoaded', function() {
             moveInputToBottom();
             addLoadingIndicator();
 
-            // Get the current conversation ID if available
-            const titleElement = document.querySelector('.conversation-title');
-            const conversationId = titleElement ? titleElement.dataset.conversationId : null;
-            
-            console.log('Sending message with conversationId:', conversationId);
-
-            // Send message, image, and conversation ID to the server
+            // Send both message and image to the server
             socket.emit('send_message', {
                 message: message,
-                image: currentImage,
-                conversation_id: conversationId
+                image: currentImage
             });
 
             // Clear input and image
@@ -359,61 +363,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Object to track streaming messages by ID
-    const streamingMessages = {};
-
-    // Handler for receiving new complete messages or starting a stream
     socket.on('receive_message', function(data) {
         removeLoadingIndicator();
 
-        // If this is a streaming message start, we create an empty container and return
-        if (data.stream_start) {
-            console.log('Starting streaming message, ID:', data.id);
-            
-            // Create the message container
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message assistant streaming';
-            messageDiv.id = `message-${data.id}`;
-            
-            // Create an empty content container that will be filled with streamed content
-            messageDiv.innerHTML = `
-                <div class="message-content">
-                    <span class="cursor"></span>
-                </div>
-                <div class="message-feedback">
-                    <button class="feedback-btn thumbs-up" data-message-id="${data.id}" data-feedback-type="positive">
-                        <i class="bi bi-hand-thumbs-up"></i>
-                    </button>
-                    <button class="feedback-btn thumbs-down" data-message-id="${data.id}" data-feedback-type="negative">
-                        <i class="bi bi-hand-thumbs-down"></i>
-                    </button>
-                </div>
-            `;
-            
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            
-            // Store the message for streaming updates
-            streamingMessages[data.id] = {
-                content: '',
-                element: messageDiv.querySelector('.message-content')
-            };
-            
+        // Vérifier si ce message est déjà géré par le streaming
+        if (activeStreamMessages[data.id]) {
+            // Si oui, ne pas recréer le message
             return;
         }
 
-        // Normal non-streaming message
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
         messageDiv.id = `message-${data.id}`;
-        
         let content = '';
         if (data.image) {
             content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
         }
         content += data.message.replace(/\n/g, '<br>');
 
-        // Determine if feedback exists already
+        // Déterminer si un feedback existe déjà
         const feedbackPositive = data.feedback === 'positive';
         const feedbackNegative = data.feedback === 'negative';
 
@@ -435,42 +403,92 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     });
-    
-    // Handler for receiving streaming message chunks
-    socket.on('message_chunk', function(data) {
-        // Find the message container for this ID
-        if (!streamingMessages[data.id]) {
-            console.warn('Received chunk for unknown message ID:', data.id);
+
+    // Nouvel événement pour indiquer le début d'un message streamé
+    socket.on('message_started', function(data) {
+        removeLoadingIndicator();
+
+        // Créer un nouvel élément de message pour le streaming
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant';
+        messageDiv.id = `message-${data.message_id}`;
+
+        // Ajouter le conteneur du message avec le contenu initial vide
+        messageDiv.innerHTML = `
+            <div class="message-content">
+                <div id="stream-content-${data.message_id}"></div>
+            </div>
+            <div class="message-feedback">
+                <button class="feedback-btn thumbs-up" 
+                       data-message-id="${data.message_id}" data-feedback-type="positive">
+                    <i class="bi bi-hand-thumbs-up"></i>
+                </button>
+                <button class="feedback-btn thumbs-down" 
+                       data-message-id="${data.message_id}" data-feedback-type="negative">
+                    <i class="bi bi-hand-thumbs-down"></i>
+                </button>
+            </div>
+        `;
+
+        chatMessages.appendChild(messageDiv);
+
+        // Ajouter un indicateur de chargement en attendant le début du stream
+        const contentElement = messageDiv.querySelector(`#stream-content-${data.message_id}`);
+        contentElement.innerHTML = `
+            <div class="stream-loading">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+        `;
+
+        // Enregistrer ce message comme étant actif
+        activeStreamMessages[data.message_id] = {
+            element: contentElement,
+            content: ''
+        };
+
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    // Nouvel événement pour recevoir les chunks de réponse en streaming
+    socket.on('response_stream', function(data) {
+        // Vérifier si nous avons le message enregistré
+        if (!activeStreamMessages[data.message_id]) {
+            console.error('Received stream for unknown message:', data.message_id);
             return;
         }
-        
-        // Add the new chunk to the message content
-        streamingMessages[data.id].content += data.chunk;
-        
-        // Update the HTML with the new content, preserving the cursor
-        streamingMessages[data.id].element.innerHTML = streamingMessages[data.id].content
-            .replace(/\n/g, '<br>') + '<span class="cursor"></span>';
-        
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // If this is the end of the stream, clean up
-        if (data.stream_end) {
-            console.log('Stream ended for message ID:', data.id);
-            
-            // Remove the cursor by replacing with the final content
-            streamingMessages[data.id].element.innerHTML = streamingMessages[data.id].content
-                .replace(/\n/g, '<br>');
-            
-            // Remove the streaming class
-            const messageElement = document.getElementById(`message-${data.id}`);
-            if (messageElement) {
-                messageElement.classList.remove('streaming');
-            }
-            
-            // Clean up the tracking object
-            delete streamingMessages[data.id];
+
+        const streamInfo = activeStreamMessages[data.message_id];
+        const contentElement = streamInfo.element;
+
+        // Si c'est la première fois que nous recevons du contenu, supprimer l'indicateur de chargement
+        if (streamInfo.content === '') {
+            contentElement.innerHTML = '';
         }
+
+        // Ajouter le nouveau contenu
+        if (data.content) {
+            streamInfo.content += data.content;
+
+            // Mettre à jour l'affichage
+            contentElement.innerHTML = streamInfo.content.replace(/\n/g, '<br>');
+        }
+
+        // Si c'est le message final, terminer le streaming
+        if (data.is_final) {
+            // Si un message complet est fourni, l'utiliser
+            if (data.full_response) {
+                streamInfo.content = data.full_response;
+                contentElement.innerHTML = streamInfo.content.replace(/\n/g, '<br>');
+            }
+
+            // Nettoyer les informations de streaming
+            delete activeStreamMessages[data.message_id];
+        }
+
+        // Faire défiler vers le bas pour suivre le contenu
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
     // Listen for conversation updates
@@ -493,12 +511,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear current messages
             chatMessages.innerHTML = '';
 
-            // Update the conversation title in header with the conversation ID as data attribute
+            // Update the conversation title in header
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = data.title || "Nouvelle conversation";
-            
-            // Store conversation ID as data attribute for context persistence
-            titleElement.dataset.conversationId = data.conversation_id;
+
+            // Sauvegarder thread_id dans le stockage local
+            if (data.conversation_id) {
+                localStorage.setItem('thread_id', data.conversation_id);
+            }
 
             // Add each message from the conversation history
             data.messages.forEach(msg => {
@@ -544,9 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update the header title with the new conversation title
         titleElement.textContent = data.title;
-        
-        // Store the conversation ID for context persistence
-        titleElement.dataset.conversationId = data.id;
+
+        // Sauvegarder thread_id dans le stockage local
+        if (data.id) {
+            localStorage.setItem('thread_id', data.id);
+        }
 
         // Create new history item
         const historyItem = document.createElement('div');
@@ -693,16 +715,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add handler for new conversation button
+    // Add handler for new conversation button
     const newConversationBtn = document.querySelector('.new-conversation-btn');
     if (newConversationBtn) {
         newConversationBtn.addEventListener('click', function() {
             // Clear messages
             chatMessages.innerHTML = '';
 
-            // Reset title and clear conversation ID
+            // Reset title
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = "Nouvelle conversation";
-            titleElement.dataset.conversationId = "";
 
             // Reset UI state
             inputContainer.classList.add('centered');
@@ -710,6 +732,9 @@ document.addEventListener('DOMContentLoaded', function() {
             welcomeContainer.classList.add('visible');
             suggestionsContainer.classList.add('visible');
             isFirstMessage = true;
+
+            // Supprimer le thread_id du stockage local
+            localStorage.removeItem('thread_id');
 
             // Clear any existing session
             socket.emit('clear_session');

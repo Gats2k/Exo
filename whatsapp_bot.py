@@ -213,7 +213,7 @@ def generate_ai_response(message_body, thread_id, sender=None):
         previous_messages = []
         messages_query = WhatsAppMessage.query.filter_by(
             thread_id=thread_id
-        ).order_by(WhatsAppMessage.timestamp.desc()).limit(5).all()
+        ).order_by(WhatsAppMessage.timestamp.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
 
         for msg in reversed(messages_query):
             role = 'user' if msg.direction == 'inbound' else 'assistant'

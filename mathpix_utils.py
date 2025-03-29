@@ -9,32 +9,32 @@ def process_image_with_mathpix(image_data):
     """
     Process image data with Mathpix API to extract mathematical content, tables, 
     chemical diagrams, and geometric figures
-    
+
     Args:
         image_data (str): Base64-encoded image data
-        
+
     Returns:
         dict: Structured result containing all extracted data
     """
     # Get API keys from environment variables
     MATHPIX_APP_ID = os.getenv('MATHPIX_APP_ID')
     MATHPIX_APP_KEY = os.getenv('MATHPIX_APP_KEY')
-    
+
     if not MATHPIX_APP_ID or not MATHPIX_APP_KEY:
         logger.error("Mathpix API credentials not configured")
         return {"error": "Mathpix API credentials not configured"}
-    
+
     headers = {
         "app_id": MATHPIX_APP_ID,
         "app_key": MATHPIX_APP_KEY,
         "Content-Type": "application/json"
     }
-    
+
     try:
         # Clean base64 data if needed
         if isinstance(image_data, str) and "base64," in image_data:
             image_data = image_data.split("base64,")[1]
-        
+
         # Configuration simplifiée mais efficace pour la détection mathématique
         payload = {
             "src": f"data:image/jpeg;base64,{image_data}",
@@ -45,14 +45,14 @@ def process_image_with_mathpix(image_data):
             },
             "include_geometry_data": True
         }
-        
+
         # Send request to Mathpix
         url = "https://api.mathpix.com/v3/text"
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
-        
+
         result = response.json()
-        
+
         # Structure the response
         structured_result = {
             "text": result.get("text", ""),
@@ -62,7 +62,7 @@ def process_image_with_mathpix(image_data):
             "has_geometry": False,
             "details": {}
         }
-        
+
         # Process mathematical data
         if "data" in result:
             for data_item in result["data"]:
@@ -71,34 +71,34 @@ def process_image_with_mathpix(image_data):
                     if "math_details" not in structured_result["details"]:
                         structured_result["details"]["math_details"] = []
                     structured_result["details"]["math_details"].append(data_item)
-                
+
                 # Process tables
                 if data_item.get("type") in ["tsv", "table_html"]:
                     structured_result["has_table"] = True
                     if "table_details" not in structured_result["details"]:
                         structured_result["details"]["table_details"] = []
                     structured_result["details"]["table_details"].append(data_item)
-        
+
         # Process geometric data
         if "geometry_data" in result and result["geometry_data"]:
             structured_result["has_geometry"] = True
             structured_result["details"]["geometry_details"] = process_geometry_data(result["geometry_data"])
-        
+
         # Check for chemical formulas (SMILES)
         if "text" in result:
             smiles_pattern = r'<smiles.*?>(.*?)</smiles>'
             smiles_matches = re.findall(smiles_pattern, result["text"])
-            
+
             if smiles_matches:
                 structured_result["has_chemistry"] = True
                 structured_result["details"]["chemistry_details"] = smiles_matches
-        
+
         # Format summary for assistant
         formatted_summary = format_mathpix_result_for_assistant(structured_result)
         structured_result["formatted_summary"] = formatted_summary
-        
+
         return structured_result
-        
+
     except Exception as e:
         logger.error(f"Error processing image with Mathpix: {str(e)}")
         return {"error": f"Error processing image: {str(e)}"}
@@ -108,7 +108,7 @@ def format_mathpix_result_for_assistant(result):
     Format Mathpix results into a well-structured text summary for the assistant
     """
     summary = []
-    
+
     # Add header based on content
     content_types = []
     if result["has_math"]: content_types.append("mathematical formulas")
@@ -118,27 +118,27 @@ def format_mathpix_result_for_assistant(result):
 
     if content_types:
         summary.append(f"Image contains {', '.join(content_types)}.")
-    
+
     # Add main text
     if result.get("text"):
         summary.append("\nExtracted content:")
         summary.append(result["text"])
-    
+
     # Add geometry details if present
     if result["has_geometry"] and "geometry_details" in result["details"]:
         summary.append("\nGeometric figure details:")
         summary.append(result["details"]["geometry_details"])
-    
+
     # Add chemical formulas
     if result["has_chemistry"] and "chemistry_details" in result["details"]:
         summary.append("\nDetected chemical formulas (SMILES):")
         for formula in result["details"]["chemistry_details"]:
             summary.append(f"- {formula}")
-    
+
     # Mention tables specifically
     if result["has_table"]:
         summary.append("\nA table was detected in the image. The data is included in the text above.")
-    
+
     return "\n".join(summary)
 
 def process_geometry_data(geometry_data):
@@ -161,7 +161,7 @@ def process_geometry_data(geometry_data):
             if shape_type == "triangle":
                 vertices = shape.get("vertex_list", [])
                 result_parts.append(f"- Number of vertices: {len(vertices)}")
-                
+
                 # Add vertex coordinates
                 result_parts.append("- Vertex coordinates:")
                 for i, vertex in enumerate(vertices):
