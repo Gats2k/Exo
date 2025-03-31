@@ -1596,9 +1596,37 @@ def handle_open_conversation(data):
 
 @socketio.on('clear_session')
 def handle_clear_session():
-    # Clear the thread_id from session
-    session.pop('thread_id', None)
-    emit('session_cleared', {'success': True})
+    """
+    Cette fonction est appelée lorsque l'utilisateur clique sur 'Nouvelle conversation'.
+    Elle doit effacer la session et créer explicitement un nouveau thread.
+    """
+    try:
+        logger.info("L'utilisateur a demandé une nouvelle conversation")
+        
+        # Supprimer l'ancien thread_id de la session
+        session.pop('thread_id', None)
+        
+        # Créer explicitement une nouvelle conversation avec un nouveau thread
+        if current_user.is_authenticated:
+            # Créer un nouveau thread avec OpenAI ou un UUID selon le modèle actuel
+            new_conversation = get_or_create_conversation(thread_id=None)
+            
+            # Définir le nouveau thread_id dans la session
+            session['thread_id'] = new_conversation.thread_id
+            
+            logger.info(f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id}")
+            
+            # Informer le client que la session a été effacée et une nouvelle conversation a été créée
+            emit('session_cleared', {
+                'success': True, 
+                'new_thread_id': new_conversation.thread_id
+            })
+        else:
+            # Si l'utilisateur n'est pas authentifié, on se contente d'effacer la session
+            emit('session_cleared', {'success': True})
+    except Exception as e:
+        logger.error(f"Erreur lors de la création d'une nouvelle conversation: {str(e)}")
+        emit('session_cleared', {'success': False, 'error': str(e)})
 
 @socketio.on('restore_session')
 def handle_restore_session(data):

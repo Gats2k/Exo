@@ -821,6 +821,15 @@ document.addEventListener('DOMContentLoaded', function() {
     socket.on('session_cleared', function(data) {
         if (data.success) {
             console.log('Session cleared successfully');
+            
+            // Si le serveur a créé un nouveau thread_id, le stocker localement
+            if (data.new_thread_id) {
+                console.log('New thread_id received:', data.new_thread_id);
+                // Sauvegarder le nouveau thread_id dans le localStorage
+                localStorage.setItem('thread_id', data.new_thread_id);
+            }
+        } else if (data.error) {
+            console.error('Error clearing session:', data.error);
         }
     });
 
