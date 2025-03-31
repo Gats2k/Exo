@@ -144,6 +144,8 @@ class OpenAIAssistantEventHandler(AssistantEventHandler):
         self.full_response = ""
         # Ajouter l'attribut manquant
         self._AssistantEventHandler__stream = None
+        # Référence au module time pour éviter les erreurs de portée
+        self.time_module = time
 
     @override
     def on_text_created(self, text) -> None:
@@ -1121,7 +1123,6 @@ def handle_message(data):
                                 stream=True
                             )
 
-                            import time  # Assurez-vous que cette importation est présente en haut du fichier
 
                             # Variable pour suivre les tentatives de mise à jour
                             max_update_attempts = 3
@@ -1247,6 +1248,9 @@ def handle_message(data):
 
                         # Fallback à l'approche non-streaming en cas d'erreur
                         try:
+                            # Créer un alias local explicite pour time.time
+                            current_time = time.time
+
                             # Si un run n'a pas été créé ou a échoué
                             if 'run' not in locals() or not run:
                                 run = ai_client.beta.threads.runs.create(
@@ -1256,10 +1260,10 @@ def handle_message(data):
 
                             # Attendre que le run soit terminé
                             timeout = 30
-                            start_time = time.time()
+                            start_time = current_time()
                             run_completed = False
 
-                            while not run_completed and time.time() - start_time < timeout:
+                            while not run_completed and current_time() - start_time < timeout:
                                 run_status = ai_client.beta.threads.runs.retrieve(
                                     thread_id=conversation.thread_id,
                                     run_id=run.id
