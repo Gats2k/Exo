@@ -595,9 +595,30 @@ def handle_message(data):
             thread_id = session.get('thread_id')
             telegram_conversation = None
 
+            # Essayer d'abord d'utiliser le thread_id de la session s'il existe
             if thread_id:
                 telegram_conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+                # Vérifier que la conversation appartient bien à cet utilisateur Telegram
+                if telegram_conversation and telegram_conversation.telegram_user_id != int(telegram_id):
+                    logger.warning(f"Thread_id {thread_id} trouvé mais n'appartient pas à l'utilisateur Telegram {telegram_id}")
+                    telegram_conversation = None
+                    
+            # Si pas de conversation valide avec le thread_id de la session,
+            # chercher la conversation la plus récente pour cet utilisateur
+            if not telegram_conversation:
+                telegram_conversation = TelegramConversation.query.filter_by(
+                    telegram_user_id=int(telegram_id)
+                ).order_by(TelegramConversation.updated_at.desc()).first()
+                
+                if telegram_conversation:
+                    thread_id = telegram_conversation.thread_id
+                    session['thread_id'] = thread_id
+                    logger.info(f"Utilisation de la conversation Telegram existante {telegram_conversation.id} avec thread_id {thread_id}")
+                    # Mettre à jour timestamp pour garder la conversation active
+                    telegram_conversation.updated_at = datetime.utcnow()
+                    db.session.commit()
 
+            # Si toujours pas de conversation valide, créer une nouvelle
             if not telegram_conversation:
                 # Créer une nouvelle conversation Telegram
                 thread_id = f"thread_{telegram_id}_{int(time.time())}"
@@ -609,6 +630,7 @@ def handle_message(data):
                 db.session.add(telegram_conversation)
                 db.session.commit()
                 session['thread_id'] = thread_id
+                logger.info(f"Création d'une nouvelle conversation Telegram avec thread_id {thread_id}")
 
             # Handle image if present
             if 'image' in data and data['image']:
@@ -818,6 +840,8 @@ def handle_message(data):
             # Gestion normale des conversations Web
             thread_id = session.get('thread_id')
             conversation = None
+            
+            # Si on a un thread_id en session, essayer de récupérer la conversation correspondante
             if thread_id:
                 conversation = Conversation.query.filter_by(thread_id=thread_id).first()
                 # Vérifier si la conversation est valide et appartient à l'utilisateur actuel
@@ -827,12 +851,28 @@ def handle_message(data):
                     conversation.updated_at = datetime.utcnow()
                     db.session.commit()
                 else:
-                    logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, création d'une nouvelle conversation")
+                    logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, recherche d'une autre conversation active")
                     conversation = None
-
+            
+            # Si pas de thread_id valide en session, chercher la dernière conversation active de l'utilisateur
+            if not conversation and current_user.is_authenticated:
+                # Chercher la conversation la plus récente pour cet utilisateur
+                recent_conversation = Conversation.query.filter_by(
+                    user_id=current_user.id,
+                    deleted=False
+                ).order_by(Conversation.updated_at.desc()).first()
+                
+                if recent_conversation:
+                    conversation = recent_conversation
+                    thread_id = conversation.thread_id
+                    session['thread_id'] = thread_id
+                    logger.info(f"Récupération de la conversation la plus récente {conversation.id} avec thread_id {thread_id}")
+            
+            # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
                 conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
+                logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
 
             # ======================
             # TRAITEMENT DES IMAGES - UTILISER LA MÉTHODE NON-STREAMING
@@ -1565,49 +1605,64 @@ def handle_restore_session(data):
     """Restore a previous session based on a stored thread_id"""
     try:
         thread_id = data.get('thread_id')
-        if not thread_id:
-            logger.warning("Restore session called without thread_id")
-            return
-
-        logger.info(f"Attempting to restore session with thread_id: {thread_id}")
-
-        # Vérifier si la conversation existe avec le thread_id correct
-        conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-
-        if conversation:
+        conversation = None
+        
+        if thread_id:
+            logger.info(f"Attempting to restore session with thread_id: {thread_id}")
+            # Vérifier si la conversation existe avec le thread_id correct
+            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+            
             # Vérifier si la conversation appartient à l'utilisateur actuel
-            if current_user.is_authenticated and conversation.user_id == current_user.id:
+            if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
                 # Mettre à jour la session Flask avec le thread_id
                 session['thread_id'] = conversation.thread_id
                 logger.info(f"Session restored for thread_id: {conversation.thread_id}")
+        
+        # Si le thread_id n'est pas fourni ou la conversation n'est pas trouvée,
+        # chercher la conversation la plus récente pour cet utilisateur
+        if not conversation and current_user.is_authenticated:
+            logger.info("No valid thread_id, looking for most recent conversation")
+            recent_conversation = Conversation.query.filter_by(
+                user_id=current_user.id,
+                deleted=False
+            ).order_by(Conversation.updated_at.desc()).first()
+            
+            if recent_conversation:
+                conversation = recent_conversation
+                session['thread_id'] = conversation.thread_id
+                logger.info(f"Restored most recent conversation thread_id: {conversation.thread_id}")
+        
+        # Si nous avons une conversation valide (soit par thread_id, soit la plus récente)
+        if conversation:
+            # Émettre les mêmes événements que lorsqu'une conversation est ouverte
+            messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+            messages_data = []
 
-                # Émettre les mêmes événements que lorsqu'une conversation est ouverte
-                messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
-                messages_data = []
+            for msg in messages:
+                message_data = {
+                    'id': msg.id,
+                    'role': msg.role,
+                    'content': msg.content,
+                    'image_url': msg.image_url,
+                }
+                messages_data.append(message_data)
 
-                for msg in messages:
-                    message_data = {
-                        'id': msg.id,
-                        'role': msg.role,
-                        'content': msg.content,
-                        'image_url': msg.image_url,
-                    }
-                    messages_data.append(message_data)
+            emit('conversation_opened', {
+                'success': True,
+                'messages': messages_data,
+                'conversation_id': conversation.id,
+                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
+            })
 
-                emit('conversation_opened', {
-                    'success': True,
-                    'messages': messages_data,
-                    'conversation_id': conversation.id,
-                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
-                })
-
-                # Mettre à jour la date de dernière modification
-                conversation.updated_at = datetime.utcnow()
-                db.session.commit()
-            else:
-                logger.warning(f"Attempt to restore session for conversation {thread_id} not owned by current user")
+            # Mettre à jour la date de dernière modification
+            conversation.updated_at = datetime.utcnow()
+            db.session.commit()
         else:
-            logger.warning(f"Conversation with id {thread_id} not found for session restoration")
+            # Pas de conversation trouvée, ni par thread_id, ni récente
+            if thread_id:
+                logger.warning(f"Conversation with id {thread_id} not found for session restoration")
+            else:
+                logger.warning(f"No existing conversation found for current user")
     except Exception as e:
         logger.error(f"Error restoring session: {str(e)}")
 
