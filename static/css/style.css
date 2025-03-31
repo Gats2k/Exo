@@ -349,8 +349,8 @@ body.policy-page {
 
 .chat-viewport {
     position: absolute;
-    top: 80px;
-    bottom: 95px;
+    top: 60px;
+    bottom: 80px;
     left: 50%;
     transform: translateX(-50%);
     width: 700px;
@@ -483,8 +483,10 @@ body.policy-page {
     width: calc(100% - 40px);
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 10px;
     padding: 4px 15px 10px 1px;
     gap: 0px;
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -499,6 +501,9 @@ body.policy-page {
     transition: all 0.3s ease;
     display: flex;
     flex-direction: column-reverse;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 /* À AJOUTER */
@@ -778,8 +783,8 @@ body.policy-page {
 
     .chat-viewport {
         max-width: calc(100% - 20px);
-        top: 70px;
-        bottom: 90px;
+        top: 55px;
+        bottom: 80px;
     }
 
     .chat-messages {
@@ -1122,7 +1127,9 @@ body.policy-page {
     padding: 10px;
     width: auto;
     max-width: 200px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: 8px 8px 0 0;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-bottom: none;

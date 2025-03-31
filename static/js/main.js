@@ -140,6 +140,24 @@ window.openConversation = function(id, event, isTelegram, isWhatsApp) {
     }
 };
 
+function setupHeartbeat() {
+    // Envoyer un ping toutes les 30 secondes pour maintenir la connexion active
+    const heartbeatInterval = setInterval(function() {
+        if (socket.connected) {
+            socket.emit('heartbeat');
+            console.log('Heartbeat envoyé');
+        } else {
+            console.log('Socket déconnecté, tentative de reconnexion...');
+            socket.connect();
+        }
+    }, 30000);
+
+    // Nettoyer l'intervalle quand l'utilisateur quitte la page
+    window.addEventListener('beforeunload', function() {
+        clearInterval(heartbeatInterval);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Détecter si nous sommes sur la page admin ou la page chat
     const isAdminPage = window.location.pathname.includes('/admin');
@@ -156,8 +174,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const storedThreadId = localStorage.getItem('thread_id');
         if (storedThreadId) {
             socket.emit('restore_session', { thread_id: storedThreadId });
+
+            // Ajouter un timeout pour vérifier si la restauration a réussi
+            setTimeout(function() {
+                // Si après 2 secondes nous n'avons pas reçu de confirmation de restauration,
+                // vérifier si des messages ont été chargés
+                if (chatMessages.children.length === 0) {
+                    console.log('La restauration de session a échoué, création d\'une nouvelle conversation');
+                    // Supprimer le thread_id invalide
+                    localStorage.removeItem('thread_id');
+                    // Émettre un événement de nouvelle conversation
+                    socket.emit('clear_session');
+                }
+            }, 2000);
         }
     });
+
+    // Ajouter un écouteur pour la confirmation de restauration de session
+    socket.on('conversation_opened', function(data) {
+        if (data.success) {
+            console.log('Session restaurée avec succès');
+        }
+    });
+
+    // Configurer le heartbeat pour maintenir la connexion active
+    setupHeartbeat();
 
     // Si nous sommes sur la page admin, sortir immédiatement pour éviter les erreurs
     if (isAdminPage) {
@@ -314,12 +355,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
         }
+        // Réinitialiser la valeur de l'input pour permettre de sélectionner le même fichier
+        this.value = '';
     });
 
     imageInput.addEventListener('change', function(e) {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
         }
+        // Réinitialiser la valeur de l'input pour permettre de sélectionner le même fichier
+        this.value = '';
     });
 
     function sendMessage() {
@@ -554,8 +599,39 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update UI for existing conversation
             moveInputToBottom();
             chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            setTimeout(checkEmptyMessages, 500);
         }
     });
+
+    function checkEmptyMessages() {
+        // Recherche les messages vides de l'assistant
+        document.querySelectorAll('.message.assistant .message-content').forEach(contentDiv => {
+            if (!contentDiv.textContent.trim()) {
+                // Obtenir l'ID du message depuis le bouton de feedback
+                const messageDiv = contentDiv.closest('.message');
+                const feedbackBtn = messageDiv.querySelector('.feedback-btn');
+
+                if (feedbackBtn) {
+                    const messageId = feedbackBtn.getAttribute('data-message-id');
+
+                    // Tenter de récupérer le contenu du message
+                    fetch(`/api/recover_message/${messageId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.content) {
+                                // Mettre à jour le contenu du message
+                                contentDiv.innerHTML = data.content.replace(/\n/g, '<br>');
+                                console.log(`Message ${messageId} récupéré avec succès`);
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`Erreur lors de la récupération du message ${messageId}:`, error);
+                        });
+                }
+            }
+        });
+    }
 
     // Add this to the existing socket event listeners
     socket.on('new_conversation', function(data) {

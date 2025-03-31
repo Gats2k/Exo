@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Exô - Inscription</title>
@@ -179,6 +180,24 @@
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
+        .blur-background {
+            filter: blur(5px);
+            transition: filter 0.3s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translate(-50%, -50%); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-52%, -50%); }
+            20%, 40%, 60%, 80% { transform: translate(-48%, -50%); }
+        }
+
+        @keyframes flash {
+            0%, 100% { box-shadow: 0 0 0 rgba(255, 215, 0, 0); }
+            50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8); }
+        }
+
+        .attention-animation {
+            animation: shake 0.4s ease-in-out, flash 0.6s ease-in-out;
+        }
         @media (max-width: 768px) {
             :root {
                 --container-width: 90%;
@@ -284,7 +303,7 @@
     </style>
 </head>
 <body>
-    <div id="welcomeModal" class="modal">
+    <div id="welcomeModal" class="modal" style="display: none;">
         <button class="modal-close" onclick="closeModal()">&times;</button>
         <h2 style="color: #FFD700; font-size: 1.8em; margin-bottom: 20px;">
             Transformez vos études avec votre allié secret
@@ -321,6 +340,19 @@
 
         <button class="modal-cta" onclick="closeModal()">Moi aussi je vais réussir mes examens</button>
     </div>
+
+    <div id="phoneExistsModal" class="modal" style="display: none; background-color: rgba(255, 255, 255, 0.2); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.3);">
+        <div class="modal-header">
+            <h2 class="modal-title" style="color: #FFD700; font-size: 1.6em; margin-bottom: 20px;">Numéro déjà utilisé</h2>
+        </div>
+        <div class="modal-content" style="margin-bottom: 25px; line-height: 1.5;">
+            Ce numéro de téléphone est déjà associé à un compte existant. Veuillez vous connecter avec ce numéro.
+        </div>
+        <div class="modal-footer">
+            <button id="connectBtn" class="modal-btn" style="background-color: #3B82F6; color: white; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 1.1em; cursor: pointer; border: none; display: inline-block; transition: background-color 0.3s;">Se connecter</button>
+        </div>
+    </div>
+
     <div id="modalOverlay" class="modal-overlay"></div>
 
     <h1 class="main-title">Bienvenue sur Exô</h1>
@@ -345,7 +377,11 @@
 
             <div class="form-group">
                 <label for="phone_number">Numéro de téléphone</label>
-                <input type="tel" id="phone_number" name="phone_number" required>
+                <div class="phone-input-container" style="display: flex; align-items: center;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 8px 0 0 8px; color: white;">+225</span>
+                    <input type="tel" id="phone_number" name="phone_number" required pattern="[0-9]{8}" maxlength="8" style="border-radius: 0 8px 8px 0; flex-grow: 1;" placeholder="00000000">
+                </div>
+                <small style="color: #FFD700; margin-top: 5px; display: block;">Format: +225 suivi de 8 chiffres</small>
             </div>
 
             <div class="form-group">
@@ -385,15 +421,191 @@
         </form>
     </div>
 
+    <div id="platformSelectModal" class="modal" style="display: none; background-color: rgba(255, 255, 255, 0.2); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.3); max-width: 450px;">
+        <div class="modal-header">
+            <h2 class="modal-title" style="color: #FFD700; font-size: 1.6em; margin-bottom: 20px;">Bienvenue sur Exô</h2>
+        </div>
+        <div class="modal-content" style="margin-bottom: 15px; line-height: 1.5;">
+            <p style="text-align: center; margin-bottom: 15px;">De quelle plateforme venez-vous?</p>
+
+            <!-- Options de login en horizontal comme sur la page de connexion -->
+            <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 20px;">
+                <!-- Option Web -->
+                <button onclick="redirectToLogin('web')" class="platform-btn" style="display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 10px 5px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; width: 33%; font-size: 0.9em;">
+                    <i class="bi bi-globe" style="margin-right: 8px; color: #4ADE80; font-size: 1.2em;"></i>Web
+                </button>
+
+                <!-- Option Telegram -->
+                <button onclick="redirectToLogin('telegram')" class="platform-btn" style="display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 10px 5px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; width: 33%; font-size: 0.9em;">
+                    <i class="bi bi-telegram" style="margin-right: 8px; color: #0088cc; font-size: 1.2em;"></i>Telegram
+                </button>
+
+                <!-- Option WhatsApp -->
+                <button onclick="redirectToLogin('whatsapp')" class="platform-btn" style="display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.3); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 10px 5px; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; width: 33%; font-size: 0.9em;">
+                    <i class="bi bi-whatsapp" style="margin-right: 8px; color: #25D366; font-size: 1.2em;"></i>WhatsApp
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer" style="text-align: center;">
+            <button id="newUserBtn" class="modal-btn" style="background-color: #3B82F6; color: white; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 1.1em; cursor: pointer; border: none; display: inline-block; transition: background-color 0.3s; margin-top: 5px; width: 100%;">
+                Je suis nouveau
+            </button>
+        </div>
+    </div>
+
     <script>
-        function closeModal() {
+        function closeAnyModal() {
+            // Fermer tous les modals sauf le modal de plateforme si nous voulons le garder visible
+            const platformModalVisible = document.getElementById('platformSelectModal').style.display === 'block';
+            const shouldKeepPlatformModal = platformModalVisible && !localStorage.getItem('platformSelectShown');
+
             document.getElementById('welcomeModal').style.display = 'none';
-            document.getElementById('modalOverlay').style.display = 'none';
+            document.getElementById('phoneExistsModal').style.display = 'none';
+
+            // Ne fermer le modal de plateforme que si nous n'avons pas besoin de le garder visible
+            if (!shouldKeepPlatformModal) {
+                document.getElementById('platformSelectModal').style.display = 'none';
+                document.getElementById('modalOverlay').style.display = 'none';
+
+                // Retirer le flou de l'arrière-plan
+                document.querySelector('.container').classList.remove('blur-background');
+                document.querySelector('.main-title').classList.remove('blur-background');
+                document.querySelector('.main-subtitle').classList.remove('blur-background');
+            }
         }
-        window.onload = function() {
-            document.getElementById('welcomeModal').style.display = 'block';
+
+        function closeModal() {
+            // Vérifier si le modal de sélection de plateforme est actuellement visible
+            const platformModalVisible = document.getElementById('platformSelectModal').style.display === 'block';
+
+            // Si le modal de plateforme est visible, ne pas le fermer
+            if (platformModalVisible) {
+                return;
+            }
+
+            // Sinon, fermer normalement
+            closeAnyModal();
+            // Marquer le modal comme vu de façon permanente
+            localStorage.setItem('welcomeModalShown', 'true');
+        }
+
+        function showModal(modalId) {
+            closeAnyModal();
+            document.getElementById(modalId).style.display = 'block';
             document.getElementById('modalOverlay').style.display = 'block';
-        };
+
+            // Si c'est le modal de sélection de plateforme, flouter l'arrière-plan
+            if (modalId === 'platformSelectModal') {
+                // Appliquer le flou à tous les éléments principaux sauf le modal et l'overlay
+                document.querySelector('.container').classList.add('blur-background');
+                document.querySelector('.main-title').classList.add('blur-background');
+                document.querySelector('.main-subtitle').classList.add('blur-background');
+            }
+        }
+
+        // Mettre en place les gestionnaires d'événements lors du chargement du DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Formatage du numéro de téléphone
+            const phoneInput = document.getElementById('phone_number');
+
+            phoneInput.addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '').substring(0, 8);
+            });
+
+            document.querySelector('form').addEventListener('submit', function(e) {
+                const phoneInput = document.getElementById('phone_number');
+                phoneInput.value = '+225' + phoneInput.value;
+            });
+
+            // Gestionnaire pour le bouton "Se connecter"
+            document.getElementById('connectBtn').addEventListener('click', function() {
+                window.location.href = "{{ url_for('login') }}";
+            });
+
+            // Gestionnaire pour l'overlay
+            document.getElementById('modalOverlay').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    // Récupérer le modal actuellement visible
+                    const visibleModal = document.querySelector('.modal[style*="display: block"]');
+                    if (visibleModal && visibleModal.id === 'platformSelectModal') {
+                        // Animation d'attention (légère secousse et flash)
+                        visibleModal.classList.add('attention-animation');
+                        setTimeout(() => {
+                            visibleModal.classList.remove('attention-animation');
+                        }, 600);
+                    } else {
+                        // Pour les autres modals, on garde le comportement de fermeture
+                        closeModal();
+                    }
+                }
+            });
+
+            // Vérification initiale - ne rien afficher tant que nous n'avons pas décidé
+            document.getElementById('modalOverlay').style.display = 'none';
+        });
+
+        // Script séparé qui s'exécute après que la page est entièrement chargée
+        window.addEventListener('load', function() {
+            // Vérifier d'abord s'il y a un paramètre d'erreur
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const skipPlatformSelect = urlParams.get('skip_platform_select');
+
+            if (error === 'phone_exists') {
+                // Ne JAMAIS afficher les autres modals dans ce cas
+                showModal('phoneExistsModal');
+                // Marquer les modals comme vus
+                localStorage.setItem('welcomeModalShown', 'true');
+                localStorage.setItem('platformSelectShown', 'true');
+            } else if (skipPlatformSelect === 'true') {
+                // Si l'utilisateur est redirigé depuis le bouton "Je suis nouveau", on saute cette étape
+                // Vérifier si le modal de bienvenue a déjà été affiché
+                const welcomeModalShown = localStorage.getItem('welcomeModalShown');
+                if (!welcomeModalShown) {
+                    showModal('welcomeModal');
+                }
+            } else {
+                // Vérifier si le modal de sélection de plateforme a déjà été affiché
+                const platformSelectShown = localStorage.getItem('platformSelectShown');
+                if (!platformSelectShown) {
+                    // Afficher le modal de sélection de plateforme en priorité
+                    showModal('platformSelectModal');
+                    // Définir le gestionnaire pour le bouton "Je suis nouveau"
+                    document.getElementById('newUserBtn').addEventListener('click', function() {
+                        // Fermer le modal de plateforme
+                        document.getElementById('platformSelectModal').style.display = 'none';
+
+                        // Retirer le flou de l'arrière-plan
+                        document.querySelector('.container').classList.remove('blur-background');
+                        document.querySelector('.main-title').classList.remove('blur-background');
+                        document.querySelector('.main-subtitle').classList.remove('blur-background');
+
+                        // Marquer le modal de sélection de plateforme comme vu
+                        localStorage.setItem('platformSelectShown', 'true');
+
+                        // Vérifier si le modal de bienvenue doit être affiché
+                        const welcomeModalShown = localStorage.getItem('welcomeModalShown');
+                        if (!welcomeModalShown) {
+                            showModal('welcomeModal');
+                        } else {
+                            // Si le modal de bienvenue a déjà été affiché, cacher aussi l'overlay
+                            document.getElementById('modalOverlay').style.display = 'none';
+                        }
+                    });
+                } else {
+                    // Si le modal de sélection de plateforme a déjà été affiché, vérifier le modal de bienvenue
+                    const welcomeModalShown = localStorage.getItem('welcomeModalShown');
+                    if (!welcomeModalShown) {
+                        showModal('welcomeModal');
+                    }
+                }
+            }
+        });
+
+        function redirectToLogin(platform) {
+            // Rediriger vers la page de connexion avec le paramètre de plateforme
+            window.location.href = "{{ url_for('login') }}?platform=" + platform;
+        }
     </script>
 </body>
 </html>

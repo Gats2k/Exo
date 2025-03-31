@@ -233,13 +233,27 @@
                     WhatsApp
                 </button>
             </div>
-            <div id="telegram-field" class="form-group" style="display: none;">
-                <label for="telegram_id">ID Telegram</label>
-                <input type="text" id="telegram_id" name="telegram_id">
+            <div id="telegram-fields" class="form-group" style="display: none;">
+                <div class="form-group">
+                    <label for="telegram_id">ID Telegram</label>
+                    <input type="text" id="telegram_id" name="telegram_id">
+                </div>
+                <div class="form-group">
+                    <label for="telegram_phone">Numéro de téléphone</label>
+                    <div class="phone-input-container" style="display: flex; align-items: center;">
+                        <span style="background-color: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 8px 0 0 8px; color: white;">+225</span>
+                        <input type="tel" id="telegram_phone" name="telegram_phone" pattern="[0-9]{8}" maxlength="8" style="border-radius: 0 8px 8px 0; flex-grow: 1;" placeholder="00000000">
+                    </div>
+                    <small style="color: #FFD700; margin-top: 5px; display: block;">Ce numéro sera associé à votre compte Telegram</small>
+                </div>
             </div>
             <div class="form-group standard-fields">
                 <label for="phone_number">Numéro de téléphone</label>
-                <input type="tel" id="phone_number" name="phone_number" required>
+                <div class="phone-input-container" style="display: flex; align-items: center;">
+                    <span style="background-color: rgba(255, 255, 255, 0.2); padding: 10px; border-radius: 8px 0 0 8px; color: white;">+225</span>
+                    <input type="tel" id="phone_number" name="phone_number" required pattern="[0-9]{8}" maxlength="8" style="border-radius: 0 8px 8px 0; flex-grow: 1;" placeholder="00000000">
+                </div>
+                <small style="color: #FFD700; margin-top: 5px; display: block;">Format: +225 suivi de 8 chiffres</small>
             </div>
             <div class="form-group standard-fields">
                 <label for="password">Mot de passe</label>
@@ -270,16 +284,16 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Éléments du formulaire
-            const webBtn = document.querySelector('.login-option-btn.web');
-            const telegramBtn = document.querySelector('.login-option-btn.telegram');
-            const whatsappBtn = document.querySelector('.login-option-btn.whatsapp');
-            const standardFields = document.querySelectorAll('.standard-fields');
-            const telegramField = document.getElementById('telegram-field');
-            const loginForm = document.querySelector('form');
-            const telegramInput = document.getElementById('telegram_id');
-            const phoneInput = document.getElementById('phone_number');
-            const passwordInput = document.getElementById('password');
+        // Éléments du formulaire
+        const webBtn = document.querySelector('.login-option-btn.web');
+        const telegramBtn = document.querySelector('.login-option-btn.telegram');
+        const whatsappBtn = document.querySelector('.login-option-btn.whatsapp');
+        const standardFields = document.querySelectorAll('.standard-fields');
+        const telegramFields = document.getElementById('telegram-fields');
+        const loginForm = document.querySelector('form');
+        const telegramInput = document.getElementById('telegram_id');
+        const phoneInput = document.getElementById('phone_number');
+        const passwordInput = document.getElementById('password');
 
             // Ajouter un champ caché pour le mode de connexion
             const loginModeInput = document.createElement('input');
@@ -301,10 +315,14 @@
             const updateRequiredFields = (mode) => {
                 if (mode === 'telegram') {
                     telegramInput.setAttribute('required', '');
+                    document.getElementById('telegram_phone').setAttribute('required', '');
                     phoneInput.removeAttribute('required');
                     passwordInput.removeAttribute('required');
                 } else {
                     telegramInput.removeAttribute('required');
+                    if (document.getElementById('telegram_phone')) {
+                        document.getElementById('telegram_phone').removeAttribute('required');
+                    }
                     phoneInput.setAttribute('required', '');
                     passwordInput.setAttribute('required', '');
                 }
@@ -313,7 +331,13 @@
             // Gestionnaire pour le bouton Web
             webBtn.addEventListener('click', function() {
                 // Cacher le champ Telegram
-                telegramField.style.display = 'none';
+                telegramFields.style.display = 'none';
+
+                // Supprimer tous les messages d'aide ajoutés par WhatsApp
+                document.querySelectorAll('.password-help-text').forEach(el => el.remove());
+
+                // Réinitialiser le placeholder du numéro de téléphone
+                phoneInput.placeholder = "00000000";
 
                 // Afficher les champs standard
                 standardFields.forEach(field => {
@@ -336,8 +360,8 @@
                     field.style.display = 'none';
                 });
 
-                // Afficher le champ Telegram
-                telegramField.style.display = 'block';
+                // Afficher les champs Telegram
+                document.getElementById('telegram-fields').style.display = 'block';
 
                 // Mettre à jour le mode de connexion
                 loginModeInput.value = 'telegram';
@@ -350,8 +374,8 @@
 
             // Gestionnaire pour le bouton WhatsApp
             whatsappBtn.addEventListener('click', function() {
-                // Cacher le champ Telegram
-                telegramField.style.display = 'none';
+                // Cacher les champs Telegram
+                telegramFields.style.display = 'none';
 
                 // Cacher tous les messages d'aide existants
                 document.querySelectorAll('.password-help-text').forEach(el => el.remove());
@@ -437,13 +461,30 @@
             document.getElementById('modalOverlay').style.display = 'none';
         }
 
+        function activateLoginTab(tabName) {
+            // Récupérer les références des boutons d'options
+            const webBtn = document.querySelector('.login-option-btn.web');
+            const telegramBtn = document.querySelector('.login-option-btn.telegram');
+            const whatsappBtn = document.querySelector('.login-option-btn.whatsapp');
+
+            // Activer l'onglet correspondant
+            if (tabName === 'web' && webBtn) {
+                webBtn.click();
+            } else if (tabName === 'telegram' && telegramBtn) {
+                telegramBtn.click();
+            } else if (tabName === 'whatsapp' && whatsappBtn) {
+                whatsappBtn.click();
+            }
+        }
+
         // Gestionnaire pour le fond du modal
         document.getElementById('modalOverlay').addEventListener('click', closeErrorModal);
 
-        // Vérifier les paramètres d'URL pour détecter les erreurs
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             const error = urlParams.get('error');
+            const phone = urlParams.get('phone');
+            const platform = urlParams.get('platform');
 
             if (error === 'no_account') {
                 showErrorModal(
@@ -459,6 +500,94 @@
                     "Réessayer",
                     null
                 );
+            } else if (error === 'web_account') {
+                showErrorModal(
+                    "Compte Web détecté", 
+                    "Ce numéro est associé à un compte Web standard. Veuillez utiliser l'option Web pour vous connecter.", 
+                    "Connexion Web",
+                    function() { 
+                        // Activer l'onglet Web
+                        document.querySelector('.login-option-btn.web').click(); 
+                        // Pré-remplir le numéro de téléphone si disponible
+                        if (phone) {
+                            document.getElementById('phone_number').value = phone.replace('+225', '');
+                        }
+                    }
+                );
+            } else if (error === 'telegram_account') {
+                showErrorModal(
+                    "Compte Telegram détecté", 
+                    "Ce numéro est associé à un compte Telegram. Veuillez utiliser l'option Telegram ou votre application Telegram pour vous connecter.", 
+                    "Connexion Telegram",
+                    function() { 
+                        // Activer l'onglet Telegram
+                        document.querySelector('.login-option-btn.telegram').click();
+                        // Pré-remplir le numéro de téléphone si disponible
+                        if (phone) {
+                            document.getElementById('telegram_phone').value = phone.replace('+225', '');
+                        }
+                    }
+                );
+            } else if (error === 'whatsapp_account') {
+                showErrorModal(
+                    "Compte WhatsApp détecté", 
+                    "Ce numéro est associé à un compte WhatsApp. Veuillez utiliser l'option WhatsApp pour vous connecter.", 
+                    "Connexion WhatsApp",
+                    function() { 
+                        // Activer l'onglet WhatsApp
+                        document.querySelector('.login-option-btn.whatsapp').click();
+                        // Pré-remplir le numéro de téléphone si disponible
+                        if (phone) {
+                            document.getElementById('phone_number').value = phone.replace('+225', '');
+                        }
+                    }
+                );
+            } else if (error === 'no_whatsapp_account') {
+                showErrorModal(
+                    "Compte WhatsApp introuvable", 
+                    "Aucun compte WhatsApp n'a été trouvé avec ce numéro.", 
+                    "Réessayer",
+                    null
+                );
+            }
+
+            // Liste de tous les champs de téléphone
+            const phoneInputs = [
+                document.getElementById('phone_number'),
+                document.getElementById('telegram_phone')
+            ];
+
+            // Appliquer le formatage à chaque champ
+            phoneInputs.forEach(input => {
+                if (input) {
+                    // Assurer que seuls les chiffres sont entrés
+                    input.addEventListener('input', function(e) {
+                        this.value = this.value.replace(/[^0-9]/g, '').substring(0, 8);
+                    });
+                }
+            });
+
+            // Préparer les numéros de téléphone lors de la soumission
+            const loginForm = document.querySelector('form');
+            loginForm.addEventListener('submit', function(e) {
+                const mode = document.querySelector('input[name="login_mode"]').value;
+
+                if (mode === 'web' || mode === 'whatsapp') {
+                    const phoneInput = document.getElementById('phone_number');
+                    if (phoneInput.value && !phoneInput.value.startsWith('+225')) {
+                        phoneInput.value = '+225' + phoneInput.value;
+                    }
+                } else if (mode === 'telegram') {
+                    const telegramPhone = document.getElementById('telegram_phone');
+                    if (telegramPhone.value && !telegramPhone.value.startsWith('+225')) {
+                        telegramPhone.value = '+225' + telegramPhone.value;
+                    }
+                }
+            });
+
+            // Si une plateforme est spécifiée, activer l'onglet correspondant
+            if (platform) {
+                activateLoginTab(platform);
             }
         });
     </script>
