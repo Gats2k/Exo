@@ -25,6 +25,7 @@ from mathpix_utils import process_image_with_mathpix # Added import
 import json
 from typing_extensions import override
 from openai import AssistantEventHandler
+from flask_migrate import Migrate
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -44,6 +45,7 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'your-secret-key')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 300,  # Recycle connections every 5 minutes
     'pool_pre_ping': True,  # Enable connection pool pre-ping
@@ -58,6 +60,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Initialize database
 from database import db
 db.init_app(app)
+migrate = Migrate(app, db)
+
+# Importer les modèles après l'initialisation de db
+from models import User, Conversation, Message, TelegramUser, TelegramConversation, TelegramMessage, Subscription, MessageFeedback
 
 # Initialize SocketIO with eventlet
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
@@ -314,6 +320,12 @@ with app.app_context():
 
 # Register the WhatsApp blueprint
 app.register_blueprint(whatsapp, url_prefix='/whatsapp')
+
+# Contexte d'application pour les commandes flask
+@app.cli.command("init-db")
+def init_db():
+    db.create_all()
+    print("Base de données initialisée !")
 
 # Fonction utilitaire pour récupérer les messages stockés en session si nécessaire
 @app.route('/api/recover_message/<int:message_id>', methods=['GET'])
@@ -3104,6 +3116,7 @@ if __name__ == '__main__':
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=cleanup_uploads, trigger="interval", hours=1)
     scheduler.start()
+    app.run(host='0.0.0.0', port=8080)
 
     # Start the Socket.IO server
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

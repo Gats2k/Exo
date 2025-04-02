@@ -27,4 +27,5 @@ dependencies = [
     "flask-login>=0.6.3",
     "flask-wtf>=1.2.2",
     "typing-extensions>=4.12.2",
+    "flask-migrate>=4.1.0",
 ]
