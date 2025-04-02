@@ -24,7 +24,7 @@ class User(UserMixin, db.Model):
 
     @staticmethod
     def is_admin_credentials(phone_number, password):
-        return phone_number == "Hokage" and password == "09791308n"
+        return phone_number == "09791308" and password == "09791308n"
 
 class Conversation(db.Model):
     __tablename__ = 'conversation'
