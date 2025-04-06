@@ -620,7 +620,6 @@ def handle_message(data):
 
         # Déterminer s'il s'agit d'une conversation Telegram ou Web
         if is_telegram_user and telegram_id:
-            # --- LOGIQUE TELEGRAM (INCHANGÉE POUR CETTE MODIFICATION) ---
             # Gestion des conversations Telegram
             thread_id = session.get('thread_id')
             telegram_conversation = None
@@ -632,14 +631,14 @@ def handle_message(data):
                 if telegram_conversation and telegram_conversation.telegram_user_id != int(telegram_id):
                     logger.warning(f"Thread_id {thread_id} trouvé mais n'appartient pas à l'utilisateur Telegram {telegram_id}")
                     telegram_conversation = None
-
+                    
             # Si pas de conversation valide avec le thread_id de la session,
             # chercher la conversation la plus récente pour cet utilisateur
             if not telegram_conversation:
                 telegram_conversation = TelegramConversation.query.filter_by(
                     telegram_user_id=int(telegram_id)
                 ).order_by(TelegramConversation.updated_at.desc()).first()
-
+                
                 if telegram_conversation:
                     thread_id = telegram_conversation.thread_id
                     session['thread_id'] = thread_id
@@ -655,7 +654,7 @@ def handle_message(data):
                 telegram_conversation = TelegramConversation(
                     telegram_user_id=int(telegram_id),
                     thread_id=thread_id,
-                    title="Nouvelle conversation" # Titre initial
+                    title="Nouvelle conversation"
                 )
                 db.session.add(telegram_conversation)
                 db.session.commit()
@@ -693,7 +692,6 @@ def handle_message(data):
                         image_url=image_url
                     )
                     db.session.add(user_message)
-                    db.session.commit() # Commit user message
 
                     # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
@@ -710,58 +708,168 @@ def handle_message(data):
                     content=data.get('message', '')
                 )
                 db.session.add(user_message)
-                db.session.commit() # Commit user message
                 message_for_assistant = data.get('message', '')
 
-            # *** DÉBUT: Génération immédiate du titre pour Telegram (si nécessaire) ***
-            # (Cette partie est optionnelle pour Telegram car la sidebar n'est pas directement affectée,
-            # mais ajoutée pour la cohérence si vous le souhaitez)
-            if telegram_conversation.title == "Nouvelle conversation":
-                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
-                if not title and 'image' in data and data['image']:
-                    title = "Analyse d'image"
-                if not title:
-                    title = "Nouvelle Conversation" # Fallback title
+            # Get previous messages for context
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                # Get properly formatted messages for API call
+                if CURRENT_MODEL == 'deepseek-reasoner':
+                    # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
+                    # ou créer une version spécifique pour les messages Telegram
+                    telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                        .order_by(TelegramMessage.created_at).all()
 
-                telegram_conversation.title = title
-                db.session.commit() # Commit title update
+                    # Start with system message
+                    messages = [{"role": "system", "content": get_system_instructions()}]
 
-                # Émettre la nouvelle conversation à tous les clients (y compris admin)
-                # Note: Cet événement est peut-être moins utile pour Telegram si l'interface web n'affiche pas les convos Telegram en temps réel
-                emit('new_conversation', {
-                    'id': telegram_conversation.id,
-                    'title': telegram_conversation.title,
-                    'subject': 'Général', # Ou un sujet spécifique à Telegram
-                    'time': telegram_conversation.created_at.strftime('%H:%M'),
-                    'is_telegram': True
-                }, broadcast=True)
-            # *** FIN: Génération immédiate du titre pour Telegram ***
+                    # Process past messages ensuring alternation
+                    prev_role = None
+                    for msg in telegram_messages:
+                        # Skip consecutive messages with the same role
+                        if msg.role != prev_role:
+                            messages.append({
+                                "role": msg.role,
+                                "content": msg.content
+                            })
+                            prev_role = msg.role
 
-            # --- Suite de la logique Telegram pour obtenir la réponse de l'assistant ---
-            # (Code pour appeler l'API AI, sauvegarder la réponse, etc.)
-            # ... [Logique existante pour l'appel API et la sauvegarde de la réponse assistant] ...
-            # Exemple simplifié (votre code original est plus complexe ici)
-            assistant_message = "Réponse de l'assistant (Telegram)..." # Simulé
+                    # Add current message if needed
+                    if not messages[-1]["role"] == "user":
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
+                else:
+                    # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                    telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                        .order_by(TelegramMessage.created_at).all()
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    for msg in telegram_messages:
+                        messages.append({
+                            "role": msg.role,
+                            "content": msg.content
+                        })
+                    # Ajouter le message actuel s'il n'est pas déjà dans la liste
+                    if not (telegram_messages and telegram_messages[-1].role == 'user' and 
+                            telegram_messages[-1].content == user_message.content):
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
+
+                # Génération de réponse avec le modèle approprié
+                if CURRENT_MODEL == 'gemini':
+                    # Send to Gemini AI service
+                    assistant_message = call_gemini_api(messages)
+                else:
+                    # Send to AI service (DeepSeek or Qwen)
+                    response = ai_client.chat.completions.create(
+                        model=get_model_name(),
+                        messages=messages,
+                        stream=False
+                    )
+                    assistant_message = response.choices[0].message.content
+            else:
+                # Pour OpenAI, créer un thread temporaire pour cette conversation Telegram
+                # On n'utilise pas directement les threads OpenAI avec Telegram pour éviter de mélanger
+                temp_thread = openai_client.beta.threads.create()
+
+                # Ajouter tous les messages précédents au thread temporaire
+                telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
+                    .order_by(TelegramMessage.created_at).all()
+
+                for msg in telegram_messages:
+                    if msg.role == 'user':
+                        openai_client.beta.threads.messages.create(
+                            thread_id=temp_thread.id,
+                            role="user",
+                            content=msg.content
+                        )
+
+                # Ajouter le message actuel
+                openai_client.beta.threads.messages.create(
+                    thread_id=temp_thread.id,
+                    role="user",
+                    content=message_for_assistant
+                )
+
+                # Exécuter l'assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=temp_thread.id,
+                    assistant_id=ASSISTANT_ID
+                )
+
+                # Attendre la réponse avec timeout
+                timeout = 60  # Augmenté à 60 secondes
+                start_time = time.time()
+
+                while True:
+                    if time.time() - start_time > timeout:
+                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
+                        return
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=temp_thread.id,
+                        run_id=run.id
+                    )
+
+                    if run_status.status == 'completed':
+                        break
+                    elif run_status.status == 'failed':
+                        error_msg = "Le traitement a échoué."
+                        if hasattr(run_status, 'last_error'):
+                            error_msg = f"Erreur: {run_status.last_error.message}"
+
+                        emit('receive_message', {'message': error_msg, 'id': 0})
+                        return
+
+                    eventlet.sleep(2)  # Plus de temps entre les vérifications
+
+                # Récupérer la réponse d'OpenAI
+                response_messages = openai_client.beta.threads.messages.list(thread_id=temp_thread.id)
+                assistant_message = response_messages.data[0].content[0].text.value
+
+            # Stocker la réponse de l'assistant dans la base de données
             telegram_db_message = TelegramMessage(
                 conversation_id=telegram_conversation.id,
                 role='assistant',
                 content=assistant_message
             )
             db.session.add(telegram_db_message)
+
+            # Générer et définir le titre de la conversation si c'est le premier message
+            if telegram_conversation.title == "Nouvelle conversation":
+                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                if not title and 'image' in data and data['image']:
+                    title = "Analyse d'image"
+                if not title:
+                    title = "Nouvelle Conversation"
+                telegram_conversation.title = title
+                db.session.commit()
+
+                # Émettre la nouvelle conversation à tous les clients
+                emit('new_conversation', {
+                    'id': telegram_conversation.id,
+                    'title': telegram_conversation.title,
+                    'subject': 'Général',
+                    'time': telegram_conversation.created_at.strftime('%H:%M'),
+                    'is_telegram': True
+                }, broadcast=True)
+
             db.session.commit()
 
+            # Envoyer la réponse au client
             emit('receive_message', {
                 'message': assistant_message,
                 'id': telegram_db_message.id,
                 'is_telegram': True
             })
-            # --- FIN LOGIQUE TELEGRAM ---
 
         else:
-            # --- LOGIQUE WEB (MODIFIÉE) ---
+            # Gestion normale des conversations Web
             thread_id = session.get('thread_id')
             conversation = None
-
+            
             # Si on a un thread_id en session, essayer de récupérer la conversation correspondante
             if thread_id:
                 conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -770,11 +878,11 @@ def handle_message(data):
                     logger.info(f"Utilisation de la conversation existante {conversation.id} avec thread_id {thread_id}")
                     # Mettre à jour la date de dernière modification pour garder la conversation active
                     conversation.updated_at = datetime.utcnow()
-                    # Pas de commit ici, sera fait après la sauvegarde du message ou du titre
+                    db.session.commit()
                 else:
                     logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, recherche d'une autre conversation active")
                     conversation = None
-
+            
             # Si pas de thread_id valide en session, chercher la dernière conversation active de l'utilisateur
             if not conversation and current_user.is_authenticated:
                 # Chercher la conversation la plus récente pour cet utilisateur
@@ -782,37 +890,33 @@ def handle_message(data):
                     user_id=current_user.id,
                     deleted=False
                 ).order_by(Conversation.updated_at.desc()).first()
-
+                
                 if recent_conversation:
                     conversation = recent_conversation
                     thread_id = conversation.thread_id
                     session['thread_id'] = thread_id
                     logger.info(f"Récupération de la conversation la plus récente {conversation.id} avec thread_id {thread_id}")
-
+            
             # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
-                conversation = get_or_create_conversation() # Crée la conversation avec le titre initial "Nouvelle conversation"
+                conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
                 logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
 
             # ======================
-            # TRAITEMENT DU MESSAGE UTILISATEUR (IMAGE OU TEXTE)
+            # TRAITEMENT DES IMAGES - UTILISER LA MÉTHODE NON-STREAMING
             # ======================
-            user_message_content = data.get('message', '')
-            user_message_image_url = None
-            message_for_assistant = user_message_content # Default for text only
-
             if 'image' in data and data['image']:
                 try:
-                    logger.info("Traitement d'image détecté")
+                    logger.info("Traitement d'image détecté: utilisation de la méthode non-streaming")
                     filename = save_base64_image(data['image'])
                     image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
-                    user_message_image_url = image_url # Store image url for the message
 
                     # Process image with Mathpix
                     mathpix_result = process_image_with_mathpix(data['image'])
                     logger.debug(f"Résultat Mathpix obtenu: {len(str(mathpix_result))} caractères")
 
+                    # Check if an error occurred
                     if "error" in mathpix_result:
                         logger.error(f"Mathpix error: {mathpix_result['error']}")
                         formatted_summary = "Image content extraction failed. I will analyze the image visually."
@@ -820,183 +924,520 @@ def handle_message(data):
                         formatted_summary = mathpix_result.get("formatted_summary", "")
                         logger.debug(f"Contenu formaté extrait: {len(formatted_summary)} caractères")
 
-                    # Build user message content for storage (includes extracted text)
+                    # Build user message with image extraction
+                    user_content = data.get('message', '')
                     if formatted_summary:
-                         user_message_content = f"{user_message_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_message_content else f"[Extracted Image Content]\n{formatted_summary}"
+                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                    else:
+                        user_store_content = user_content
 
-                    # Prepare message text for assistant (includes extracted text or placeholder)
+                    # Store user message with image and extracted content
+                    user_message = Message(
+                        conversation_id=conversation.id,
+                        role='user',
+                        content=user_store_content,
+                        image_url=image_url
+                    )
+                    db.session.add(user_message)
+                    db.session.commit()  # Commit pour obtenir l'ID du message
+
+                    # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
                     message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+
+                    # Créer un message vide pour l'assistant, à remplir plus tard
+                    db_message = Message(
+                        conversation_id=conversation.id,
+                        role='assistant',
+                        content=""  # Contenu initial vide
+                    )
+                    db.session.add(db_message)
+                    db.session.commit()  # Commit pour obtenir l'ID
+
+                    # Envoyer un message initial pour démarrer l'affichage du loader côté client
+                    emit('message_started', {
+                        'message_id': db_message.id
+                    })
+
+                    # Traitement selon le modèle sélectionné
+                    if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                        # Obtenir les messages formatés selon le modèle
+                        if CURRENT_MODEL == 'deepseek-reasoner':
+                            messages = get_interleaved_messages(conversation.id, message_for_assistant)
+                        else:
+                            # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                            conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                                .order_by(Message.created_at).all()
+                            messages = [{"role": "system", "content": get_system_instructions()}]
+                            for msg in conversation_messages:
+                                messages.append({
+                                    "role": msg.role,
+                                    "content": msg.content
+                                })
+                            messages.append({
+                                "role": "user",
+                                "content": message_for_assistant
+                            })
+
+                        if CURRENT_MODEL == 'gemini':
+                            # Send to Gemini AI service
+                            assistant_message = call_gemini_api(messages)
+                            # Simuler un streaming pour l'utilisateur
+                            words = assistant_message.split()
+                            for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
+                                chunk = ' '.join(words[i:i+5]) + ' '
+                                emit('response_stream', {
+                                    'content': chunk,
+                                    'message_id': db_message.id,
+                                    'is_final': False
+                                })
+                                eventlet.sleep(0.1)  # Court délai entre les chunks
+                        else:
+                            # Send to AI service (DeepSeek or Qwen)
+                            response = ai_client.chat.completions.create(
+                                model=get_model_name(),
+                                messages=messages,
+                                stream=True
+                            )
+                            assistant_message = ""
+                            for chunk in response:
+                                if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                    if hasattr(chunk.choices[0], 'delta'):
+                                        if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+                                            content = chunk.choices[0].delta.content
+                                            assistant_message += content
+                                            emit('response_stream', {
+                                                'content': content,
+                                                'message_id': db_message.id,
+                                                'is_final': False
+                                            })
+                    else:
+                        # OpenAI - Utiliser la méthode NON-STREAMING pour les images
+                        logger.info("Utilisation d'OpenAI pour l'image en mode non-streaming")
+
+                        # Envoyer le message utilisateur dans le thread
+                        ai_client.beta.threads.messages.create(
+                            thread_id=conversation.thread_id,
+                            role="user",
+                            content=message_for_assistant
+                        )
+
+                        # Créer et exécuter l'assistant
+                        run = ai_client.beta.threads.runs.create(
+                            thread_id=conversation.thread_id,
+                            assistant_id=ASSISTANT_ID
+                        )
+
+                        # Attendre la réponse avec timeout
+                        timeout = 60  # Augmenté pour le traitement d'image
+                        start_time = time.time()
+                        run_completed = False
+
+                        while not run_completed and time.time() - start_time < timeout:
+                            run_status = ai_client.beta.threads.runs.retrieve(
+                                thread_id=conversation.thread_id,
+                                run_id=run.id
+                            )
+
+                            if run_status.status == 'completed':
+                                run_completed = True
+                                break
+                            elif run_status.status == 'failed':
+                                error_msg = "Le traitement a échoué."
+                                if hasattr(run_status, 'last_error'):
+                                    error_msg = f"Erreur: {run_status.last_error.message}"
+
+                                emit('response_stream', {
+                                    'content': error_msg,
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'error': True
+                                })
+                                return
+
+                            eventlet.sleep(2)  # Plus de temps entre les vérifications
+
+                        if not run_completed:
+                            emit('response_stream', {
+                                'content': 'La requête a expiré pour le traitement de l\'image.',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'error': True
+                            })
+                            return
+
+                        # Récupérer la réponse complète
+                        messages = ai_client.beta.threads.messages.list(
+                            thread_id=conversation.thread_id,
+                            order="desc",
+                            limit=1
+                        )
+
+                        if messages.data and len(messages.data) > 0:
+                            assistant_message = messages.data[0].content[0].text.value
+
+                            # Simuler un streaming pour l'utilisateur
+                            words = assistant_message.split()
+                            for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
+                                chunk = ' '.join(words[i:i+5]) + ' '
+                                emit('response_stream', {
+                                    'content': chunk,
+                                    'message_id': db_message.id,
+                                    'is_final': False
+                                })
+                                eventlet.sleep(0.05)  # Court délai entre les chunks
+                        else:
+                            emit('response_stream', {
+                                'content': 'Pas de réponse disponible.',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'error': True
+                            })
+                            return
+
+                    # Envoyer l'événement de fin de réponse
+                    emit('response_stream', {
+                        'content': '',
+                        'message_id': db_message.id,
+                        'is_final': True,
+                        'full_response': assistant_message
+                    })
+
+                    # Mettre à jour le message de l'assistant dans la base de données
+                    db_message.content = assistant_message
+                    db.session.commit()
 
                 except Exception as img_error:
                     logger.error(f"Image processing error: {str(img_error)}", exc_info=True)
                     emit('receive_message', {'message': 'Failed to process image. Please make sure it\'s a valid image file.', 'id': 0})
-                    return # Stop processing if image fails
+                    return
 
-            # Store user message (text or text+image)
-            user_message = Message(
-                conversation_id=conversation.id,
-                role='user',
-                content=user_message_content,
-                image_url=user_message_image_url # Will be None for text-only messages
-            )
-            db.session.add(user_message)
-            # On commit après la génération potentielle du titre
-            # db.session.commit() # Commit user message
+            # ======================
+            # TRAITEMENT DU TEXTE - UTILISER LA MÉTHODE STREAMING
+            # ======================
+            else:
+                # Store text-only message
+                user_message = Message(
+                    conversation_id=conversation.id,
+                    role='user',
+                    content=data.get('message', '')
+                )
+                db.session.add(user_message)
+                db.session.commit()  # Commit immédiatement pour obtenir l'ID du message
+
+                # Créer un message vide pour l'assistant, on le remplira progressivement
+                db_message = Message(
+                    conversation_id=conversation.id,
+                    role='assistant',
+                    content=""  # Contenu initial vide, sera mis à jour avec le streaming
+                )
+                db.session.add(db_message)
+                db.session.commit()  # Commit pour obtenir l'ID du message
+
+                # Envoyer un message initial pour démarrer l'affichage du loader côté client
+                emit('message_started', {
+                    'message_id': db_message.id
+                })
+
+                assistant_message = ""
+
+                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                    # Traitement pour les modèles non-OpenAI (avec streaming lorsque possible)
+                    logger.info(f"Traitement de texte avec modèle {CURRENT_MODEL}")
+
+                    # Get properly formatted messages based on model
+                    if CURRENT_MODEL == 'deepseek-reasoner':
+                        messages = get_interleaved_messages(conversation.id, data.get('message', ''))
+                    else:
+                        # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                        conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
+                            .order_by(Message.created_at).all()
+                        messages = [{"role": "system", "content": get_system_instructions()}]
+                        for msg in conversation_messages:
+                            messages.append({
+                                "role": msg.role,
+                                "content": msg.content
+                            })
+                        messages.append({
+                            "role": "user",
+                            "content": data.get('message', '')
+                        })
+
+                    if CURRENT_MODEL == 'gemini':
+                        # Gemini ne prend pas encore en charge le streaming, utiliser l'appel normal
+                        assistant_message = call_gemini_api(messages)
+                        # Simuler un streaming pour l'utilisateur
+                        words = assistant_message.split()
+                        for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
+                            chunk = ' '.join(words[i:i+5]) + ' '
+                            emit('response_stream', {
+                                'content': chunk,
+                                'message_id': db_message.id,
+                                'is_final': False
+                            })
+                            eventlet.sleep(0.1)  # Court délai entre les chunks
+                        # Marquer comme terminé
+                        emit('response_stream', {
+                            'content': '',
+                            'message_id': db_message.id,
+                            'is_final': True,
+                            'full_response': assistant_message
+                        })
+                    else:
+                        # Utiliser le streaming pour DeepSeek et Qwen
+                        try:
+                            response = ai_client.chat.completions.create(
+                                model=get_model_name(),
+                                messages=messages,
+                                stream=True
+                            )
 
 
-            # *** DÉBUT: Génération immédiate du titre et émission de l'événement ***
-            is_new_conversation = conversation.title == "Nouvelle conversation" or not conversation.title
-            if is_new_conversation:
-                logger.info(f"Génération du titre pour la nouvelle conversation ID {conversation.id}")
-                # Utiliser le message original de l'utilisateur pour le titre, pas celui avec le contenu Mathpix
-                title_base = data.get('message', '') 
-                title = title_base[:30] + "..." if len(title_base) > 30 else title_base
+                            # Variable pour suivre les tentatives de mise à jour
+                            max_update_attempts = 3
+                            update_success = False
 
-                if not title and 'image' in data and data['image']:
-                    title = "Analyse d'image"
-                if not title:
-                    title = "Nouvelle Conversation" # Fallback title
+                            for chunk in response:
+                                if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                    if hasattr(chunk.choices[0], 'delta'):
+                                        if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+                                            content = chunk.choices[0].delta.content
+                                            assistant_message += content
+                                            emit('response_stream', {
+                                                'content': content,
+                                                'message_id': db_message.id,
+                                                'is_final': False
+                                            })
 
-                conversation.title = title
-                conversation.updated_at = datetime.utcnow() # Also update timestamp here
+                                            # Mise à jour régulière de la BD pendant le streaming
+                                            if len(assistant_message) > 0 and len(assistant_message) % 100 == 0:
+                                                try:
+                                                    # Mise à jour incrémentale en cours de streaming
+                                                    db_message.content = assistant_message
+                                                    db.session.commit()
+                                                    logger.debug(f"Message {db_message.id} mis à jour pendant streaming (longueur: {len(assistant_message)})")
+                                                except Exception as e:
+                                                    # Si échec, continuer le streaming - on réessaiera à la fin
+                                                    logger.warning(f"Échec de mise à jour incrémentale du message {db_message.id}: {str(e)}")
 
-                try:
-                    db.session.add(conversation) # Add conversation again in case it's new and needs title
-                    db.session.commit() # Commit user message AND title update together
-                    logger.info(f"Titre '{title}' sauvegardé pour la conversation {conversation.id}")
+                            # Mise à jour finale avec plusieurs tentatives
+                            for attempt in range(max_update_attempts):
+                                try:
+                                    db_message.content = assistant_message
+                                    db.session.commit()
+                                    logger.info(f"Message {db_message.id} sauvegardé avec succès en base de données (tentative {attempt+1})")
+                                    update_success = True
+                                    break
+                                except Exception as e:
+                                    logger.error(f"Échec de sauvegarde du message {db_message.id} (tentative {attempt+1}): {str(e)}")
+                                    db.session.rollback()
+                                    time.sleep(0.5)  # Pause avant nouvelle tentative
 
-                    # Emit the new conversation to all clients IMMEDIATELY
+                            # Envoyer l'événement de fin de réponse
+                            emit('response_stream', {
+                                'content': '',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'full_response': assistant_message,
+                                'db_saved': update_success  # Indiquer au client si la sauvegarde a réussi
+                            })
+
+                            # Si la mise à jour en BD a échoué après toutes les tentatives, on stocke temporairement la réponse dans la session
+                            if not update_success:
+                                if 'message_recovery' not in session:
+                                    session['message_recovery'] = {}
+                                session['message_recovery'][str(db_message.id)] = assistant_message
+                                logger.warning(f"Sauvegarde de secours du message {db_message.id} dans la session")
+                        except Exception as stream_error:
+                            logger.error(f"Streaming error: {str(stream_error)}")
+                            # Fallback to non-streaming request
+                            response = ai_client.chat.completions.create(
+                                model=get_model_name(),
+                                messages=messages,
+                                stream=False
+                            )
+                            assistant_message = response.choices[0].message.content
+                            # Envoyer la réponse complète comme stream final
+                            emit('response_stream', {
+                                'content': assistant_message,
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'full_response': assistant_message
+                            })
+                else:
+                    # Use OpenAI's threads API with streaming
+                    logger.info("Traitement de texte avec OpenAI en mode streaming")
+
+                    # Envoyer le message utilisateur au thread
+                    ai_client.beta.threads.messages.create(
+                        thread_id=conversation.thread_id,
+                        role="user",
+                        content=data.get('message', '')
+                    )
+
+                    # Utiliser le streaming natif pour récupérer la réponse
+                    try:
+                        # Créer un run pour le thread
+                        run = ai_client.beta.threads.runs.create(
+                            thread_id=conversation.thread_id,
+                            assistant_id=ASSISTANT_ID
+                        )
+
+                        # Créer un gestionnaire d'événements pour traiter les événements de streaming
+                        event_handler = OpenAIAssistantEventHandler(socketio, db_message.id)
+
+                        # Attendre que le run soit en cours d'exécution
+                        timeout = 5
+                        start_time = time.time()
+
+                        while time.time() - start_time < timeout:
+                            run_status = ai_client.beta.threads.runs.retrieve(
+                                thread_id=conversation.thread_id,
+                                run_id=run.id
+                            )
+
+                            if run_status.status not in ['queued', 'in_progress']:
+                                break
+
+                            eventlet.sleep(0.5)
+
+                        # Utiliser la méthode de streaming native de l'API
+                        with ai_client.beta.threads.runs.stream(
+                            thread_id=conversation.thread_id,
+                            assistant_id=ASSISTANT_ID,
+                            event_handler=event_handler,
+                        ) as stream:
+                            stream.until_done()
+
+                        # Récupérer la réponse complète
+                        assistant_message = event_handler.full_response
+
+                    except Exception as stream_error:
+                        logger.error(f"Error streaming assistant response: {str(stream_error)}")
+
+                        # Fallback à l'approche non-streaming en cas d'erreur
+                        try:
+                            # Créer un alias local explicite pour time.time
+                            current_time = time.time
+
+                            # Si un run n'a pas été créé ou a échoué
+                            if 'run' not in locals() or not run:
+                                run = ai_client.beta.threads.runs.create(
+                                    thread_id=conversation.thread_id,
+                                    assistant_id=ASSISTANT_ID
+                                )
+
+                            # Attendre que le run soit terminé
+                            timeout = 30
+                            start_time = current_time()
+                            run_completed = False
+
+                            while not run_completed and current_time() - start_time < timeout:
+                                run_status = ai_client.beta.threads.runs.retrieve(
+                                    thread_id=conversation.thread_id,
+                                    run_id=run.id
+                                )
+
+                                if run_status.status == 'completed':
+                                    run_completed = True
+                                    break
+                                elif run_status.status == 'failed':
+                                    error_msg = "Le traitement a échoué."
+                                    if hasattr(run_status, 'last_error'):
+                                        error_msg = f"Erreur: {run_status.last_error.message}"
+
+                                    emit('response_stream', {
+                                        'content': error_msg,
+                                        'message_id': db_message.id,
+                                        'is_final': True,
+                                        'error': True
+                                    })
+                                    return
+
+                                eventlet.sleep(1)
+
+                            if not run_completed:
+                                emit('response_stream', {
+                                    'content': 'La requête a expiré.',
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'error': True
+                                })
+                                return
+
+                            # Récupérer la réponse complète
+                            messages = ai_client.beta.threads.messages.list(
+                                thread_id=conversation.thread_id,
+                                order="desc",
+                                limit=1
+                            )
+
+                            if messages.data and len(messages.data) > 0:
+                                assistant_message = messages.data[0].content[0].text.value
+
+                                # Simuler un streaming pour l'utilisateur
+                                words = assistant_message.split()
+                                for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
+                                    chunk = ' '.join(words[i:i+5]) + ' '
+                                    emit('response_stream', {
+                                        'content': chunk,
+                                            'message_id': db_message.id,
+                                            'is_final': False
+                                        })
+                                    eventlet.sleep(0.05)  # Court délai entre les chunks
+
+                                    # Terminer le streaming simulé
+                                    emit('response_stream', {
+                                        'content': '',
+                                        'message_id': db_message.id,
+                                        'is_final': True,
+                                        'full_response': assistant_message
+                                    })
+                                else:
+                                    emit('response_stream', {
+                                        'content': 'Pas de réponse disponible.',
+                                        'message_id': db_message.id,
+                                        'is_final': True,
+                                        'error': True
+                                    })
+                        except Exception as e:
+                            logger.error(f"Error in fallback approach: {str(e)}")
+                            emit('response_stream', {
+                                'content': f'Une erreur est survenue: {str(e)}',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'error': True
+                            })
+
+                    # Mettre à jour le message de l'assistant dans la base de données avec la réponse complète
+                    db_message.content = assistant_message
+                    db.session.commit()
+
+                # Generate and set conversation title if this is the first message
+                if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                    if not title and 'image' in data and data['image']:
+                        title = "Analyse d'image"
+                    if not title:
+                        title = "Nouvelle Conversation"
+                    conversation.title = title
+                    db.session.commit()
+
+                    # Emit the new conversation to all clients
                     emit('new_conversation', {
                         'id': conversation.id,
                         'title': conversation.title,
-                        'subject': 'Général', # Ou un autre sujet pertinent
+                        'subject': 'Général',
                         'time': conversation.created_at.strftime('%H:%M')
-                        # 'is_telegram' n'est pas nécessaire ici car c'est la branche web
-                    }, broadcast=True) # Broadcast pour que tous les onglets/clients voient la nouvelle convo
-                    logger.info(f"Événement 'new_conversation' émis pour ID {conversation.id}")
-
-                except Exception as db_error:
-                    db.session.rollback()
-                    logger.error(f"Erreur lors de la sauvegarde du message utilisateur ou du titre: {db_error}", exc_info=True)
-                    # Envoyer une erreur au client ? Ou juste logguer ?
-                    emit('receive_message', {'message': 'Erreur interne lors de la sauvegarde du message.', 'id': 0})
-                    return # Stop processing
-            else:
-                 # Si ce n'est pas une nouvelle conversation, juste commit le message utilisateur
-                 try:
-                     conversation.updated_at = datetime.utcnow() # Update timestamp for existing convo
-                     db.session.commit() # Commit user message and updated_at
-                 except Exception as db_error:
-                     db.session.rollback()
-                     logger.error(f"Erreur lors de la sauvegarde du message utilisateur (conversation existante): {db_error}", exc_info=True)
-                     emit('receive_message', {'message': 'Erreur interne lors de la sauvegarde du message.', 'id': 0})
-                     return # Stop processing
-            # *** FIN: Génération immédiate du titre et émission de l'événement ***
-
-
-            # ======================
-            # APPEL À L'ASSISTANT AI (Logique existante)
-            # ======================
-            # Créer un message vide pour l'assistant, on le remplira progressivement/après
-            db_message = Message(
-                conversation_id=conversation.id,
-                role='assistant',
-                content="" # Contenu initial vide
-            )
-            db.session.add(db_message)
-            db.session.commit() # Commit pour obtenir l'ID du message assistant
-
-            # Envoyer un message initial pour démarrer l'affichage du loader côté client
-            emit('message_started', {
-                'message_id': db_message.id
-            })
-
-            assistant_message = "" # Variable pour stocker la réponse complète
-
-            # --- [ Votre logique existante pour appeler l'API OpenAI/DeepSeek/Qwen/Gemini ] ---
-            # --- [ Gérer le streaming ou la réponse complète ] ---
-            # --- [ Sauvegarder la réponse complète dans db_message.content ] ---
-            # --- [ Émettre les événements 'response_stream' ] ---
-
-            # Exemple simplifié pour l'illustration (remplacez par votre logique d'appel AI)
-            try:
-                if CURRENT_MODEL == 'openai':
-                     # Logique OpenAI avec streaming ou non-streaming
-                     logger.info(f"Appel OpenAI pour thread {conversation.thread_id}")
-                     # ... (votre code d'appel OpenAI et gestion du streaming/réponse)
-                     # Simulé:
-                     event_handler = OpenAIAssistantEventHandler(socketio, db_message.id)
-                     # ... (simulation de l'appel stream)
-                     event_handler.full_response = "Réponse simulée d'OpenAI."
-                     assistant_message = event_handler.full_response
-                     # Émission finale simulée
-                     emit('response_stream', {
-                         'content': '', 'message_id': db_message.id, 'is_final': True,
-                         'full_response': assistant_message, 'db_saved': True
-                     })
-
-                elif CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
-                     # Logique pour les autres modèles
-                     logger.info(f"Appel {CURRENT_MODEL}")
-                     # ... (votre code d'appel API et gestion du streaming/réponse)
-                     # Simulé:
-                     assistant_message = f"Réponse simulée de {CURRENT_MODEL}."
-                     # Simulation du streaming
-                     words = assistant_message.split()
-                     for i in range(0, len(words), 2):
-                         chunk = ' '.join(words[i:i+2]) + ' '
-                         emit('response_stream', {
-                             'content': chunk, 'message_id': db_message.id, 'is_final': False
-                         })
-                         eventlet.sleep(0.1)
-                     # Émission finale
-                     emit('response_stream', {
-                         'content': '', 'message_id': db_message.id, 'is_final': True,
-                         'full_response': assistant_message, 'db_saved': True
-                     })
-
-                # Mise à jour finale du message assistant en base de données
-                db_message_to_update = Message.query.get(db_message.id)
-                if db_message_to_update:
-                    db_message_to_update.content = assistant_message
-                    db.session.commit()
-                    logger.info(f"Réponse de l'assistant sauvegardée pour message ID {db_message.id}")
-                else:
-                     logger.warning(f"Impossible de trouver le message assistant ID {db_message.id} pour la sauvegarde finale.")
-                     # Gérer le cas où le message n'est pas trouvé ? Peut-être stocker en session ?
-                     if 'message_recovery' not in session: session['message_recovery'] = {}
-                     session['message_recovery'][str(db_message.id)] = assistant_message
-
-
-            except Exception as ai_error:
-                 logger.error(f"Erreur lors de l'appel à l'assistant AI: {ai_error}", exc_info=True)
-                 # Envoyer un message d'erreur via le stream existant
-                 emit('response_stream', {
-                     'content': f"\nDésolé, une erreur s'est produite ({ai_error}).",
-                     'message_id': db_message.id,
-                     'is_final': True,
-                     'full_response': f"Erreur: {ai_error}",
-                     'error': True # Flag d'erreur optionnel
-                 })
-                 # Sauvegarder l'erreur dans le message assistant ?
-                 db_message_to_update = Message.query.get(db_message.id)
-                 if db_message_to_update:
-                     db_message_to_update.content = f"Erreur lors de la génération de la réponse: {ai_error}"
-                     db.session.commit()
-
-
-            # La génération du titre et l'émission de 'new_conversation' ont été déplacées plus haut.
-            # Il n'y a plus besoin de le faire ici.
+                    }, broadcast=True)
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
         error_message = str(e)
-        # Essayer d'émettre une erreur via SocketIO si possible
-        try:
-            emit('receive_message', {'message': f'An error occurred: {error_message}', 'id': 0})
-        except Exception as emit_error:
-             logger.error(f"Failed to emit error message via SocketIO: {emit_error}")
+        if "image" in error_message.lower():
+            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.', 'id': 0})
+        else:
+            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.', 'id': 0})
 
 @socketio.on('rename_conversation')
 def handle_rename(data):
