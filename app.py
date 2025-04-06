@@ -388,7 +388,7 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None):
+def get_or_create_conversation(thread_id=None, is_image_conversation=False):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -425,14 +425,25 @@ def get_or_create_conversation(thread_id=None):
         if current_user.is_authenticated:
             user_id = current_user.id
 
-        conversation = Conversation(thread_id=thread_id, user_id=user_id)
+        # Définir un titre spécifique pour les conversations d'images
+        title = "Analyse d'image" if is_image_conversation else "Nouvelle conversation"
+        
+        conversation = Conversation(thread_id=thread_id, user_id=user_id, title=title)
         session.add(conversation)
         session.commit()
 
-        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
+        # Émettre l'événement de nouvelle conversation pour le mettre à jour immédiatement dans la sidebar
+        socketio.emit('new_conversation', {
+            'id': conversation.id,
+            'title': conversation.title,
+            'subject': 'Général',
+            'time': conversation.created_at.strftime('%H:%M')
+        })
+
+        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord admin
         socketio.emit('new_web_conversation', {
             'id': conversation.id,
-            'title': conversation.title or f"Nouvelle conversation",
+            'title': conversation.title,
             'user_id': user_id
         })
 
@@ -854,7 +865,7 @@ def handle_message(data):
                     'subject': 'Général',
                     'time': telegram_conversation.created_at.strftime('%H:%M'),
                     'is_telegram': True
-                }, broadcast=True)
+                })
 
             db.session.commit()
 
@@ -899,7 +910,9 @@ def handle_message(data):
             
             # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
-                conversation = get_or_create_conversation()
+                # Vérifier si cette conversation contient une image
+                has_image = 'image' in data and data['image']
+                conversation = get_or_create_conversation(is_image_conversation=has_image)
                 session['thread_id'] = conversation.thread_id
                 logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
 
@@ -953,7 +966,7 @@ def handle_message(data):
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M')
-                        }, broadcast=True)
+                        })
 
                     # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
@@ -1153,7 +1166,7 @@ def handle_message(data):
                         'title': conversation.title,
                         'subject': 'Général',
                         'time': conversation.created_at.strftime('%H:%M')
-                    }, broadcast=True)
+                    })
 
                 # Créer un message vide pour l'assistant, on le remplira progressivement
                 db_message = Message(
