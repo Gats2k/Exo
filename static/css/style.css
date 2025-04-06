@@ -391,6 +391,10 @@ body.policy-page {
     margin-right: auto;
     padding: 0 0 0 20px;
     width: fit-content;
+    max-width: 85%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
 }
 
 .message-content {
@@ -680,6 +684,10 @@ body.policy-page {
         padding: 0 0 0 3px;
         max-width: 85%;
         width: auto;
+        margin-right: 10px; /* Garantit une marge à droite */
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
     }
 
     .message-content {
@@ -1457,5 +1465,73 @@ body.policy-page {
     40% { 
         transform: scale(1);
         opacity: 1; 
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    /* Container principal et viewport */
+    .chat-viewport {
+        width: 90%;
+        max-width: 650px;
+    }
+
+    .input-container {
+        width: 90%;
+        max-width: 650px;
+    }
+
+    .response-time {
+        width: 90%;
+        max-width: 650px;
+    }
+
+    /* Correction pour les bulles de message */
+    .message {
+        max-width: 85%;
+    }
+
+    .message.user {
+        padding: 0 5px 0 0;
+        width: auto;
+    }
+
+    .message.assistant {
+        padding: 0 0 0 5px;
+        width: auto;
+    }
+
+    .message-content {
+        max-width: 100%;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    /* Empêcher les débordements horizontaux */
+    .main-area, .chat-messages {
+        overflow-x: hidden;
+    }
+
+    /* Autres éléments du design */
+    .suggestions-container {
+        max-width: 650px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .suggestion-block {
+        padding: 12px 20px;
+        font-size: 0.95em;
+    }
+
+    .welcome-container {
+        max-width: 650px;
+    }
+
+    .welcome-title {
+        font-size: 2.8em;
+    }
+
+    .conversation-title {
+        max-width: 300px;
     }
 }

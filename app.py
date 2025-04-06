@@ -540,6 +540,30 @@ def chat():
                 # Comportement normal pour les utilisateurs web
                 # Important: Filtrer par user_id pour n'afficher que les conversations de l'utilisateur actuel
                 if current_user.is_authenticated:
+                    # Vérifier s'il y a des conversations sans titre ou avec le titre par défaut qui n'ont pas été mises à jour
+                    untitled_conversations = Conversation.query.filter_by(
+                        user_id=current_user.id,
+                        title=None
+                    ).all()
+
+                    for conv in untitled_conversations:
+                        # Vérifier si c'est une conversation avec image
+                        has_image = Message.query.filter_by(conversation_id=conv.id, image_url!=None).first() is not None
+                        if has_image:
+                            conv.title = "Analyse d'image"
+                        else:
+                            conv.title = f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}"
+                        conv.deleted = False
+
+                    if untitled_conversations:
+                        try:
+                            db.session.commit()
+                            logger.info(f"Correction de {len(untitled_conversations)} conversations sans titre")
+                        except Exception as e:
+                            logger.error(f"Erreur lors de la correction des conversations sans titre: {str(e)}")
+                            db.session.rollback()
+
+                    # Récupérer toutes les conversations non supprimées de l'utilisateur
                     recent_conversations = Conversation.query.filter_by(
                         deleted=False, 
                         user_id=current_user.id
@@ -1414,22 +1438,37 @@ def handle_message(data):
                     db.session.commit()
 
                 # Generate and set conversation title if this is the first message
-                if not conversation.title:
+                # Generate and set conversation title if this is the first message
+                if conversation.title == "Nouvelle conversation" or not conversation.title:
                     title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
                     if not title and 'image' in data and data['image']:
                         title = "Analyse d'image"
                     if not title:
                         title = "Nouvelle Conversation"
-                    conversation.title = title
-                    db.session.commit()
 
-                    # Emit the new conversation to all clients
-                    emit('new_conversation', {
-                        'id': conversation.id,
-                        'title': conversation.title,
-                        'subject': 'Général',
-                        'time': conversation.created_at.strftime('%H:%M')
-                    }, broadcast=True)
+                    # S'assurer que la conversation est bien associée à l'utilisateur actuel
+                    if current_user.is_authenticated and not conversation.user_id:
+                        conversation.user_id = current_user.id
+
+                    # S'assurer que la conversation n'est pas marquée comme supprimée
+                    conversation.deleted = False
+
+                    # Mettre à jour le titre et sauvegarder
+                    conversation.title = title
+                    try:
+                        db.session.commit()
+                        logger.info(f"Conversation {conversation.id} créée/mise à jour avec titre '{title}' pour utilisateur {conversation.user_id}")
+
+                        # Emit the new conversation to all clients
+                        emit('new_conversation', {
+                            'id': conversation.id,
+                            'title': conversation.title,
+                            'subject': 'Général',
+                            'time': conversation.created_at.strftime('%H:%M')
+                        }, broadcast=True)
+                    except Exception as e:
+                        logger.error(f"Erreur lors de la sauvegarde de la conversation: {str(e)}")
+                        db.session.rollback()
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
