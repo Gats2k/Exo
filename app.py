@@ -388,7 +388,7 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None, is_image_conversation=False):
+def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -425,25 +425,14 @@ def get_or_create_conversation(thread_id=None, is_image_conversation=False):
         if current_user.is_authenticated:
             user_id = current_user.id
 
-        # Définir un titre spécifique pour les conversations d'images
-        title = "Analyse d'image" if is_image_conversation else "Nouvelle conversation"
-        
-        conversation = Conversation(thread_id=thread_id, user_id=user_id, title=title)
+        conversation = Conversation(thread_id=thread_id, user_id=user_id)
         session.add(conversation)
         session.commit()
 
-        # Émettre l'événement de nouvelle conversation pour le mettre à jour immédiatement dans la sidebar
-        socketio.emit('new_conversation', {
-            'id': conversation.id,
-            'title': conversation.title,
-            'subject': 'Général',
-            'time': conversation.created_at.strftime('%H:%M')
-        })
-
-        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord admin
+        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
         socketio.emit('new_web_conversation', {
             'id': conversation.id,
-            'title': conversation.title,
+            'title': conversation.title or f"Nouvelle conversation",
             'user_id': user_id
         })
 
@@ -865,7 +854,7 @@ def handle_message(data):
                     'subject': 'Général',
                     'time': telegram_conversation.created_at.strftime('%H:%M'),
                     'is_telegram': True
-                })
+                }, broadcast=True)
 
             db.session.commit()
 
@@ -910,9 +899,7 @@ def handle_message(data):
             
             # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
-                # Vérifier si cette conversation contient une image
-                has_image = 'image' in data and data['image']
-                conversation = get_or_create_conversation(is_image_conversation=has_image)
+                conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
                 logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
 
@@ -953,20 +940,6 @@ def handle_message(data):
                     )
                     db.session.add(user_message)
                     db.session.commit()  # Commit pour obtenir l'ID du message
-                    
-                    # Update conversation title for image-based conversations and emit event immediately
-                    if conversation.title == "Nouvelle conversation" or not conversation.title:
-                        title = "Analyse d'image"
-                        conversation.title = title
-                        db.session.commit()
-                        
-                        # Emit the new conversation to all clients immediately
-                        emit('new_conversation', {
-                            'id': conversation.id,
-                            'title': conversation.title,
-                            'subject': 'Général',
-                            'time': conversation.created_at.strftime('%H:%M')
-                        })
 
                     # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
@@ -1151,22 +1124,6 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
                 db.session.commit()  # Commit immédiatement pour obtenir l'ID du message
-                
-                # Update conversation title for text messages and emit event immediately
-                if conversation.title == "Nouvelle conversation" or not conversation.title:
-                    title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
-                    if not title:
-                        title = "Nouvelle Conversation"
-                    conversation.title = title
-                    db.session.commit()
-                    
-                    # Emit the new conversation to all clients immediately
-                    emit('new_conversation', {
-                        'id': conversation.id,
-                        'title': conversation.title,
-                        'subject': 'Général',
-                        'time': conversation.created_at.strftime('%H:%M')
-                    })
 
                 # Créer un message vide pour l'assistant, on le remplira progressivement
                 db_message = Message(
@@ -1456,7 +1413,23 @@ def handle_message(data):
                     db_message.content = assistant_message
                     db.session.commit()
 
-                # Title has already been set and event emitted when the user message was saved
+                # Generate and set conversation title if this is the first message
+                if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                    if not title and 'image' in data and data['image']:
+                        title = "Analyse d'image"
+                    if not title:
+                        title = "Nouvelle Conversation"
+                    conversation.title = title
+                    db.session.commit()
+
+                    # Emit the new conversation to all clients
+                    emit('new_conversation', {
+                        'id': conversation.id,
+                        'title': conversation.title,
+                        'subject': 'Général',
+                        'time': conversation.created_at.strftime('%H:%M')
+                    }, broadcast=True)
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
