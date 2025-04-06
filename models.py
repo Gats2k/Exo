@@ -24,7 +24,8 @@ class User(UserMixin, db.Model):
 
     @staticmethod
     def is_admin_credentials(phone_number, password):
-        return phone_number == "09791308" and password == "09791308n"
+        from os import environ
+        return phone_number == environ.get('ADMIN_PHONE') and password == environ.get('ADMIN_PASSWORD')
 
 class Conversation(db.Model):
     __tablename__ = 'conversation'

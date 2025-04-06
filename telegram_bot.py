@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 try:
     openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     ASSISTANT_ID = os.environ.get("OPENAI_ASSISTANT_ID")
+    CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '50'))
     if not ASSISTANT_ID:
         raise ValueError("OPENAI_ASSISTANT_ID environment variable is not set")
 except Exception as e:

@@ -127,7 +127,7 @@ def get_model_name():
     elif CURRENT_MODEL == 'qwen':
         return "qwen-max"
     elif CURRENT_MODEL == 'gemini':
-        return "gemini-2.0-flash"
+        return "gemini-2.5-pro-exp-03-25"
     return None  # For OpenAI, model is determined by assistant
 
 def get_system_instructions():
@@ -274,7 +274,7 @@ def call_gemini_api(messages):
                 content['parts'][0]['text'] = "Message vide remplacé"
 
         # Prepare the API request
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-exp-03-25:generateContent?key={GEMINI_API_KEY}"
         headers = {'Content-Type': 'application/json'}
         data = {"contents": contents}
 
@@ -2657,7 +2657,7 @@ def delete_user(user_id):
                     # 2. Supprimer les associations dans user_subscription
                     logger.info(f"Deleting subscription relationships for user {user_id_to_delete}")
                     connection.execute(
-                        text("DELETE FROM user_subscription WHERE user_id = :user_id"),
+                        text("DELETE FROM subscription WHERE user_id = :user_id"),
                         {"user_id": user_id_to_delete}
                     )
 

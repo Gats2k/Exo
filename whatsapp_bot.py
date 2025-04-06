@@ -9,6 +9,7 @@ from datetime import datetime
 from database import db
 from openai import OpenAI
 from mathpix_utils import process_image_with_mathpix
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -211,9 +212,11 @@ def generate_ai_response(message_body, thread_id, sender=None):
 
         # Récupérer les messages précédents
         previous_messages = []
+        # Utiliser une valeur par défaut de 50 si CONTEXT_MESSAGE_LIMIT n'est pas défini
+        message_limit = getattr(sys.modules.get('app', None), 'CONTEXT_MESSAGE_LIMIT', 50)
         messages_query = WhatsAppMessage.query.filter_by(
             thread_id=thread_id
-        ).order_by(WhatsAppMessage.timestamp.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+        ).order_by(WhatsAppMessage.timestamp.desc()).limit(message_limit).all()
 
         for msg in reversed(messages_query):
             role = 'user' if msg.direction == 'inbound' else 'assistant'
