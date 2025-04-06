@@ -3,16 +3,21 @@ modules = ["python-3.11", "postgresql-16"]
 channel = "stable-24_05"
 [deployment]
 deploymentTarget = "autoscale"
-run = ["sh", "-c", "python main.py"]
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
 [workflows]
 runButton = "Project"
 [[workflows.workflow]]
 name = "Project"
 mode = "parallel"
 author = "agent"
+
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "app_server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
 [[workflows.workflow]]
 name = "app_server"
 author = "agent"
@@ -25,6 +30,21 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
 waitForPort = 5000
 [[ports]]
 localPort = 5000
