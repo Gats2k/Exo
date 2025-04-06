@@ -548,7 +548,7 @@ def chat():
 
                     for conv in untitled_conversations:
                         # Vérifier si c'est une conversation avec image
-                        has_image = Message.query.filter_by(conversation_id=conv.id, image_url!=None).first() is not None
+                        has_image = Message.query.filter(Message.conversation_id==conv.id, Message.image_url!=None).first() is not None
                         if has_image:
                             conv.title = "Analyse d'image"
                         else:
