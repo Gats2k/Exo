@@ -388,7 +388,7 @@ def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
-def get_or_create_conversation(thread_id=None, title=None):
+def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(thread_id=thread_id).first()
@@ -425,16 +425,14 @@ def get_or_create_conversation(thread_id=None, title=None):
         if current_user.is_authenticated:
             user_id = current_user.id
 
-        # Set the title if provided, otherwise use default
-        initial_title = title if title else "Nouvelle conversation"
-        conversation = Conversation(thread_id=thread_id, user_id=user_id, title=initial_title)
+        conversation = Conversation(thread_id=thread_id, user_id=user_id)
         session.add(conversation)
         session.commit()
 
         # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
         socketio.emit('new_web_conversation', {
             'id': conversation.id,
-            'title': conversation.title,
+            'title': conversation.title or f"Nouvelle conversation",
             'user_id': user_id
         })
 
@@ -653,12 +651,10 @@ def handle_message(data):
             if not telegram_conversation:
                 # Créer une nouvelle conversation Telegram
                 thread_id = f"thread_{telegram_id}_{int(time.time())}"
-                # Set title immediately for image conversations
-                initial_title = "Analyse d'image" if 'image' in data and data['image'] else "Nouvelle conversation"
                 telegram_conversation = TelegramConversation(
                     telegram_user_id=int(telegram_id),
                     thread_id=thread_id,
-                    title=initial_title
+                    title="Nouvelle conversation"
                 )
                 db.session.add(telegram_conversation)
                 db.session.commit()
@@ -903,11 +899,7 @@ def handle_message(data):
             
             # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
-                # Check if this is an image conversation to set title immediately
-                if 'image' in data and data['image']:
-                    conversation = get_or_create_conversation(title="Analyse d'image")
-                else:
-                    conversation = get_or_create_conversation()
+                conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
                 logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
 
