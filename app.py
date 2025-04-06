@@ -940,6 +940,20 @@ def handle_message(data):
                     )
                     db.session.add(user_message)
                     db.session.commit()  # Commit pour obtenir l'ID du message
+                    
+                    # Update conversation title for image-based conversations and emit event immediately
+                    if conversation.title == "Nouvelle conversation" or not conversation.title:
+                        title = "Analyse d'image"
+                        conversation.title = title
+                        db.session.commit()
+                        
+                        # Emit the new conversation to all clients immediately
+                        emit('new_conversation', {
+                            'id': conversation.id,
+                            'title': conversation.title,
+                            'subject': 'Général',
+                            'time': conversation.created_at.strftime('%H:%M')
+                        }, broadcast=True)
 
                     # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
@@ -1124,6 +1138,22 @@ def handle_message(data):
                 )
                 db.session.add(user_message)
                 db.session.commit()  # Commit immédiatement pour obtenir l'ID du message
+                
+                # Update conversation title for text messages and emit event immediately
+                if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                    if not title:
+                        title = "Nouvelle Conversation"
+                    conversation.title = title
+                    db.session.commit()
+                    
+                    # Emit the new conversation to all clients immediately
+                    emit('new_conversation', {
+                        'id': conversation.id,
+                        'title': conversation.title,
+                        'subject': 'Général',
+                        'time': conversation.created_at.strftime('%H:%M')
+                    }, broadcast=True)
 
                 # Créer un message vide pour l'assistant, on le remplira progressivement
                 db_message = Message(
@@ -1413,23 +1443,7 @@ def handle_message(data):
                     db_message.content = assistant_message
                     db.session.commit()
 
-                # Generate and set conversation title if this is the first message
-                if conversation.title == "Nouvelle conversation" or not conversation.title:
-                    title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
-                    if not title and 'image' in data and data['image']:
-                        title = "Analyse d'image"
-                    if not title:
-                        title = "Nouvelle Conversation"
-                    conversation.title = title
-                    db.session.commit()
-
-                    # Emit the new conversation to all clients
-                    emit('new_conversation', {
-                        'id': conversation.id,
-                        'title': conversation.title,
-                        'subject': 'Général',
-                        'time': conversation.created_at.strftime('%H:%M')
-                    }, broadcast=True)
+                # Title has already been set and event emitted when the user message was saved
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
