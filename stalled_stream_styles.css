@@ -1,0 +1,18 @@
+/* Styles pour les messages récupérés */
+.message.recovered {
+    border-left: 3px solid #4caf50;
+}
+
+/* Styles pour les messages incomplets */
+.message.incomplete {
+    border-left: 3px solid #ff9800;
+}
+
+.error-notice {
+    color: #ff5722;
+    margin-top: 10px;
+    padding: 8px;
+    background-color: rgba(255, 87, 34, 0.1);
+    border-radius: 4px;
+    font-size: 0.9em;
+}
