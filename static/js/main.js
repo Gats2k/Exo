@@ -732,10 +732,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Add this to the existing socket event listeners
+    // Gestionnaire d'événement amélioré pour new_conversation
     socket.on('new_conversation', function(data) {
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
+
+        console.log("Nouvelle conversation reçue:", data);
 
         // Update the header title with the new conversation title
         titleElement.textContent = data.title;
@@ -745,10 +747,22 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('thread_id', data.id);
         }
 
+        // Vérifier si cette conversation existe déjà dans l'historique
+        const existingItem = document.querySelector(`.history-item[onclick*="${data.id}"]`);
+        if (existingItem) {
+            // Mettre à jour le titre si l'élément existe déjà
+            const titleDiv = existingItem.querySelector(`#title-${data.id}`);
+            if (titleDiv) {
+                titleDiv.textContent = data.title;
+                console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`);
+            }
+            return; // Ne pas créer de nouvel élément
+        }
+
         // Create new history item
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
-        historyItem.setAttribute('onclick', `openConversation('${data.id}', event)`);
+        historyItem.setAttribute('onclick', `openConversation('${data.id}', event${data.is_telegram ? ', true' : ''}${data.is_whatsapp ? ', false, true' : ''})`);
 
         historyItem.innerHTML = `
             <div class="history-content">
@@ -785,6 +799,8 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             recentHistory.appendChild(historyItem);
         }
+
+        console.log(`Nouvelle conversation ${data.id} ajoutée à l'historique avec titre "${data.title}"`);
     });
 
 
