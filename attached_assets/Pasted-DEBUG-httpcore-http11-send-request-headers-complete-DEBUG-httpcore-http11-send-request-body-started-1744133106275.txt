@@ -1,0 +1,38 @@
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 16:23:11 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=5a3c2f39fb89392388daa2be0e3531d4d5a32e702aea54f2eec0e858b420cea3
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 5a3c2f39fb... Actual: 5a3c2f39fb...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'contacts': [{'profile': {'name': 'M.s Theid'}, 'wa_id': '22541903958'}], 'messages': [{'from': '22541903958', 'id': 'wamid.HBgLMjI1NDE5MDM5NTgVAgASGCAyMTExMjM5ODc1Q0E0MUU4RjU3QjJEMkQ0RTdFOEE1QQA=', 'timestamp': '1744129390', 'text': {'body': 'Salut'}, 'type': 'text'}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+INFO:whatsapp_bot:Processing text message from 22541903958
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Creating/retrieving thread for 22541903958 using model: openai
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads
+DEBUG:httpcore.connection:connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd790e63e90>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7fd790f8b4a0> server_hostname='api.openai.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7fd79095fa90>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 16:23:13 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Conne...
