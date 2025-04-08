@@ -252,10 +252,12 @@ def generate_ai_response(message_body, thread_id, sender=None):
                 # Vérifier que le thread est un thread OpenAI valide
                 if not thread_id.startswith("thread_"):
                     try:
-                        # Tester si le thread existe dans OpenAI
+                        # Tester si le thread existe dans OpenAI et CONSERVER LE THREAD EXISTANT
                         client.beta.threads.messages.list(thread_id=thread_id)
-                    except Exception:
-                        # Créer un nouveau thread si celui-ci n'existe pas
+                        logger.info(f"Using existing valid OpenAI thread {thread_id}")
+                    except Exception as thread_error:
+                        # Seulement créer un nouveau thread si le thread actuel est invalide
+                        logger.error(f"Invalid thread {thread_id}: {str(thread_error)}")
                         thread = client.beta.threads.create()
                         thread_id = thread.id
                         logger.info(f"Created new OpenAI thread {thread_id} as previous was invalid")
