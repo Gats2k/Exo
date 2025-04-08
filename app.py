@@ -607,9 +607,11 @@ def get_interleaved_messages(conversation_id, current_message=None):
 @socketio.on('send_message')
 def handle_message(data):
     try:
-        # Vérifier si l'utilisateur est connecté via Telegram
+        # Vérifier si l'utilisateur est connecté via Telegram ou WhatsApp
         is_telegram_user = session.get('is_telegram_user', False)
         telegram_id = session.get('telegram_id')
+        is_whatsapp_user = session.get('is_whatsapp_user', False)
+        whatsapp_number = session.get('whatsapp_number')
 
         # Get the appropriate AI client based on current model setting
         ai_client = get_ai_client()
@@ -618,8 +620,282 @@ def handle_message(data):
         mathpix_result = None
         formatted_summary = None
 
-        # Déterminer s'il s'agit d'une conversation Telegram ou Web
-        if is_telegram_user and telegram_id:
+        # Déterminer s'il s'agit d'une conversation Telegram, WhatsApp ou Web
+        if is_whatsapp_user and whatsapp_number:
+            # Gestion des conversations WhatsApp
+            thread_id = session.get('thread_id')
+            
+            # Vérifier si ce thread existe déjà dans Conversation pour une gestion uniforme
+            whatsapp_conversation = None
+            if thread_id:
+                # Chercher d'abord dans les messages WhatsApp
+                whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id).all()
+                
+                if not whatsapp_messages:
+                    logger.warning(f"Aucun message WhatsApp trouvé pour thread_id {thread_id}")
+                    thread_id = None
+                else:
+                    # Également chercher dans le modèle Conversation pour la cohérence
+                    whatsapp_conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                    
+                    # Si le thread existe dans WhatsAppMessage mais pas dans Conversation, le créer
+                    if not whatsapp_conversation and current_user.is_authenticated:
+                        try:
+                            whatsapp_conversation = Conversation(
+                                thread_id=thread_id,
+                                user_id=current_user.id,
+                                title="Conversation WhatsApp"
+                            )
+                            db.session.add(whatsapp_conversation)
+                            db.session.commit()
+                            logger.info(f"Créé une entrée Conversation pour thread WhatsApp existant {thread_id}")
+                        except Exception as e:
+                            logger.warning(f"Échec de création Conversation pour WhatsApp: {str(e)}")
+                            # Continuer malgré l'erreur
+            
+            # Si on n'a pas de thread_id valide, créer un nouveau thread
+            if not thread_id:
+                # Appeler la fonction de WhatsApp_bot pour être cohérent
+                from whatsapp_bot import get_or_create_thread
+                thread_id = get_or_create_thread(whatsapp_number, force_new=True)
+                session['thread_id'] = thread_id
+                logger.info(f"Nouveau thread WhatsApp créé: {thread_id}")
+                
+                # Créer une entrée dans Conversation pour ce thread
+                if current_user.is_authenticated:
+                    try:
+                        whatsapp_conversation = Conversation(
+                            thread_id=thread_id,
+                            user_id=current_user.id, 
+                            title="Nouvelle conversation WhatsApp"
+                        )
+                        db.session.add(whatsapp_conversation)
+                        db.session.commit()
+                        logger.info(f"Entrée Conversation créée pour nouveau thread WhatsApp {thread_id}")
+                    except Exception as e:
+                        logger.warning(f"Échec de création Conversation pour WhatsApp: {str(e)}")
+            
+            # Maintenant traiter le message WhatsApp de manière similaire à Telegram/Web
+            # Handle image if present
+            if 'image' in data and data['image']:
+                try:
+                    filename = save_base64_image(data['image'])
+                    image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+
+                    # Process image with Mathpix
+                    mathpix_result = process_image_with_mathpix(data['image'])
+
+                    # Check if an error occurred
+                    if "error" in mathpix_result:
+                        logger.error(f"Mathpix error: {mathpix_result['error']}")
+                        formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                    else:
+                        formatted_summary = mathpix_result.get("formatted_summary", "")
+
+                    # Build user message with image extraction
+                    user_content = data.get('message', '')
+                    if formatted_summary:
+                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
+                    else:
+                        user_store_content = user_content
+
+                    # Store user message in WhatsAppMessage
+                    whatsapp_message = WhatsAppMessage(
+                        message_id=f"web_{int(time.time())}_{uuid.uuid4()}",
+                        from_number=whatsapp_number,
+                        content=user_store_content,
+                        thread_id=thread_id,
+                        direction='inbound'
+                    )
+                    db.session.add(whatsapp_message)
+                    db.session.commit()
+
+                    # Prepare message text for assistant
+                    message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
+                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+
+                except Exception as img_error:
+                    logger.error(f"Image processing error: {str(img_error)}")
+                    raise Exception("Failed to process image. Please make sure it's a valid image file.")
+            else:
+                # Store text-only message
+                whatsapp_message = WhatsAppMessage(
+                    message_id=f"web_{int(time.time())}_{uuid.uuid4()}",
+                    from_number=whatsapp_number,
+                    content=data.get('message', ''),
+                    thread_id=thread_id,
+                    direction='inbound'
+                )
+                db.session.add(whatsapp_message)
+                db.session.commit()
+                message_for_assistant = data.get('message', '')
+
+            # Get previous messages for context
+            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                # Get properly formatted messages for API call
+                if CURRENT_MODEL == 'deepseek-reasoner':
+                    # Pour DeepSeek Reasoner, nous devons adapter l'alternance de messages
+                    whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+                        .order_by(WhatsAppMessage.timestamp).all()
+
+                    # Start with system message
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+
+                    # Process past messages ensuring alternation
+                    prev_role = None
+                    for msg in whatsapp_messages:
+                        role = 'user' if msg.direction == 'inbound' else 'assistant'
+                        # Skip consecutive messages with the same role
+                        if role != prev_role:
+                            messages.append({
+                                "role": role,
+                                "content": msg.content
+                            })
+                            prev_role = role
+
+                    # Add current message if needed
+                    if not messages[-1]["role"] == "user":
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
+                else:
+                    # Regular DeepSeek chat, Qwen and Gemini can handle all messages
+                    whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+                        .order_by(WhatsAppMessage.timestamp).all()
+                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    for msg in whatsapp_messages:
+                        role = 'user' if msg.direction == 'inbound' else 'assistant'
+                        messages.append({
+                            "role": role,
+                            "content": msg.content
+                        })
+                    # Ajouter le message actuel s'il n'est pas déjà dans la liste
+                    last_msg = whatsapp_messages[-1] if whatsapp_messages else None
+                    if not (last_msg and last_msg.direction == 'inbound' and 
+                            last_msg.content == whatsapp_message.content):
+                        messages.append({
+                            "role": "user",
+                            "content": message_for_assistant
+                        })
+
+                # Génération de réponse avec le modèle approprié
+                if CURRENT_MODEL == 'gemini':
+                    # Send to Gemini AI service
+                    assistant_message = call_gemini_api(messages)
+                else:
+                    # Send to AI service (DeepSeek or Qwen)
+                    response = ai_client.chat.completions.create(
+                        model=get_model_name(),
+                        messages=messages,
+                        stream=False
+                    )
+                    assistant_message = response.choices[0].message.content
+            else:
+                # Pour OpenAI, on peut réutiliser le thread existant ou en créer un nouveau
+                if thread_id.startswith("thread_"):
+                    # Non-OpenAI thread, créer un temporaire
+                    temp_thread = openai_client.beta.threads.create()
+                    thread_to_use = temp_thread.id
+                    
+                    # Ajouter les messages précédents au thread temporaire
+                    whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=thread_id)\
+                        .order_by(WhatsAppMessage.timestamp).all()
+                    
+                    for msg in whatsapp_messages:
+                        if msg.direction == 'inbound':
+                            openai_client.beta.threads.messages.create(
+                                thread_id=thread_to_use,
+                                role="user",
+                                content=msg.content
+                            )
+                else:
+                    # OpenAI thread, on peut l'utiliser directement
+                    thread_to_use = thread_id
+                
+                # Ajouter le message actuel
+                openai_client.beta.threads.messages.create(
+                    thread_id=thread_to_use,
+                    role="user",
+                    content=message_for_assistant
+                )
+
+                # Exécuter l'assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=thread_to_use,
+                    assistant_id=ASSISTANT_ID
+                )
+
+                # Attendre la réponse avec timeout
+                timeout = 60  # Augmenté à 60 secondes
+                start_time = time.time()
+
+                while True:
+                    if time.time() - start_time > timeout:
+                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
+                        return
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=thread_to_use,
+                        run_id=run.id
+                    )
+
+                    if run_status.status == 'completed':
+                        break
+                    elif run_status.status == 'failed':
+                        error_msg = "Le traitement a échoué."
+                        if hasattr(run_status, 'last_error'):
+                            error_msg = f"Erreur: {run_status.last_error.message}"
+
+                        emit('receive_message', {'message': error_msg, 'id': 0})
+                        return
+
+                    eventlet.sleep(2)  # Plus de temps entre les vérifications
+
+                # Récupérer la réponse d'OpenAI
+                response_messages = openai_client.beta.threads.messages.list(thread_id=thread_to_use)
+                assistant_message = response_messages.data[0].content[0].text.value
+
+            # Stocker la réponse de l'assistant dans la base de données WhatsApp
+            whatsapp_db_message = WhatsAppMessage(
+                message_id=f"web_response_{int(time.time())}_{uuid.uuid4()}",
+                to_number=whatsapp_number,
+                content=assistant_message,
+                thread_id=thread_id,
+                direction='outbound',
+                status='sent'
+            )
+            db.session.add(whatsapp_db_message)
+
+            # Générer et définir le titre de la conversation si nécessaire
+            if whatsapp_conversation and whatsapp_conversation.title == "Nouvelle conversation WhatsApp":
+                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                if not title and 'image' in data and data['image']:
+                    title = "Analyse d'image WhatsApp"
+                if not title:
+                    title = "Conversation WhatsApp"
+                whatsapp_conversation.title = title
+                db.session.commit()
+
+                # Émettre la nouvelle conversation mise à jour à tous les clients
+                emit('new_conversation', {
+                    'id': whatsapp_conversation.id,
+                    'title': whatsapp_conversation.title,
+                    'subject': 'WhatsApp',
+                    'time': whatsapp_conversation.created_at.strftime('%H:%M'),
+                    'is_whatsapp': True
+                }, broadcast=True)
+
+            db.session.commit()
+
+            # Envoyer la réponse au client
+            emit('receive_message', {
+                'message': assistant_message,
+                'id': whatsapp_db_message.id,
+                'is_whatsapp': True
+            })
+
+        elif is_telegram_user and telegram_id:
             # Gestion des conversations Telegram
             thread_id = session.get('thread_id')
             telegram_conversation = None
@@ -1531,6 +1807,26 @@ def handle_open_conversation(data):
 
             # Mettre à jour la session avec le thread WhatsApp
             session['thread_id'] = thread_id
+            
+            # Vérifier si ce thread existe déjà dans Conversation
+            existing_conv = Conversation.query.filter_by(thread_id=thread_id).first()
+            
+            # Si le thread n'existe pas dans Conversation, on le crée pour cohérence
+            if not existing_conv and current_user.is_authenticated:
+                try:
+                    # Créer une entrée Conversation pour le thread WhatsApp
+                    # Permet une gestion unifiée dans le modèle de données
+                    new_conv = Conversation(
+                        thread_id=thread_id,
+                        user_id=current_user.id,
+                        title="Conversation WhatsApp"
+                    )
+                    db.session.add(new_conv)
+                    db.session.commit()
+                    logger.info(f"Créé une entrée Conversation pour le thread WhatsApp {thread_id}")
+                except Exception as e:
+                    logger.warning(f"Impossible de créer une entrée Conversation pour WhatsApp: {str(e)}")
+                    # Continuer même en cas d'erreur
 
             # Obtenir les messages pour ce thread, triés par horodatage
             messages = WhatsAppMessage.query.filter_by(
