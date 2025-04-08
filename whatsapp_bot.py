@@ -36,7 +36,7 @@ class WhatsAppMessage(db.Model):
     thread_id = db.Column(db.String(128))  # Store OpenAI thread ID for conversation continuity
 
 def get_or_create_thread(phone_number, force_new=False):
-    """Get existing thread or create new one for a phone number following web approach"""
+    """Get existing thread or create new one for a phone number"""
     try:
         # Récupérer la configuration actuelle
         config = get_app_config()
@@ -44,17 +44,16 @@ def get_or_create_thread(phone_number, force_new=False):
 
         logger.info(f"Creating/retrieving thread for {phone_number} using model: {current_model}")
 
-        # Si on force la création d'un nouveau thread
+        # Si force_new, créer un nouveau thread en fonction du modèle actuel uniquement
         if force_new:
             thread_id = None
             if current_model == 'openai':
-                # Créer un thread OpenAI
+                # Uniquement si le modèle actuel est OpenAI
                 thread = client.beta.threads.create()
                 thread_id = thread.id
             else:
-                # Pour les autres modèles, utiliser un format cohérent avec le web
-                import uuid
-                thread_id = f"thread_{uuid.uuid4()}"
+                # Pour les autres modèles, utiliser un UUID
+                thread_id = f"thread_{phone_number}_{int(time.time())}"
 
             logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
 
@@ -62,7 +61,7 @@ def get_or_create_thread(phone_number, force_new=False):
             try:
                 # Vérifier si c'est la première interaction de cet utilisateur
                 is_new_user = WhatsAppMessage.query.filter_by(from_number=phone_number).count() == 0
-                if is_new_user:
+                if is_new_user and force_new:
                     # Émettre l'événement de nouvel utilisateur
                     from app import socketio
                     user_data = {
@@ -77,41 +76,58 @@ def get_or_create_thread(phone_number, force_new=False):
                 logger.error(f"Error emitting new user event: {str(event_error)}")
                 # Continuer malgré l'erreur d'émission
 
+            # Mettre à jour les messages récents
+            try:
+                recent_messages = WhatsAppMessage.query.filter(
+                    WhatsAppMessage.from_number == phone_number
+                ).order_by(WhatsAppMessage.timestamp.desc()).limit(20).all()
+
+                for msg in recent_messages:
+                    msg.thread_id = thread_id
+
+                db.session.commit()
+            except Exception as db_error:
+                logger.error(f"Failed to update thread_id in database: {str(db_error)}")
+                db.session.rollback()
+
             return thread_id
 
-        # Rechercher le thread existant le plus récent
+        # Rechercher le thread existant
         message = WhatsAppMessage.query.filter(
             WhatsAppMessage.from_number == phone_number,
             WhatsAppMessage.thread_id.isnot(None)
         ).order_by(WhatsAppMessage.timestamp.desc()).first()
 
         if message and message.thread_id:
+            # Vérifier si le thread existant est compatible avec le modèle actuel
             existing_thread_id = message.thread_id
-            
-            # Si le modèle est OpenAI et que le thread existe dans OpenAI, le vérifier
-            if current_model == 'openai' and not existing_thread_id.startswith("thread_"):
-                try:
-                    # Tester si le thread existe dans OpenAI
-                    client.beta.threads.messages.list(thread_id=existing_thread_id, limit=1)
-                    # Si on arrive ici, le thread existe
-                    logger.info(f"Using existing OpenAI thread {existing_thread_id} for {phone_number}")
-                    return existing_thread_id
-                except Exception as e:
-                    logger.warning(f"Thread {existing_thread_id} not found or invalid: {str(e)}")
-                    # On continue pour créer un nouveau thread
-            else:
-                # Pour les autres modèles ou les threads non-OpenAI, on utilise tel quel
-                logger.info(f"Using existing thread {existing_thread_id} for {phone_number}")
-                return existing_thread_id
 
-        # Aucun thread existant valide, créer un nouveau selon le modèle actuel
+            # Si le thread commence par "thread_", c'est un thread pour modèles non-OpenAI
+            is_non_openai_thread = existing_thread_id.startswith("thread_")
+
+            # Si OpenAI est le modèle actuel mais le thread est non-OpenAI, créer un nouveau thread
+            if current_model == 'openai' and is_non_openai_thread:
+                thread = client.beta.threads.create()
+                thread_id = thread.id
+                logger.info(f"Switching to OpenAI, created new thread {thread_id}")
+                return thread_id
+
+            # Si un modèle non-OpenAI est actuel mais thread est OpenAI, créer un nouveau thread non-OpenAI
+            elif current_model != 'openai' and not is_non_openai_thread:
+                thread_id = f"thread_{phone_number}_{int(time.time())}"
+                logger.info(f"Switching from OpenAI to {current_model}, created new thread {thread_id}")
+                return thread_id
+
+            # Le thread est compatible avec le modèle actuel
+            logger.info(f"Using existing thread {existing_thread_id} for {phone_number}")
+            return existing_thread_id
+
+        # Aucun thread existant, créer un nouveau selon le modèle actuel
         if current_model == 'openai':
             thread = client.beta.threads.create()
             thread_id = thread.id
         else:
-            # Utiliser un format cohérent avec le web
-            import uuid
-            thread_id = f"thread_{uuid.uuid4()}"
+            thread_id = f"thread_{phone_number}_{int(time.time())}"
 
         logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
         return thread_id
@@ -119,9 +135,8 @@ def get_or_create_thread(phone_number, force_new=False):
     except Exception as e:
         logger.error(f"Error in get_or_create_thread: {str(e)}")
 
-        # En cas d'erreur, créer un thread avec un UUID comme sur le web
-        import uuid
-        fallback_thread_id = f"thread_{uuid.uuid4()}_fallback"
+        # En cas d'erreur, créer un thread non-OpenAI par sécurité
+        fallback_thread_id = f"thread_{phone_number}_{int(time.time())}_fallback"
         logger.info(f"Created fallback thread {fallback_thread_id} after error")
         return fallback_thread_id
 
@@ -488,33 +503,21 @@ def receive_webhook():
                         try:
                             is_new_conversation = not WhatsAppMessage.query.filter_by(thread_id=thread_id).first()
                             if is_new_conversation:
-                                # Émettre l'événement de nouvelle conversation (similaire à la web interface)
+                                # Émettre l'événement de nouvelle conversation
                                 from app import socketio
-                                
-                                # Par défaut si on ne connaît pas encore le message
-                                title = "Nouvelle conversation WhatsApp"
-                                
-                                # Préparer les données de conversation de manière cohérente avec le web
+                                # Obtenir un titre préliminaire pour la conversation (on ne connaît pas encore message_body)
+                                title = "Nouvelle conversation"
+
                                 conversation_data = {
                                     'id': thread_id,
-                                    'title': title,
+                                    'title': f"Conversation WhatsApp",
                                     'thread_id': thread_id,
                                     'user_phone': sender,
                                     'created_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
-                                    'last_message': title,
-                                    'platform': 'whatsapp',
-                                    'time': datetime.now().strftime('%H:%M'),
-                                    'subject': 'WhatsApp',
-                                    'is_whatsapp': True
+                                    'platform': 'whatsapp'
                                 }
-                                
-                                # Émettre l'événement pour le tableau de bord admin
                                 socketio.emit('new_whatsapp_conversation', conversation_data)
-                                
-                                # Également émettre l'événement standard pour être cohérent avec le web
-                                socketio.emit('new_conversation', conversation_data)
-                                
-                                logger.info(f"Emitted new conversation events for WhatsApp thread {thread_id}")
+                                logger.info(f"Emitted new_whatsapp_conversation event for thread {thread_id}")
                         except Exception as event_error:
                             logger.error(f"Error emitting new conversation event: {str(event_error)}")
                             # Continuer malgré l'erreur d'émission
