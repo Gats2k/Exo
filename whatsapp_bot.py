@@ -118,6 +118,19 @@ def get_or_create_thread(phone_number, force_new=False):
                 logger.info(f"Switching from OpenAI to {current_model}, created new thread {thread_id}")
                 return thread_id
 
+            # Si c'est un thread OpenAI, vérifier qu'il existe réellement
+            if current_model == 'openai' and not is_non_openai_thread:
+                try:
+                    # Tester si le thread existe réellement dans OpenAI
+                    client.beta.threads.messages.list(thread_id=existing_thread_id)
+                    logger.info(f"Verified OpenAI thread {existing_thread_id} exists")
+                except Exception:
+                    # Si le thread n'existe pas dans OpenAI, en créer un nouveau
+                    thread = client.beta.threads.create()
+                    thread_id = thread.id
+                    logger.info(f"OpenAI thread {existing_thread_id} not found, created new thread {thread_id}")
+                    return thread_id
+
             # Le thread est compatible avec le modèle actuel
             logger.info(f"Using existing thread {existing_thread_id} for {phone_number}")
             return existing_thread_id
@@ -652,22 +665,17 @@ def receive_webhook():
 
                         # Store outbound message dans une transaction indépendante
                         try:
-                            # Récupérer le thread_id actuel
-                            current_thread_message = WhatsAppMessage.query.filter_by(
-                                from_number=sender
-                            ).order_by(WhatsAppMessage.timestamp.desc()).first()
-
-                            current_thread_id = thread_id
-                            if current_thread_message:
-                                current_thread_id = current_thread_message.thread_id
-
+                            # IMPORTANT: TOUJOURS utiliser le même thread_id que celui utilisé 
+                            # dans generate_ai_response pour maintenir la cohérence de la conversation
+                            # Ne PAS récupérer un ancien thread_id qui pourrait être incorrect
+                            
                             outbound_msg = WhatsAppMessage(
                                 message_id=response['messages'][0]['id'],
                                 to_number=sender,
                                 content=response_text,
                                 direction='outbound',
                                 status='sent',
-                                thread_id=current_thread_id
+                                thread_id=thread_id  # Utiliser le thread_id actuel, pas un ancien
                             )
                             db.session.add(outbound_msg)
                             db.session.commit()

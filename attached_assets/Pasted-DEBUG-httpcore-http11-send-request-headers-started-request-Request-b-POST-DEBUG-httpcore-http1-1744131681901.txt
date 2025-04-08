@@ -1,0 +1,672 @@
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=97495253d2e72be19a09d02ee48abfbd20d5fde8918c99f8c116c191c4d62a2b
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 97495253d2... Actual: 97495253d2...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'contacts': [{'profile': {'name': 'M.s Theid'}, 'wa_id': '22578962583'}], 'messages': [{'from': '22578962583', 'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA2MDdFODQ4QTgzNTI2OTQzNTU2N0FCQUM1QkYxMjFBMQA=', 'timestamp': '1744131609', 'text': {'body': 'Salut'}, 'type': 'text'}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+INFO:whatsapp_bot:Processing text message from 22578962583
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Creating/retrieving thread for 22578962583 using model: openai
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads
+DEBUG:httpcore.connection:connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f92ef54c950>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7f92efc874a0> server_hostname='api.openai.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f92ef66d0d0>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:10 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_b922d64d11b37ff0a9405c8b61210842'), (b'openai-processing-ms', b'143'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=k3Kw5cCqMqT28F6sVstRETMjBb4ja1Ip64Mwver6peo-1744131610-1.0.1.1-HPsez.AGYBv6k.sfQTgsfQ7yTxUsv_k3psmQkgPmL8H0y64IxHEgOu6qFTZBeze1a5fQpCsdrmtmmzSB32DOeqojRzZ4bPZMngkTSM6TXGs; path=/; expires=Tue, 08-Apr-25 17:30:10 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'X-Content-Type-Options', b'nosniff'), (b'Set-Cookie', b'_cfuvid=Hu.RHaVn2ngrWcpBl7MWcpuw8kkcRqO9MEg5VDStt2w-1744131610736-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351c5bc48c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads "200 OK" Headers([('date', 'Tue, 08 Apr 2025 17:00:10 GMT'), ('content-type', 'application/json'), ('transfer-encoding', 'chunked'), ('connection', 'keep-alive'), ('openai-version', '2020-10-01'), ('openai-organization', 'user-biugve6n3szx5trpmvdv6bup'), ('x-request-id', 'req_b922d64d11b37ff0a9405c8b61210842'), ('openai-processing-ms', '143'), ('strict-transport-security', 'max-age=31536000; includeSubDomains; preload'), ('cf-cache-status', 'DYNAMIC'), ('set-cookie', '__cf_bm=k3Kw5cCqMqT28F6sVstRETMjBb4ja1Ip64Mwver6peo-1744131610-1.0.1.1-HPsez.AGYBv6k.sfQTgsfQ7yTxUsv_k3psmQkgPmL8H0y64IxHEgOu6qFTZBeze1a5fQpCsdrmtmmzSB32DOeqojRzZ4bPZMngkTSM6TXGs; path=/; expires=Tue, 08-Apr-25 17:30:10 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('x-content-type-options', 'nosniff'), ('set-cookie', '_cfuvid=Hu.RHaVn2ngrWcpBl7MWcpuw8kkcRqO9MEg5VDStt2w-1744131610736-0.0.1.1-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), ('server', 'cloudflare'), ('cf-ray', '92d351c5bc48c392-SEA'), ('content-encoding', 'gzip'), ('alt-svc', 'h3=":443"; ma=86400')])
+DEBUG:openai._base_client:request_id: req_b922d64d11b37ff0a9405c8b61210842
+INFO:whatsapp_bot:Created new thread thread_Jwwpa2wYyM6SSis5LJRampK0 for 22578962583 with model openai
+INFO:whatsapp_bot:Emitted new_whatsapp_conversation event for thread thread_Jwwpa2wYyM6SSis5LJRampK0
+INFO:whatsapp_bot:Text message: Salut...
+INFO:whatsapp_bot:Stored inbound message ID wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA2MDdFODQ4QTgzNTI2OTQzNTU2N0FCQUM1QkYxMjFBMQA=
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Generating response using model: openai for thread thread_Jwwpa2wYyM6SSis5LJRampK0
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:11 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_898902c20836f279203237d1f21d38f1'), (b'openai-processing-ms', b'146'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351c99ef9c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:11 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_898902c20836f279203237d1f21d38f1', 'openai-processing-ms': '146', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351c99ef9c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_898902c20836f279203237d1f21d38f1
+INFO:whatsapp_bot:Created new OpenAI thread thread_K9qmZsClqZvqTqnFMvLYP3Ng to replace non-OpenAI thread
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'content': 'Salut', 'role': 'user'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:00:11 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:11 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_17e74b73e622f83174ea4c5d3995a89f'), (b'openai-processing-ms', b'147'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351cb2fe6c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:11 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_17e74b73e622f83174ea4c5d3995a89f', 'openai-processing-ms': '147', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351cb2fe6c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_17e74b73e622f83174ea4c5d3995a89f
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs', 'params': {}, 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'assistant_id': 'asst_pOedojblWXHQlvr73UezQMr3'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:12 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_dd3a32c6c6456bb4285347227c33841f'), (b'openai-processing-ms', b'614'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351ce1a33c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:12 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_dd3a32c6c6456bb4285347227c33841f', 'openai-processing-ms': '614', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351ce1a33c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_dd3a32c6c6456bb4285347227c33841f
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:12 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_711ff4078ab22f14992db55081c4d1f4'), (b'openai-processing-ms', b'164'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351d2fd8bc392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+102.67.234.168,10.82.9.111,172.31.128.13 - - [08/Apr/2025 17:00:12] "GET /admin/data/whatsapp HTTP/1.1" 200 467 0.902030
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:12 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_711ff4078ab22f14992db55081c4d1f4', 'openai-processing-ms': '164', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351d2fd8bc392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_711ff4078ab22f14992db55081c4d1f4
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:14 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_d0332acd71bcd348e20a8f00acef2bbf'), (b'openai-processing-ms', b'195'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351db2b22c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:14 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_d0332acd71bcd348e20a8f00acef2bbf', 'openai-processing-ms': '195', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351db2b22c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_d0332acd71bcd348e20a8f00acef2bbf
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:15 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_5d1c53711f43c31ea36eb6e0773f646e'), (b'openai-processing-ms', b'145'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351e33feec392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:15 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_5d1c53711f43c31ea36eb6e0773f646e', 'openai-processing-ms': '145', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351e33feec392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_5d1c53711f43c31ea36eb6e0773f646e
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:16 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_9884d05b202b3dd432ec4c62ecf99ac2'), (b'openai-processing-ms', b'138'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351eb4cf6c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:16 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_9884d05b202b3dd432ec4c62ecf99ac2', 'openai-processing-ms': '138', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351eb4cf6c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_9884d05b202b3dd432ec4c62ecf99ac2
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:18 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_381b2acc74d12333b681b9c321e839d7'), (b'openai-processing-ms', b'347'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351f35a2dc392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:18 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_381b2acc74d12333b681b9c321e839d7', 'openai-processing-ms': '347', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351f35a2dc392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_381b2acc74d12333b681b9c321e839d7
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:19 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_037ef14c54228da32dd58e9eea4941da'), (b'openai-processing-ms', b'142'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d351fcb8d5c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:19 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_037ef14c54228da32dd58e9eea4941da', 'openai-processing-ms': '142', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d351fcb8d5c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_037ef14c54228da32dd58e9eea4941da
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:20 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_a7507020ad692bdf47f911fc25be0217'), (b'openai-processing-ms', b'144'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d35204deacc392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:20 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_a7507020ad692bdf47f911fc25be0217', 'openai-processing-ms': '144', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d35204deacc392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_a7507020ad692bdf47f911fc25be0217
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:00:21 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:22 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_3236adf7305ca62a98cb138a3c2fd0c2'), (b'openai-processing-ms', b'202'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d3520cdc0bc392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:22 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_3236adf7305ca62a98cb138a3c2fd0c2', 'openai-processing-ms': '202', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d3520cdc0bc392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_3236adf7305ca62a98cb138a3c2fd0c2
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:23 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_8757af54150664fa4fa0062ce8c3b5fc'), (b'openai-processing-ms', b'237'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352156a11c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:23 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_8757af54150664fa4fa0062ce8c3b5fc', 'openai-processing-ms': '237', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352156a11c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_8757af54150664fa4fa0062ce8c3b5fc
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:24 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_ed05e69cecc860c9cd6f2df38669fd8f'), (b'openai-processing-ms', b'204'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d3521e0808c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:24 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_ed05e69cecc860c9cd6f2df38669fd8f', 'openai-processing-ms': '204', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d3521e0808c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_ed05e69cecc860c9cd6f2df38669fd8f
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:26 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_06beeb41d0bd1158a8b979a27de1c37f'), (b'openai-processing-ms', b'311'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d35226aec2c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:26 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_06beeb41d0bd1158a8b979a27de1c37f', 'openai-processing-ms': '311', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d35226aec2c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_06beeb41d0bd1158a8b979a27de1c37f
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:27 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_307403ac3968bc77329ee634b3a3e1c1'), (b'openai-processing-ms', b'272'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d3522feeccc392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:27 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_307403ac3968bc77329ee634b3a3e1c1', 'openai-processing-ms': '272', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d3522feeccc392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_307403ac3968bc77329ee634b3a3e1c1
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:29 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_3ff5b3c059392e3f1883c2955828e05b'), (b'openai-processing-ms', b'216'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d35238cd35c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:29 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_3ff5b3c059392e3f1883c2955828e05b', 'openai-processing-ms': '216', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d35238cd35c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_3ff5b3c059392e3f1883c2955828e05b
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:30 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_71fe40e32a6a0a12df09bffe8463a549'), (b'openai-processing-ms', b'149'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352415b0ac392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:30 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_71fe40e32a6a0a12df09bffe8463a549', 'openai-processing-ms': '149', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352415b0ac392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_71fe40e32a6a0a12df09bffe8463a549
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:31 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_a7467bf99e247f00f24398e823fdfe01'), (b'openai-processing-ms', b'199'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352498805c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:00:31 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:31 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_a7467bf99e247f00f24398e823fdfe01', 'openai-processing-ms': '199', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352498805c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_a7467bf99e247f00f24398e823fdfe01
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:33 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_ac9b29d2899b94974edf6ef956473177'), (b'openai-processing-ms', b'145'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d35251ee54c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:33 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_ac9b29d2899b94974edf6ef956473177', 'openai-processing-ms': '145', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d35251ee54c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_ac9b29d2899b94974edf6ef956473177
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:34 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_5c2abe2a0926c19db1e93c229abbe2fe'), (b'openai-processing-ms', b'200'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d3525a0c94c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/runs/run_76AcsBRv0XHwauawTrpblXof "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:34 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_5c2abe2a0926c19db1e93c229abbe2fe', 'openai-processing-ms': '200', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d3525a0c94c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_5c2abe2a0926c19db1e93c229abbe2fe
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages', 'params': {}, 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'post_parser': <function SyncAPIClient._request_api_list.<locals>._parser at 0x7f92f10c3380>, 'json_data': None}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:34 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_f5fa0f0db197140e89d62ac0d18382f4'), (b'openai-processing-ms', b'49'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d3525c2e20c392-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_K9qmZsClqZvqTqnFMvLYP3Ng/messages "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:34 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_f5fa0f0db197140e89d62ac0d18382f4', 'openai-processing-ms': '49', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d3525c2e20c392-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_f5fa0f0db197140e89d62ac0d18382f4
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): graph.facebook.com:443
+DEBUG:urllib3.connectionpool:https://graph.facebook.com:443 "POST /v17.0/632875686565710/messages HTTP/1.1" 200 173
+INFO:whatsapp_bot:Sent and stored response to 22578962583
+173.252.95.7,10.82.1.228,172.31.128.13 - - [08/Apr/2025 17:00:35] "POST /whatsapp/webhook HTTP/1.1" 200 129 25.205711
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=97495253d2e72be19a09d02ee48abfbd20d5fde8918c99f8c116c191c4d62a2b
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 97495253d2... Actual: 97495253d2...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'contacts': [{'profile': {'name': 'M.s Theid'}, 'wa_id': '22578962583'}], 'messages': [{'from': '22578962583', 'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA2MDdFODQ4QTgzNTI2OTQzNTU2N0FCQUM1QkYxMjFBMQA=', 'timestamp': '1744131609', 'text': {'body': 'Salut'}, 'type': 'text'}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+INFO:whatsapp_bot:Processing text message from 22578962583
+INFO:whatsapp_bot:Message wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA2MDdFODQ4QTgzNTI2OTQzNTU2N0FCQUM1QkYxMjFBMQA= already processed. Skipping.
+173.252.79.4,10.82.0.199,172.31.128.13 - - [08/Apr/2025 17:00:35] "POST /whatsapp/webhook HTTP/1.1" 200 129 0.252437
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=c003d82d16bd4e352a91dda27a0c7a2cf4bb9167b61694324ea3c8b39904629a
+DEBUG:whatsapp_bot:Verifying signatures - Expected: c003d82d16... Actual: c003d82d16...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'statuses': [{'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBJGNERBMjZGQjBCOTYzQTBEM0UA', 'status': 'sent', 'timestamp': '1744131635', 'recipient_id': '22578962583', 'conversation': {'id': '0baeac26a9dd9f553a3f13737540ea75', 'expiration_timestamp': '1744212780', 'origin': {'type': 'service'}}, 'pricing': {'billable': True, 'pricing_model': 'CBP', 'category': 'service'}}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+DEBUG:whatsapp_bot:Processing status update for message wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBJGNERBMjZGQjBCOTYzQTBEM0UA: sent
+173.252.95.33,10.82.4.135,172.31.128.13 - - [08/Apr/2025 17:00:36] "POST /whatsapp/webhook HTTP/1.1" 200 129 0.255710
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=370713ce29be4c2f0b4c606168f581ddec7f963baa432e0c0d211f9958a75c2a
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 370713ce29... Actual: 370713ce29...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'statuses': [{'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBJGNERBMjZGQjBCOTYzQTBEM0UA', 'status': 'read', 'timestamp': '1744131635', 'recipient_id': '22578962583', 'conversation': {'id': '0baeac26a9dd9f553a3f13737540ea75', 'origin': {'type': 'service'}}, 'pricing': {'billable': True, 'pricing_model': 'CBP', 'category': 'service'}}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+DEBUG:whatsapp_bot:Processing status update for message wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBJGNERBMjZGQjBCOTYzQTBEM0UA: read
+173.252.107.2,10.82.4.135,172.31.128.13 - - [08/Apr/2025 17:00:36] "POST /whatsapp/webhook HTTP/1.1" 200 129 0.317621
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:00:42 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=508da2b1ede30bd890f2c7e5f8339f1fa32333dc80b8912489abb4d210c38685
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 508da2b1ed... Actual: 508da2b1ed...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'contacts': [{'profile': {'name': 'M.s Theid'}, 'wa_id': '22578962583'}], 'messages': [{'from': '22578962583', 'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA3NTI1NjJENkU0MzY1ODU3MTlGMTc4MUE1RjY0RTdCQgA=', 'timestamp': '1744131644', 'text': {'body': 'Maths'}, 'type': 'text'}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+INFO:whatsapp_bot:Processing text message from 22578962583
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Creating/retrieving thread for 22578962583 using model: openai
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads
+DEBUG:httpcore.connection:close.started
+DEBUG:httpcore.connection:close.complete
+DEBUG:httpcore.connection:connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+DEBUG:httpcore.connection:connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f92ef663350>
+DEBUG:httpcore.connection:start_tls.started ssl_context=<eventlet.green.ssl.GreenSSLContext object at 0x7f92efc874a0> server_hostname='api.openai.com' timeout=5.0
+DEBUG:httpcore.connection:start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x7f92ef594490>
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:46 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_18b6bf032172db945e4b2013617bc2e9'), (b'openai-processing-ms', b'114'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352a3eb77c3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:46 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_18b6bf032172db945e4b2013617bc2e9', 'openai-processing-ms': '114', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352a3eb77c3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_18b6bf032172db945e4b2013617bc2e9
+INFO:whatsapp_bot:Switching to OpenAI, created new thread thread_oz07AsvnikMtuc6SHKUC2hIB
+INFO:whatsapp_bot:Emitted new_whatsapp_conversation event for thread thread_oz07AsvnikMtuc6SHKUC2hIB
+INFO:whatsapp_bot:Text message: Maths...
+INFO:whatsapp_bot:Stored inbound message ID wamid.HBgLMjI1Nzg5NjI1ODMVAgASGCA3NTI1NjJENkU0MzY1ODU3MTlGMTc4MUE1RjY0RTdCQgA=
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Generating response using model: openai for thread thread_oz07AsvnikMtuc6SHKUC2hIB
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:46 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_6ab362846a4ca5dcebbfa1af9577e176'), (b'openai-processing-ms', b'136'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352a7ae5ec3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:46 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_6ab362846a4ca5dcebbfa1af9577e176', 'openai-processing-ms': '136', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352a7ae5ec3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_6ab362846a4ca5dcebbfa1af9577e176
+INFO:whatsapp_bot:Created new OpenAI thread thread_1wybDXOmVWAxUtwA4sTFz4CH to replace non-OpenAI thread
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages', 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'content': 'Maths', 'role': 'user'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:47 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_f2becd547ed411acb1ecd0c53a6a9c13'), (b'openai-processing-ms', b'158'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352a93fbec3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:47 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_f2becd547ed411acb1ecd0c53a6a9c13', 'openai-processing-ms': '158', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352a93fbec3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_f2becd547ed411acb1ecd0c53a6a9c13
+DEBUG:openai._base_client:Request options: {'method': 'post', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs', 'params': {}, 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'files': None, 'json_data': {'assistant_id': 'asst_pOedojblWXHQlvr73UezQMr3'}}
+DEBUG:openai._base_client:Sending HTTP Request: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+(2023) accepted ('172.31.128.13', 44014)
+102.67.234.168,10.82.6.180,172.31.128.13 - - [08/Apr/2025 17:00:48] "GET /admin/data/whatsapp HTTP/1.1" 200 841 0.774862
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:48 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_181338cb8fe1615f14d832eb6bf2df8f'), (b'openai-processing-ms', b'976'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352aac8ccc3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: POST https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:48 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_181338cb8fe1615f14d832eb6bf2df8f', 'openai-processing-ms': '976', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352aac8ccc3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_181338cb8fe1615f14d832eb6bf2df8f
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:48 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_f1545303afbf5eef7460e3a2cf37b515'), (b'openai-processing-ms', b'204'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352b1bec3c3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:48 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_f1545303afbf5eef7460e3a2cf37b515', 'openai-processing-ms': '204', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352b1bec3c3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_f1545303afbf5eef7460e3a2cf37b515
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:49 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_cd80f61dbffe8a16d0cc2a3548b2a514'), (b'openai-processing-ms', b'190'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352b9dd4fc3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:49 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_cd80f61dbffe8a16d0cc2a3548b2a514', 'openai-processing-ms': '190', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352b9dd4fc3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_cd80f61dbffe8a16d0cc2a3548b2a514
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:51 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_0c623fccdf76a2f67d8f85219c8b85a0'), (b'openai-processing-ms', b'190'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'CF-Cache-Status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352c1fbd1c3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:51 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_0c623fccdf76a2f67d8f85219c8b85a0', 'openai-processing-ms': '190', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352c1fbd1c3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_0c623fccdf76a2f67d8f85219c8b85a0
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:00:52 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:52 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_6a9637cc309c6abfeac67aec9b384ef0'), (b'openai-processing-ms', b'149'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352ca5a9ec3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:52 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_6a9637cc309c6abfeac67aec9b384ef0', 'openai-processing-ms': '149', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352ca5a9ec3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_6a9637cc309c6abfeac67aec9b384ef0
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:53 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_9df70b6cfe8b64ef34ac7ba1403b296b'), (b'openai-processing-ms', b'138'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352d2690fc3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:53 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_9df70b6cfe8b64ef34ac7ba1403b296b', 'openai-processing-ms': '138', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352d2690fc3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_9df70b6cfe8b64ef34ac7ba1403b296b
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB', 'headers': {'OpenAI-Beta': 'assistants=v2'}}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:55 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_3bb0e391319aa1bdd5d9ed9c3fbdb64f'), (b'openai-processing-ms', b'167'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352da2ee0c3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/runs/run_Yo1M7THWkF5yEnsTZGMHbxZB "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:55 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_3bb0e391319aa1bdd5d9ed9c3fbdb64f', 'openai-processing-ms': '167', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352da2ee0c3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_3bb0e391319aa1bdd5d9ed9c3fbdb64f
+DEBUG:openai._base_client:Request options: {'method': 'get', 'url': '/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages', 'params': {}, 'headers': {'OpenAI-Beta': 'assistants=v2'}, 'post_parser': <function SyncAPIClient._request_api_list.<locals>._parser at 0x7f92ef6e5a80>, 'json_data': None}
+DEBUG:openai._base_client:Sending HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Tue, 08 Apr 2025 17:00:55 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'openai-version', b'2020-10-01'), (b'openai-organization', b'user-biugve6n3szx5trpmvdv6bup'), (b'x-request-id', b'req_216c2f78a4d2fe6b600ec913a19a26f3'), (b'openai-processing-ms', b'96'), (b'strict-transport-security', b'max-age=31536000; includeSubDomains; preload'), (b'cf-cache-status', b'DYNAMIC'), (b'X-Content-Type-Options', b'nosniff'), (b'Server', b'cloudflare'), (b'CF-RAY', b'92d352dbd837c3cd-SEA'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+INFO:httpx:HTTP Request: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'GET']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:openai._base_client:HTTP Response: GET https://api.openai.com/v1/threads/thread_1wybDXOmVWAxUtwA4sTFz4CH/messages "200 OK" Headers({'date': 'Tue, 08 Apr 2025 17:00:55 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'openai-version': '2020-10-01', 'openai-organization': 'user-biugve6n3szx5trpmvdv6bup', 'x-request-id': 'req_216c2f78a4d2fe6b600ec913a19a26f3', 'openai-processing-ms': '96', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'cf-cache-status': 'DYNAMIC', 'x-content-type-options': 'nosniff', 'server': 'cloudflare', 'cf-ray': '92d352dbd837c3cd-SEA', 'content-encoding': 'gzip', 'alt-svc': 'h3=":443"; ma=86400'})
+DEBUG:openai._base_client:request_id: req_216c2f78a4d2fe6b600ec913a19a26f3
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): graph.facebook.com:443
+DEBUG:urllib3.connectionpool:https://graph.facebook.com:443 "POST /v17.0/632875686565710/messages HTTP/1.1" 200 173
+INFO:whatsapp_bot:Sent and stored response to 22578962583
+173.252.107.10,10.82.7.137,172.31.128.13 - - [08/Apr/2025 17:00:55] "POST /whatsapp/webhook HTTP/1.1" 200 129 10.056999
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=2f4f6a1ddd53d58d9eb339b940d6e8c44e45d54c78930a64d1cd67bd4ab0c521
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 2f4f6a1ddd... Actual: 2f4f6a1ddd...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'statuses': [{'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBI4RkMzMEE1NjQ2RUM5MjBBQUQA', 'status': 'sent', 'timestamp': '1744131655', 'recipient_id': '22578962583', 'conversation': {'id': '0baeac26a9dd9f553a3f13737540ea75', 'expiration_timestamp': '1744212780', 'origin': {'type': 'service'}}, 'pricing': {'billable': True, 'pricing_model': 'CBP', 'category': 'service'}}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+DEBUG:whatsapp_bot:Processing status update for message wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBI4RkMzMEE1NjQ2RUM5MjBBQUQA: sent
+DEBUG:whatsapp_bot:Received webhook POST with signature: sha256=6f42ef0a00529161f980d5537f5d716b063c7f34af9fc330ca45c2ce6d905a46
+DEBUG:whatsapp_bot:Verifying signatures - Expected: 6f42ef0a00... Actual: 6f42ef0a00...
+DEBUG:whatsapp_bot:Webhook payload: {'object': 'whatsapp_business_account', 'entry': [{'id': '1173867797328968', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'display_phone_number': '22569723108', 'phone_number_id': '632875686565710'}, 'statuses': [{'id': 'wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBI4RkMzMEE1NjQ2RUM5MjBBQUQA', 'status': 'read', 'timestamp': '1744131656', 'recipient_id': '22578962583', 'conversation': {'id': '0baeac26a9dd9f553a3f13737540ea75', 'origin': {'type': 'service'}}, 'pricing': {'billable': True, 'pricing_model': 'CBP', 'category': 'service'}}]}, 'field': 'messages'}]}]}
+INFO:whatsapp_bot:Found config in file: model=openai, timestamp=1743576868.7399669
+INFO:whatsapp_bot:Processing webhook with active model: openai
+DEBUG:whatsapp_bot:Processing status update for message wamid.HBgLMjI1Nzg5NjI1ODMVAgARGBI4RkMzMEE1NjQ2RUM5MjBBQUQA: read
+173.252.95.116,10.82.9.111,172.31.128.13 - - [08/Apr/2025 17:00:56] "POST /whatsapp/webhook HTTP/1.1" 200 129 0.255995
+173.252.95.40,10.82.9.111,172.31.128.13 - - [08/Apr/2025 17:00:56] "POST /whatsapp/webhook HTTP/1.1" 200 129 0.317720
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.18.0'), (b'Date', b'Tue, 08 Apr 2025 17:01:02 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+INFO:httpx:HTTP Request: POST https://api.telegram.org/bot7755734631:AAFNaU0BYBIbZjIFUBq7jx5VtppyulmSQZ8/getUpdates "HTTP/1.1 200 OK"
+DEBUG:httpcore.http11:receive_response_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_body.complete
+DEBUG:httpcore.http11:response_closed.started
+DEBUG:httpcore.http11:response_closed.complete
+DEBUG:telegram.ext.ExtBot:Call to Bot API endpoint `getUpdates` finished with return value `[]`
+DEBUG:telegram.ext.ExtBot:No new updates found.
+DEBUG:telegram.ext.ExtBot:Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+DEBUG:httpcore.http11:send_request_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_headers.complete
+DEBUG:httpcore.http11:send_request_body.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:send_request_body.complete
+DEBUG:httpcore.http11:receive_response_headers.started request=<Request [b'POST']>
+DEBUG:httpcore.http11:receive_response_headers.complete return_value=(b'HTTP/1.1',
