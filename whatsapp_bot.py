@@ -118,19 +118,6 @@ def get_or_create_thread(phone_number, force_new=False):
                 logger.info(f"Switching from OpenAI to {current_model}, created new thread {thread_id}")
                 return thread_id
 
-            # Si c'est un thread OpenAI, vérifier qu'il existe réellement
-            if current_model == 'openai' and not is_non_openai_thread:
-                try:
-                    # Tester si le thread existe réellement dans OpenAI
-                    client.beta.threads.messages.list(thread_id=existing_thread_id)
-                    logger.info(f"Verified OpenAI thread {existing_thread_id} exists")
-                except Exception:
-                    # Si le thread n'existe pas dans OpenAI, en créer un nouveau
-                    thread = client.beta.threads.create()
-                    thread_id = thread.id
-                    logger.info(f"OpenAI thread {existing_thread_id} not found, created new thread {thread_id}")
-                    return thread_id
-
             # Le thread est compatible avec le modèle actuel
             logger.info(f"Using existing thread {existing_thread_id} for {phone_number}")
             return existing_thread_id
@@ -139,12 +126,10 @@ def get_or_create_thread(phone_number, force_new=False):
         if current_model == 'openai':
             thread = client.beta.threads.create()
             thread_id = thread.id
-            # Ajout d'un log explicite pour identifier que c'est un thread OpenAI valide
-            logger.info(f"Created new VALID OpenAI thread {thread_id} for {phone_number}")
         else:
             thread_id = f"thread_{phone_number}_{int(time.time())}"
-            logger.info(f"Created new non-OpenAI thread {thread_id} for {phone_number}")
 
+        logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
         return thread_id
 
     except Exception as e:
@@ -264,67 +249,21 @@ def generate_ai_response(message_body, thread_id, sender=None):
         if current_model == 'openai':
             # Uniquement si OpenAI est explicitement configuré
             try:
-                # Pour déterminer si le thread est OpenAI, on vérifie d'abord s'il commence par "thread_"
-                # Si c'est le cas, c'est un thread non-OpenAI
-                if thread_id.startswith("thread_"):
-                    logger.info(f"Thread {thread_id} is a non-OpenAI thread format")
+                # Vérifier que le thread est un thread OpenAI valide
+                if not thread_id.startswith("thread_"):
+                    try:
+                        # Tester si le thread existe dans OpenAI
+                        client.beta.threads.messages.list(thread_id=thread_id)
+                    except Exception:
+                        # Créer un nouveau thread si celui-ci n'existe pas
+                        thread = client.beta.threads.create()
+                        thread_id = thread.id
+                        logger.info(f"Created new OpenAI thread {thread_id} as previous was invalid")
+                else:
                     # Si le thread commence par "thread_", il n'est pas compatible avec OpenAI
                     thread = client.beta.threads.create()
-                    new_thread_id = thread.id
-                    
-                    # Sauvegarder immédiatement le nouveau thread ID dans la base de données
-                    # pour TOUS les messages précédents de cette conversation
-                    try:
-                        messages_to_update = WhatsAppMessage.query.filter_by(
-                            thread_id=thread_id
-                        ).all()
-                        
-                        logger.info(f"Migrating {len(messages_to_update)} messages from {thread_id} to new OpenAI thread {new_thread_id}")
-                        
-                        for msg in messages_to_update:
-                            msg.thread_id = new_thread_id
-                        
-                        db.session.commit()
-                        logger.info(f"Successfully migrated all messages to new thread {new_thread_id}")
-                    except Exception as migration_error:
-                        logger.error(f"Error migrating messages to new thread: {str(migration_error)}")
-                        db.session.rollback()
-                    
-                    # Mettre à jour thread_id pour la suite du traitement
-                    thread_id = new_thread_id
-                    logger.info(f"Created and migrated to new OpenAI thread {thread_id}")
-                else:
-                    # Si ce n'est pas un thread commençant par "thread_", vérifier s'il est valide dans OpenAI
-                    try:
-                        # Test si le thread existe dans OpenAI
-                        client.beta.threads.messages.list(thread_id=thread_id)
-                        logger.info(f"Verified existing OpenAI thread {thread_id} is valid")
-                    except Exception as thread_error:
-                        # Seulement créer un nouveau thread si le thread actuel est invalide dans OpenAI
-                        logger.error(f"Invalid OpenAI thread {thread_id}: {str(thread_error)}")
-                        thread = client.beta.threads.create()
-                        new_thread_id = thread.id
-                        
-                        # Comme ci-dessus, migrer les messages vers le nouveau thread
-                        try:
-                            messages_to_update = WhatsAppMessage.query.filter_by(
-                                thread_id=thread_id
-                            ).all()
-                            
-                            logger.info(f"Migrating {len(messages_to_update)} messages from invalid thread {thread_id} to new OpenAI thread {new_thread_id}")
-                            
-                            for msg in messages_to_update:
-                                msg.thread_id = new_thread_id
-                            
-                            db.session.commit()
-                            logger.info(f"Successfully migrated all messages to new thread {new_thread_id}")
-                        except Exception as migration_error:
-                            logger.error(f"Error migrating messages to new thread: {str(migration_error)}")
-                            db.session.rollback()
-                        
-                        # Mettre à jour thread_id pour la suite du traitement
-                        thread_id = new_thread_id
-                        logger.info(f"Created and migrated to new OpenAI thread {thread_id} as previous was invalid")
+                    thread_id = thread.id
+                    logger.info(f"Created new OpenAI thread {thread_id} to replace non-OpenAI thread")
 
                 # Ajouter le message au thread OpenAI
                 client.beta.threads.messages.create(
@@ -711,17 +650,22 @@ def receive_webhook():
 
                         # Store outbound message dans une transaction indépendante
                         try:
-                            # IMPORTANT: TOUJOURS utiliser le même thread_id que celui utilisé 
-                            # dans generate_ai_response pour maintenir la cohérence de la conversation
-                            # Ne PAS récupérer un ancien thread_id qui pourrait être incorrect
-                            
+                            # Récupérer le thread_id actuel
+                            current_thread_message = WhatsAppMessage.query.filter_by(
+                                from_number=sender
+                            ).order_by(WhatsAppMessage.timestamp.desc()).first()
+
+                            current_thread_id = thread_id
+                            if current_thread_message:
+                                current_thread_id = current_thread_message.thread_id
+
                             outbound_msg = WhatsAppMessage(
                                 message_id=response['messages'][0]['id'],
                                 to_number=sender,
                                 content=response_text,
                                 direction='outbound',
                                 status='sent',
-                                thread_id=thread_id  # Utiliser le thread_id actuel, pas un ancien
+                                thread_id=current_thread_id
                             )
                             db.session.add(outbound_msg)
                             db.session.commit()
