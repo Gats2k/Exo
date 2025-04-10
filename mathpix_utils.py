@@ -35,15 +35,20 @@ def process_image_with_mathpix(image_data):
         if isinstance(image_data, str) and "base64," in image_data:
             image_data = image_data.split("base64,")[1]
 
-        # Configuration simplifiée mais efficace pour la détection mathématique
+        # Configuration complète pour extraire tous les détails
         payload = {
             "src": f"data:image/jpeg;base64,{image_data}",
             "formats": ["text", "data", "html"],
             "data_options": {
                 "include_asciimath": True,
-                "include_latex": True
+                "include_latex": True,
+                "include_mathml": True,
+                "include_svg": True
             },
-            "include_geometry_data": True
+            "include_geometry_data": True,
+            "include_line_data": True,  # Récupérer des données sur la structure des lignes
+            "include_word_data": True,  # Récupérer des données sur les mots individuels
+            "include_table_data": True  # Récupérer des données complètes sur les tables
         }
 
         # Send request to Mathpix
@@ -53,20 +58,22 @@ def process_image_with_mathpix(image_data):
 
         result = response.json()
 
-        # Structure the response
+        # Structure the response with all available data
         structured_result = {
             "text": result.get("text", ""),
+            "html": result.get("html", ""),  # Include HTML for better formatting
             "has_math": False,
             "has_table": False,
             "has_chemistry": False,
             "has_geometry": False,
-            "details": {}
+            "details": {},
+            "raw_data": result  # Store the full raw response for complete data access
         }
 
         # Process mathematical data
         if "data" in result:
             for data_item in result["data"]:
-                if data_item.get("type") in ["latex", "asciimath", "mathml"]:
+                if data_item.get("type") in ["latex", "asciimath", "mathml", "svg"]:
                     structured_result["has_math"] = True
                     if "math_details" not in structured_result["details"]:
                         structured_result["details"]["math_details"] = []
@@ -84,6 +91,14 @@ def process_image_with_mathpix(image_data):
             structured_result["has_geometry"] = True
             structured_result["details"]["geometry_details"] = process_geometry_data(result["geometry_data"])
 
+        # Process line data if available
+        if "line_data" in result and result["line_data"]:
+            structured_result["details"]["line_data"] = result["line_data"]
+
+        # Process word data if available
+        if "word_data" in result and result["word_data"]:
+            structured_result["details"]["word_data"] = result["word_data"]
+
         # Check for chemical formulas (SMILES)
         if "text" in result:
             smiles_pattern = r'<smiles.*?>(.*?)</smiles>'
@@ -93,9 +108,13 @@ def process_image_with_mathpix(image_data):
                 structured_result["has_chemistry"] = True
                 structured_result["details"]["chemistry_details"] = smiles_matches
 
-        # Format summary for assistant
+        # Format complete summary for assistant
         formatted_summary = format_mathpix_result_for_assistant(structured_result)
         structured_result["formatted_summary"] = formatted_summary
+        
+        # Log the size of the data
+        logger.debug(f"Structured result: {len(str(structured_result))} characters")
+        logger.debug(f"Formatted summary: {len(formatted_summary)} characters")
 
         return structured_result
 
@@ -105,7 +124,7 @@ def process_image_with_mathpix(image_data):
 
 def format_mathpix_result_for_assistant(result):
     """
-    Format Mathpix results into a well-structured text summary for the assistant
+    Format Mathpix results into a complete, well-structured text for the assistant
     """
     summary = []
 
@@ -119,25 +138,36 @@ def format_mathpix_result_for_assistant(result):
     if content_types:
         summary.append(f"Image contains {', '.join(content_types)}.")
 
-    # Add main text
+    # Add main text - This is the most important part containing the full transcription
     if result.get("text"):
         summary.append("\nExtracted content:")
         summary.append(result["text"])
 
-    # Add geometry details if present
+    # Add complete geometry details if present
     if result["has_geometry"] and "geometry_details" in result["details"]:
         summary.append("\nGeometric figure details:")
         summary.append(result["details"]["geometry_details"])
 
-    # Add chemical formulas
+    # Add all chemical formulas
     if result["has_chemistry"] and "chemistry_details" in result["details"]:
         summary.append("\nDetected chemical formulas (SMILES):")
         for formula in result["details"]["chemistry_details"]:
             summary.append(f"- {formula}")
 
-    # Mention tables specifically
-    if result["has_table"]:
-        summary.append("\nA table was detected in the image. The data is included in the text above.")
+    # Include details about tables
+    if result["has_table"] and "table_details" in result["details"]:
+        summary.append("\nDetailed table data:")
+        # Include any additional table data that might not be in the main text
+        for table in result["details"].get("table_details", []):
+            if "data" in table:
+                summary.append(table["data"])
+
+    # Include detailed math information
+    if result["has_math"] and "math_details" in result["details"]:
+        summary.append("\nDetailed mathematical expressions:")
+        for math_item in result["details"].get("math_details", []):
+            if "value" in math_item:
+                summary.append(f"- {math_item['value']}")
 
     return "\n".join(summary)
 
