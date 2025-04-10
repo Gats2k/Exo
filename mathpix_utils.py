@@ -103,44 +103,6 @@ def process_image_with_mathpix(image_data):
         logger.error(f"Error processing image with Mathpix: {str(e)}")
         return {"error": f"Error processing image: {str(e)}"}
 
-def format_mathpix_result_for_assistant(result):
-    """
-    Format Mathpix results into a well-structured text summary for the assistant
-    """
-    summary = []
-
-    # Add header based on content
-    content_types = []
-    if result["has_math"]: content_types.append("mathematical formulas")
-    if result["has_table"]: content_types.append("tables")
-    if result["has_chemistry"]: content_types.append("chemical formulas")
-    if result["has_geometry"]: content_types.append("geometric figures")
-
-    if content_types:
-        summary.append(f"Image contains {', '.join(content_types)}.")
-
-    # Add main text
-    if result.get("text"):
-        summary.append("\nExtracted content:")
-        summary.append(result["text"])
-
-    # Add geometry details if present
-    if result["has_geometry"] and "geometry_details" in result["details"]:
-        summary.append("\nGeometric figure details:")
-        summary.append(result["details"]["geometry_details"])
-
-    # Add chemical formulas
-    if result["has_chemistry"] and "chemistry_details" in result["details"]:
-        summary.append("\nDetected chemical formulas (SMILES):")
-        for formula in result["details"]["chemistry_details"]:
-            summary.append(f"- {formula}")
-
-    # Mention tables specifically
-    if result["has_table"]:
-        summary.append("\nA table was detected in the image. The data is included in the text above.")
-
-    return "\n".join(summary)
-
 def process_geometry_data(geometry_data):
     """
     Process geometric data into a readable format
