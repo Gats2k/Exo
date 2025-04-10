@@ -941,20 +941,7 @@ def handle_message(data):
 
                     # Prepare message text for assistant
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
-                    
-                    # Include full raw Mathpix data in addition to the formatted summary
-                    if "error" not in mathpix_result:
-                        # Get the raw text content from Mathpix
-                        raw_text = mathpix_result.get("text", "")
-                        
-                        # Build a complete message with both formatted summary and raw text
-                        message_for_assistant += f"[Extracted Image Content]\n{formatted_summary}\n\n"
-                        
-                        # Add the full raw text if it's different from the formatted summary
-                        if raw_text and raw_text.strip() != formatted_summary.strip():
-                            message_for_assistant += f"[Complete Raw Extraction]\n{raw_text}"
-                    else:
-                        message_for_assistant += "Please analyze the image I uploaded."
+                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
                     # Créer un message vide pour l'assistant, à remplir plus tard
                     db_message = Message(
