@@ -126,50 +126,85 @@ def format_mathpix_result_for_assistant(result):
     """
     Format Mathpix results into a complete, well-structured text for the assistant
     """
-    summary = []
+    try:
+        # Log the entire result structure for debugging
+        logger.debug(f"Formatting Mathpix result: {result.keys()}")
+        if "raw_data" in result:
+            logger.debug(f"Raw data fields: {result['raw_data'].keys()}")
+            
+        summary = []
+        
+        # Fallback: If we can't extract specific data, at least send the raw text
+        if "raw_data" in result and "text" in result["raw_data"]:
+            raw_text = result["raw_data"]["text"]
+            logger.debug(f"Using raw_data.text as fallback: {len(raw_text)} characters")
+            summary.append("Extracted content:")
+            summary.append(raw_text)
+            # Return early with at least the raw text
+            return "\n".join(summary)
 
-    # Add header based on content
-    content_types = []
-    if result["has_math"]: content_types.append("mathematical formulas")
-    if result["has_table"]: content_types.append("tables")
-    if result["has_chemistry"]: content_types.append("chemical formulas")
-    if result["has_geometry"]: content_types.append("geometric figures")
+        # Continue with structured extraction if raw_data.text wasn't available
+        
+        # Add header based on content
+        content_types = []
+        if result.get("has_math", False): content_types.append("mathematical formulas")
+        if result.get("has_table", False): content_types.append("tables")
+        if result.get("has_chemistry", False): content_types.append("chemical formulas")
+        if result.get("has_geometry", False): content_types.append("geometric figures")
 
-    if content_types:
-        summary.append(f"Image contains {', '.join(content_types)}.")
+        if content_types:
+            summary.append(f"Image contains {', '.join(content_types)}.")
 
-    # Add main text - This is the most important part containing the full transcription
-    if result.get("text"):
-        summary.append("\nExtracted content:")
-        summary.append(result["text"])
+        # Add main text - This is the most important part containing the full transcription
+        if result.get("text"):
+            summary.append("\nExtracted content:")
+            summary.append(result["text"])
+        
+        # If no content so far but we have HTML, use that
+        if not summary and result.get("html"):
+            summary.append("\nExtracted HTML content:")
+            summary.append(result["html"])
 
-    # Add complete geometry details if present
-    if result["has_geometry"] and "geometry_details" in result["details"]:
-        summary.append("\nGeometric figure details:")
-        summary.append(result["details"]["geometry_details"])
+        # Add complete geometry details if present
+        if result.get("has_geometry", False) and "details" in result and "geometry_details" in result["details"]:
+            summary.append("\nGeometric figure details:")
+            summary.append(result["details"]["geometry_details"])
 
-    # Add all chemical formulas
-    if result["has_chemistry"] and "chemistry_details" in result["details"]:
-        summary.append("\nDetected chemical formulas (SMILES):")
-        for formula in result["details"]["chemistry_details"]:
-            summary.append(f"- {formula}")
+        # Add all chemical formulas
+        if result.get("has_chemistry", False) and "details" in result and "chemistry_details" in result["details"]:
+            summary.append("\nDetected chemical formulas (SMILES):")
+            for formula in result["details"].get("chemistry_details", []):
+                summary.append(f"- {formula}")
 
-    # Include details about tables
-    if result["has_table"] and "table_details" in result["details"]:
-        summary.append("\nDetailed table data:")
-        # Include any additional table data that might not be in the main text
-        for table in result["details"].get("table_details", []):
-            if "data" in table:
-                summary.append(table["data"])
+        # Include details about tables
+        if result.get("has_table", False) and "details" in result and "table_details" in result["details"]:
+            summary.append("\nDetailed table data:")
+            # Include any additional table data that might not be in the main text
+            for table in result["details"].get("table_details", []):
+                if "data" in table:
+                    summary.append(table["data"])
 
-    # Include detailed math information
-    if result["has_math"] and "math_details" in result["details"]:
-        summary.append("\nDetailed mathematical expressions:")
-        for math_item in result["details"].get("math_details", []):
-            if "value" in math_item:
-                summary.append(f"- {math_item['value']}")
-
-    return "\n".join(summary)
+        # Include detailed math information
+        if result.get("has_math", False) and "details" in result and "math_details" in result["details"]:
+            summary.append("\nDetailed mathematical expressions:")
+            for math_item in result["details"].get("math_details", []):
+                if "value" in math_item:
+                    summary.append(f"- {math_item['value']}")
+                    
+        # Final fallback - if we still have no content, include a message for the AI
+        if not summary:
+            summary.append("Image was processed but no extractable text content was found. Please analyze the visual content of the image.")
+            
+        # Log the final output
+        formatted_output = "\n".join(summary)
+        logger.debug(f"Final formatted output: {len(formatted_output)} characters")
+        
+        return "\n".join(summary)
+    except Exception as e:
+        # Catch any exceptions to make the function more robust
+        logger.error(f"Error in format_mathpix_result_for_assistant: {str(e)}", exc_info=True)
+        # Return a fallback message if formatting fails completely
+        return "Image content was processed but could not be properly formatted. Please analyze the image visually."
 
 def process_geometry_data(geometry_data):
     """
