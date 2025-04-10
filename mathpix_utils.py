@@ -105,33 +105,9 @@ def process_image_with_mathpix(image_data):
 
 def format_mathpix_result_for_assistant(result):
     """
-    Format Mathpix results with minimal transformation to preserve all content
+    Return raw Mathpix result without formatting
     """
-    # Prioritize raw text extraction with minimal formatting
-    if result.get("text"):
-        # Return the raw text directly, preserving all content
-        return result["text"]
-
-    # Fallback if no direct text is available
-    summary = []
-
-    # Simple header
-    content_types = []
-    if result["has_math"]: content_types.append("mathematical formulas")
-    if result["has_table"]: content_types.append("tables")
-    if result["has_chemistry"]: content_types.append("chemical formulas")
-    if result["has_geometry"]: content_types.append("geometric figures")
-
-    if content_types:
-        summary.append(f"Image contains {', '.join(content_types)}.")
-
-    # Include all available raw data from the result
-    if "data" in result:
-        for data_item in result["data"]:
-            if data_item.get("value"):
-                summary.append(data_item.get("value"))
-
-    return "\n".join(summary)
+    return str(result)
 
 def process_geometry_data(geometry_data):
     """
