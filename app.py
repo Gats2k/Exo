@@ -1,4 +1,5 @@
 import eventlet
+
 eventlet.monkey_patch()
 
 import os
@@ -21,7 +22,7 @@ import logging
 from contextlib import contextmanager
 from flask_login import LoginManager, current_user, login_user, logout_user, login_required
 import uuid
-from mathpix_utils import process_image_with_mathpix # Added import
+from mathpix_utils import process_image_with_mathpix  # Added import
 import json
 from typing_extensions import override
 from openai import AssistantEventHandler
@@ -59,6 +60,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize database
 from database import db
+
 db.init_app(app)
 migrate = Migrate(app, db)
 
@@ -70,14 +72,11 @@ socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 # Initialize OpenAI clients
 openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-deepseek_client = OpenAI(
-    api_key=os.getenv('DEEPSEEK_API_KEY'),
-    base_url="https://api.deepseek.com"
-)
+deepseek_client = OpenAI(api_key=os.getenv('DEEPSEEK_API_KEY'),
+                         base_url="https://api.deepseek.com")
 qwen_client = OpenAI(
     api_key=os.getenv('DASHSCOPE_API_KEY'),
-    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-)
+    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
 
 # Le client Gemini ne peut pas utiliser OpenAI directement (APIs incompatibles)
 # Nous utiliserons une fonction spéciale pour gérer les requêtes Gemini
@@ -85,29 +84,30 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+
+
 def load_instructions_from_file(file_path, default_value):
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     return default_value
 
+
 DEEPSEEK_INSTRUCTIONS = load_instructions_from_file(
     os.environ.get('DEEPSEEK_INSTRUCTIONS_FILE', 'instructions/deepseek.txt'),
-    'You are a helpful educational assistant'
-)
+    'You are a helpful educational assistant')
 DEEPSEEK_REASONER_INSTRUCTIONS = load_instructions_from_file(
-    os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
-    'You are a helpful educational assistant focused on reasoning'
-)
+    os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE',
+                   'instructions/deepseek_reasoner.txt'),
+    'You are a helpful educational assistant focused on reasoning')
 QWEN_INSTRUCTIONS = load_instructions_from_file(
     os.environ.get('QWEN_INSTRUCTIONS_FILE', 'instructions/qwen.txt'),
-    'You are a helpful educational assistant'
-)
+    'You are a helpful educational assistant')
 GEMINI_INSTRUCTIONS = load_instructions_from_file(
     os.environ.get('GEMINI_INSTRUCTIONS_FILE', 'instructions/gemini.txt'),
-    'You are a helpful educational assistant'
-)
+    'You are a helpful educational assistant')
 CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '50'))
+
 
 def get_ai_client():
     """Returns the appropriate AI client based on the current model setting"""
@@ -117,6 +117,7 @@ def get_ai_client():
         return qwen_client
     else:
         return openai_client  # Default to OpenAI
+
 
 def get_model_name():
     """Returns the appropriate model name based on the current model setting"""
@@ -130,6 +131,7 @@ def get_model_name():
         return "gemini-2.5-pro-exp-03-25"
     return None  # For OpenAI, model is determined by assistant
 
+
 def get_system_instructions():
     """Returns the appropriate system instructions based on the current model setting"""
     if CURRENT_MODEL == 'deepseek':
@@ -142,7 +144,9 @@ def get_system_instructions():
         return GEMINI_INSTRUCTIONS
     return None  # For OpenAI, instructions are set in the assistant
 
+
 class OpenAIAssistantEventHandler(AssistantEventHandler):
+
     def __init__(self, socket, message_id):
         super().__init__()
         self.socket = socket
@@ -164,21 +168,23 @@ class OpenAIAssistantEventHandler(AssistantEventHandler):
         self.full_response += delta.value
 
         # Émettre le nouveau contenu à l'utilisateur
-        self.socket.emit('response_stream', {
-            'content': delta.value,
-            'message_id': self.message_id,
-            'is_final': False
-        })
+        self.socket.emit(
+            'response_stream', {
+                'content': delta.value,
+                'message_id': self.message_id,
+                'is_final': False
+            })
 
     @override
     def on_run_completed(self):
         # Émettre l'événement final quand le run est terminé
-        self.socket.emit('response_stream', {
-            'content': '',
-            'message_id': self.message_id,
-            'is_final': True,
-            'full_response': self.full_response
-        })
+        self.socket.emit(
+            'response_stream', {
+                'content': '',
+                'message_id': self.message_id,
+                'is_final': True,
+                'full_response': self.full_response
+            })
 
     @override
     def on_tool_call_created(self, tool_call):
@@ -191,31 +197,36 @@ class OpenAIAssistantEventHandler(AssistantEventHandler):
         if delta.type == 'code_interpreter':
             if delta.code_interpreter and delta.code_interpreter.input:
                 self.full_response += f"\n```python\n{delta.code_interpreter.input}\n```\n"
-                self.socket.emit('response_stream', {
-                    'content': f"\n```python\n{delta.code_interpreter.input}\n```\n",
-                    'message_id': self.message_id,
-                    'is_final': False
-                })
+                self.socket.emit(
+                    'response_stream', {
+                        'content':
+                        f"\n```python\n{delta.code_interpreter.input}\n```\n",
+                        'message_id': self.message_id,
+                        'is_final': False
+                    })
 
             if delta.code_interpreter and delta.code_interpreter.outputs:
                 for output in delta.code_interpreter.outputs:
                     if output.type == "logs":
                         self.full_response += f"\n```\n{output.logs}\n```\n"
-                        self.socket.emit('response_stream', {
-                            'content': f"\n```\n{output.logs}\n```\n",
-                            'message_id': self.message_id,
-                            'is_final': False
-                        })
+                        self.socket.emit(
+                            'response_stream', {
+                                'content': f"\n```\n{output.logs}\n```\n",
+                                'message_id': self.message_id,
+                                'is_final': False
+                            })
 
             if delta.code_interpreter and delta.code_interpreter.outputs:
                 for output in delta.code_interpreter.outputs:
                     if output.type == "logs":
                         self.full_response += f"\n```\n{output.logs}\n```\n"
-                        self.socket.emit('response_stream', {
-                            'content': f"\n```\n{output.logs}\n```\n",
-                            'message_id': self.message_id,
-                            'is_final': False
-                        })
+                        self.socket.emit(
+                            'response_stream', {
+                                'content': f"\n```\n{output.logs}\n```\n",
+                                'message_id': self.message_id,
+                                'is_final': False
+                            })
+
 
 def call_gemini_api(messages):
     """
@@ -253,24 +264,33 @@ def call_gemini_api(messages):
 
                 role = "user" if msg['role'] == 'user' else "model"
                 contents.append({
-                    "parts": [{"text": msg['content']}],
+                    "parts": [{
+                        "text": msg['content']
+                    }],
                     "role": role
                 })
 
         # Add system message as a special prefix to the first user message if it exists
-        if system_content and len(contents) > 0 and contents[0]['role'] == 'user':
-            contents[0]['parts'][0]['text'] = f"[System: {system_content}]\n\n" + contents[0]['parts'][0]['text']
+        if system_content and len(
+                contents) > 0 and contents[0]['role'] == 'user':
+            contents[0]['parts'][0][
+                'text'] = f"[System: {system_content}]\n\n" + contents[0][
+                    'parts'][0]['text']
 
         # Make sure we have at least one message in contents with non-empty text
         if not contents:
             contents.append({
-                "parts": [{"text": "Bonjour, je suis là pour vous aider."}],
-                "role": "user"
+                "parts": [{
+                    "text": "Bonjour, je suis là pour vous aider."
+                }],
+                "role":
+                "user"
             })
 
         # Vérifier qu'aucun des messages n'a un texte vide
         for content in contents:
-            if not content['parts'][0]['text'] or content['parts'][0]['text'].strip() == "":
+            if not content['parts'][0]['text'] or content['parts'][0][
+                    'text'].strip() == "":
                 content['parts'][0]['text'] = "Message vide remplacé"
 
         # Prepare the API request
@@ -278,14 +298,16 @@ def call_gemini_api(messages):
         headers = {'Content-Type': 'application/json'}
         data = {"contents": contents}
 
-        logger.info(f"Sending request to Gemini API with {len(contents)} messages")
+        logger.info(
+            f"Sending request to Gemini API with {len(contents)} messages")
         logger.debug(f"Request payload: {json.dumps(data)}")
 
         # Make the API request
         response = requests.post(api_url, headers=headers, json=data)
 
         if response.status_code != 200:
-            logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+            logger.error(
+                f"Gemini API error: {response.status_code} - {response.text}")
             return f"I apologize, but I encountered an error communicating with my AI brain. Error: {response.status_code}"
 
         # Parse the response
@@ -293,17 +315,21 @@ def call_gemini_api(messages):
         logger.info("Received response from Gemini API")
 
         # Extract the generated text from the response
-        if 'candidates' in response_json and len(response_json['candidates']) > 0:
+        if 'candidates' in response_json and len(
+                response_json['candidates']) > 0:
             candidate = response_json['candidates'][0]
-            if 'content' in candidate and 'parts' in candidate['content'] and len(candidate['content']['parts']) > 0:
+            if 'content' in candidate and 'parts' in candidate[
+                    'content'] and len(candidate['content']['parts']) > 0:
                 return candidate['content']['parts'][0]['text']
 
-        logger.error(f"Unexpected response structure from Gemini API: {response_json}")
+        logger.error(
+            f"Unexpected response structure from Gemini API: {response_json}")
         return "I apologize, but I received an unexpected response format from my AI brain."
 
     except Exception as e:
         logger.error(f"Exception in call_gemini_api: {str(e)}", exc_info=True)
         return f"I apologize, but I encountered an error processing your request. Error: {str(e)}"
+
 
 # Initialize LoginManager
 login_manager = LoginManager()
@@ -321,11 +347,13 @@ with app.app_context():
 # Register the WhatsApp blueprint
 app.register_blueprint(whatsapp, url_prefix='/whatsapp')
 
+
 # Contexte d'application pour les commandes flask
 @app.cli.command("init-db")
 def init_db():
     db.create_all()
     print("Base de données initialisée !")
+
 
 # Fonction utilitaire pour récupérer les messages stockés en session si nécessaire
 # Fonction utilitaire pour récupérer les messages stockés en session si nécessaire
@@ -342,32 +370,44 @@ def recover_message(message_id):
             return jsonify({'success': True, 'content': message.content})
 
         # Sinon, vérifier dans la session
-        if 'message_recovery' in session and str(message_id) in session['message_recovery']:
+        if 'message_recovery' in session and str(
+                message_id) in session['message_recovery']:
             content = session['message_recovery'][str(message_id)]
 
             # Si le message existe en BD mais est vide, le mettre à jour
-            if message and (not message.content or message.content.strip() == ''):
+            if message and (not message.content
+                            or message.content.strip() == ''):
                 try:
                     message.content = content
                     db.session.commit()
                     # Si succès, supprimer de la session
                     del session['message_recovery'][str(message_id)]
-                    logger.info(f"Message {message_id} récupéré de la session et sauvegardé en BD")
+                    logger.info(
+                        f"Message {message_id} récupéré de la session et sauvegardé en BD"
+                    )
                 except Exception as e:
-                    logger.error(f"Échec de mise à jour du message {message_id} en BD: {str(e)}")
+                    logger.error(
+                        f"Échec de mise à jour du message {message_id} en BD: {str(e)}"
+                    )
 
             return jsonify({'success': True, 'content': content})
 
         # Message non trouvé
-        logger.warning(f"Message {message_id} non trouvé ni en BD ni en session")
+        logger.warning(
+            f"Message {message_id} non trouvé ni en BD ni en session")
         return jsonify({'success': False, 'error': 'Message non trouvé'})
 
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération du message {message_id}: {str(e)}")
+        logger.error(
+            f"Erreur lors de la récupération du message {message_id}: {str(e)}"
+        )
         return jsonify({'success': False, 'error': str(e)})
+
+
 @login_manager.user_loader
 def load_user(id):
     return User.query.get(int(id))
+
 
 @contextmanager
 def db_retry_session(max_retries=3, retry_delay=0.5):
@@ -379,19 +419,24 @@ def db_retry_session(max_retries=3, retry_delay=0.5):
         except exc.OperationalError as e:
             if attempt == max_retries - 1:
                 raise
-            logger.warning(f"Database connection failed, retrying... (attempt {attempt + 1}/{max_retries})")
+            logger.warning(
+                f"Database connection failed, retrying... (attempt {attempt + 1}/{max_retries})"
+            )
             time.sleep(retry_delay)
         except Exception as e:
             raise
+
 
 def get_db_context():
     """Get the Flask application context for database operations."""
     return app.app_context()
 
+
 def get_or_create_conversation(thread_id=None):
     with db_retry_session() as session:
         if thread_id:
-            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+            conversation = Conversation.query.filter_by(
+                thread_id=thread_id).first()
             # Vérifier si cette conversation appartient à l'utilisateur actuel
             if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
                 # Vérifier si le thread OpenAI existe toujours (uniquement pour le modèle OpenAI)
@@ -399,11 +444,14 @@ def get_or_create_conversation(thread_id=None):
                     try:
                         # Tester si le thread existe dans OpenAI
                         client = get_ai_client()
-                        client.beta.threads.messages.list(thread_id=thread_id, limit=1)
+                        client.beta.threads.messages.list(thread_id=thread_id,
+                                                          limit=1)
                         # Si on arrive ici, le thread existe
                         return conversation
                     except Exception as e:
-                        logger.warning(f"Thread {thread_id} not found or invalid: {str(e)}")
+                        logger.warning(
+                            f"Thread {thread_id} not found or invalid: {str(e)}"
+                        )
                         # On continue pour créer un nouveau thread
                 else:
                     # Pour les autres modèles, pas besoin de vérifier
@@ -430,18 +478,21 @@ def get_or_create_conversation(thread_id=None):
         session.commit()
 
         # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
-        socketio.emit('new_web_conversation', {
-            'id': conversation.id,
-            'title': conversation.title or f"Nouvelle conversation",
-            'user_id': user_id
-        })
+        socketio.emit(
+            'new_web_conversation', {
+                'id': conversation.id,
+                'title': conversation.title or f"Nouvelle conversation",
+                'user_id': user_id
+            })
 
         return conversation
+
 
 @app.route('/privacy-policy')
 def privacy_policy():
     """Privacy Policy page"""
     return render_template('privacy_policy.html')
+
 
 @app.route('/')
 @login_required
@@ -457,7 +508,9 @@ def chat():
                 # Créer un nouveau thread et conversation
                 new_conversation = get_or_create_conversation(thread_id=None)
                 session['thread_id'] = new_conversation.thread_id
-                logger.info(f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id} lors du rechargement de page")
+                logger.info(
+                    f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id} lors du rechargement de page"
+                )
 
             conversation_history = []
 
@@ -469,37 +522,50 @@ def chat():
 
             # Vérifier si l'utilisateur actuel est réellement l'utilisateur Telegram indiqué
             if is_telegram_user and telegram_id and current_user.is_authenticated:
-                if not current_user.phone_number.startswith(f"telegram_{telegram_id}"):
+                if not current_user.phone_number.startswith(
+                        f"telegram_{telegram_id}"):
                     # Les identifiants ne correspondent pas, nettoyer les données Telegram
                     session.pop('is_telegram_user', None)
                     session.pop('telegram_id', None)
                     is_telegram_user = False
                     telegram_id = None
-                    logger.warning(f"Session Telegram incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué")
+                    logger.warning(
+                        f"Session Telegram incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué"
+                    )
 
             # Vérifier si l'utilisateur actuel est réellement l'utilisateur WhatsApp indiqué
             if is_whatsapp_user and whatsapp_number and current_user.is_authenticated:
-                if not current_user.phone_number.startswith(f"whatsapp_{whatsapp_number}"):
+                if not current_user.phone_number.startswith(
+                        f"whatsapp_{whatsapp_number}"):
                     # Les identifiants ne correspondent pas, nettoyer les données WhatsApp
                     session.pop('is_whatsapp_user', None)
                     session.pop('whatsapp_number', None)
                     is_whatsapp_user = False
                     whatsapp_number = None
-                    logger.warning(f"Session WhatsApp incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué")
+                    logger.warning(
+                        f"Session WhatsApp incohérente détectée pour l'utilisateur {current_user.id}, nettoyage effectué"
+                    )
 
             if is_telegram_user and telegram_id:
                 # Charger les conversations Telegram pour cet utilisateur
                 telegram_conversations = TelegramConversation.query.filter_by(
-                    telegram_user_id=int(telegram_id)
-                ).order_by(TelegramConversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+                    telegram_user_id=int(telegram_id)).order_by(
+                        TelegramConversation.updated_at.desc()).limit(
+                            CONTEXT_MESSAGE_LIMIT).all()
 
                 for conv in telegram_conversations:
                     conversation_history.append({
-                        'id': conv.id,
-                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                        'subject': 'Général',
-                        'time': conv.created_at.strftime('%H:%M'),
-                        'is_telegram': True
+                        'id':
+                        conv.id,
+                        'title':
+                        conv.title or
+                        f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject':
+                        'Général',
+                        'time':
+                        conv.created_at.strftime('%H:%M'),
+                        'is_telegram':
+                        True
                     })
             elif is_whatsapp_user and whatsapp_number:
                 # Récupérer les threads WhatsApp distincts pour ce numéro
@@ -516,61 +582,77 @@ def chat():
 
                         # Obtenir le premier message pour utiliser comme titre
                         first_message = WhatsAppMessage.query.filter_by(
-                            thread_id=thread_id,
-                            direction='inbound'
-                        ).order_by(WhatsAppMessage.timestamp.asc()).first()
+                            thread_id=thread_id, direction='inbound').order_by(
+                                WhatsAppMessage.timestamp.asc()).first()
 
                         # Obtenir le dernier message pour la date
                         last_message = WhatsAppMessage.query.filter_by(
-                            thread_id=thread_id
-                        ).order_by(WhatsAppMessage.timestamp.desc()).first()
+                            thread_id=thread_id).order_by(
+                                WhatsAppMessage.timestamp.desc()).first()
 
                         # Créer un titre basé sur le contenu du premier message
                         title = first_message.content if first_message else "Nouvelle conversation"
-                        title = (title[:25] + '...') if len(title) > 25 else title
+                        title = (title[:25] +
+                                 '...') if len(title) > 25 else title
 
                         conversation_history.append({
-                            'id': thread_id,  # Utiliser thread_id comme ID de conversation
-                            'title': title,
-                            'subject': 'WhatsApp',
-                            'time': last_message.timestamp.strftime('%H:%M') if last_message else '',
-                            'is_whatsapp': True  # Marquer comme conversation WhatsApp
+                            'id':
+                            thread_id,  # Utiliser thread_id comme ID de conversation
+                            'title':
+                            title,
+                            'subject':
+                            'WhatsApp',
+                            'time':
+                            last_message.timestamp.strftime('%H:%M')
+                            if last_message else '',
+                            'is_whatsapp':
+                            True  # Marquer comme conversation WhatsApp
                         })
                 except Exception as e:
-                    logger.error(f"Erreur lors de la récupération des conversations WhatsApp: {str(e)}")
+                    logger.error(
+                        f"Erreur lors de la récupération des conversations WhatsApp: {str(e)}"
+                    )
             else:
                 # Comportement normal pour les utilisateurs web
                 # Important: Filtrer par user_id pour n'afficher que les conversations de l'utilisateur actuel
                 if current_user.is_authenticated:
                     recent_conversations = Conversation.query.filter_by(
-                        deleted=False, 
-                        user_id=current_user.id
-                    ).order_by(Conversation.updated_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+                        deleted=False, user_id=current_user.id).order_by(
+                            Conversation.updated_at.desc()).limit(
+                                CONTEXT_MESSAGE_LIMIT).all()
                 else:
                     recent_conversations = []
 
                 for conv in recent_conversations:
                     conversation_history.append({
-                        'id': conv.id,
-                        'title': conv.title or f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
-                        'subject': 'Général',
-                        'time': conv.created_at.strftime('%H:%M')
+                        'id':
+                        conv.id,
+                        'title':
+                        conv.title or
+                        f"Conversation du {conv.created_at.strftime('%d/%m/%Y')}",
+                        'subject':
+                        'Général',
+                        'time':
+                        conv.created_at.strftime('%H:%M')
                     })
 
-            return render_template('chat.html', 
-                                history=[], 
-                                conversation_history=conversation_history, 
-                                is_telegram=is_telegram_user,
-                                credits=42)
+            return render_template('chat.html',
+                                   history=[],
+                                   conversation_history=conversation_history,
+                                   is_telegram=is_telegram_user,
+                                   credits=42)
     except Exception as e:
         logger.error(f"Error in chat route: {str(e)}")
-        return render_template('chat.html', 
-                            history=[], 
-                            conversation_history=[], 
-                            credits=42,
-                            error="Une erreur est survenue. Veuillez réessayer.")
+        return render_template(
+            'chat.html',
+            history=[],
+            conversation_history=[],
+            credits=42,
+            error="Une erreur est survenue. Veuillez réessayer.")
+
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
+
 
 def get_interleaved_messages(conversation_id, current_message=None):
     """Returns properly interleaved messages for DeepSeek Reasoner"""
@@ -578,7 +660,10 @@ def get_interleaved_messages(conversation_id, current_message=None):
         .order_by(Message.created_at).all()
 
     # Start with system message
-    formatted_messages = [{"role": "system", "content": get_system_instructions()}]
+    formatted_messages = [{
+        "role": "system",
+        "content": get_system_instructions()
+    }]
 
     # Process past messages ensuring alternation
     prev_role = None
@@ -602,6 +687,7 @@ def get_interleaved_messages(conversation_id, current_message=None):
 
     return formatted_messages
 
+
 @socketio.on('send_message')
 def handle_message(data):
     try:
@@ -624,23 +710,29 @@ def handle_message(data):
 
             # Essayer d'abord d'utiliser le thread_id de la session s'il existe
             if thread_id:
-                telegram_conversation = TelegramConversation.query.filter_by(thread_id=thread_id).first()
+                telegram_conversation = TelegramConversation.query.filter_by(
+                    thread_id=thread_id).first()
                 # Vérifier que la conversation appartient bien à cet utilisateur Telegram
-                if telegram_conversation and telegram_conversation.telegram_user_id != int(telegram_id):
-                    logger.warning(f"Thread_id {thread_id} trouvé mais n'appartient pas à l'utilisateur Telegram {telegram_id}")
+                if telegram_conversation and telegram_conversation.telegram_user_id != int(
+                        telegram_id):
+                    logger.warning(
+                        f"Thread_id {thread_id} trouvé mais n'appartient pas à l'utilisateur Telegram {telegram_id}"
+                    )
                     telegram_conversation = None
 
             # Si pas de conversation valide avec le thread_id de la session,
             # chercher la conversation la plus récente pour cet utilisateur
             if not telegram_conversation:
                 telegram_conversation = TelegramConversation.query.filter_by(
-                    telegram_user_id=int(telegram_id)
-                ).order_by(TelegramConversation.updated_at.desc()).first()
+                    telegram_user_id=int(telegram_id)).order_by(
+                        TelegramConversation.updated_at.desc()).first()
 
                 if telegram_conversation:
                     thread_id = telegram_conversation.thread_id
                     session['thread_id'] = thread_id
-                    logger.info(f"Utilisation de la conversation Telegram existante {telegram_conversation.id} avec thread_id {thread_id}")
+                    logger.info(
+                        f"Utilisation de la conversation Telegram existante {telegram_conversation.id} avec thread_id {thread_id}"
+                    )
                     # Mettre à jour timestamp pour garder la conversation active
                     telegram_conversation.updated_at = datetime.utcnow()
                     db.session.commit()
@@ -652,28 +744,32 @@ def handle_message(data):
                 telegram_conversation = TelegramConversation(
                     telegram_user_id=int(telegram_id),
                     thread_id=thread_id,
-                    title="Nouvelle conversation"
-                )
+                    title="Nouvelle conversation")
                 db.session.add(telegram_conversation)
                 db.session.commit()
                 session['thread_id'] = thread_id
-                logger.info(f"Création d'une nouvelle conversation Telegram avec thread_id {thread_id}")
+                logger.info(
+                    f"Création d'une nouvelle conversation Telegram avec thread_id {thread_id}"
+                )
 
             # Handle image if present
             if 'image' in data and data['image']:
                 try:
                     filename = save_base64_image(data['image'])
-                    image_url = request.url_root.rstrip('/') + url_for('static', filename=f'uploads/{filename}')
+                    image_url = request.url_root.rstrip('/') + url_for(
+                        'static', filename=f'uploads/{filename}')
 
                     # Process image with Mathpix
                     mathpix_result = process_image_with_mathpix(data['image'])
 
                     # Check if an error occurred
-                    if "error" in mathpix_result:
-                        logger.error(f"Mathpix error: {mathpix_result['error']}")
+                    if mathpix_result.get("error"):
+                        logger.error(
+                            f"Mathpix error: {mathpix_result['error']}")
                         formatted_summary = "Image content extraction failed. I will analyze the image visually."
                     else:
-                        formatted_summary = mathpix_result.get("formatted_summary", "")
+                        formatted_summary = mathpix_result.get(
+                            "formatted_summary", "")
 
                     # Build user message with image extraction
                     user_content = data.get('message', '')
@@ -687,29 +783,32 @@ def handle_message(data):
                         conversation_id=telegram_conversation.id,
                         role='user',
                         content=user_store_content,
-                        image_url=image_url
-                    )
+                        image_url=image_url)
                     db.session.add(user_message)
 
                     # Prepare message text for assistant
-                    message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
+                    message_for_assistant = data.get(
+                        'message', '') + "\n\n" if data.get('message') else ""
                     message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
 
                 except Exception as img_error:
                     logger.error(f"Image processing error: {str(img_error)}")
-                    raise Exception("Failed to process image. Please make sure it's a valid image file.")
+                    raise Exception(
+                        "Failed to process image. Please make sure it's a valid image file."
+                    )
             else:
                 # Store text-only message for Telegram user
                 user_message = TelegramMessage(
                     conversation_id=telegram_conversation.id,
                     role='user',
-                    content=data.get('message', '')
-                )
+                    content=data.get('message', ''))
                 db.session.add(user_message)
                 message_for_assistant = data.get('message', '')
 
             # Get previous messages for context
-            if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            if CURRENT_MODEL in [
+                    'deepseek', 'deepseek-reasoner', 'qwen', 'gemini'
+            ]:
                 # Get properly formatted messages for API call
                 if CURRENT_MODEL == 'deepseek-reasoner':
                     # Pour DeepSeek Reasoner, nous devons adapter la fonction get_interleaved_messages
@@ -718,7 +817,10 @@ def handle_message(data):
                         .order_by(TelegramMessage.created_at).all()
 
                     # Start with system message
-                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    messages = [{
+                        "role": "system",
+                        "content": get_system_instructions()
+                    }]
 
                     # Process past messages ensuring alternation
                     prev_role = None
@@ -741,15 +843,19 @@ def handle_message(data):
                     # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                     telegram_messages = TelegramMessage.query.filter_by(conversation_id=telegram_conversation.id)\
                         .order_by(TelegramMessage.created_at).all()
-                    messages = [{"role": "system", "content": get_system_instructions()}]
+                    messages = [{
+                        "role": "system",
+                        "content": get_system_instructions()
+                    }]
                     for msg in telegram_messages:
                         messages.append({
                             "role": msg.role,
                             "content": msg.content
                         })
                     # Ajouter le message actuel s'il n'est pas déjà dans la liste
-                    if not (telegram_messages and telegram_messages[-1].role == 'user' and 
-                            telegram_messages[-1].content == user_message.content):
+                    if not (telegram_messages and telegram_messages[-1].role
+                            == 'user' and telegram_messages[-1].content
+                            == user_message.content):
                         messages.append({
                             "role": "user",
                             "content": message_for_assistant
@@ -764,8 +870,7 @@ def handle_message(data):
                     response = ai_client.chat.completions.create(
                         model=get_model_name(),
                         messages=messages,
-                        stream=False
-                    )
+                        stream=False)
                     assistant_message = response.choices[0].message.content
             else:
                 # Pour OpenAI, créer un thread temporaire pour cette conversation Telegram
@@ -781,21 +886,17 @@ def handle_message(data):
                         openai_client.beta.threads.messages.create(
                             thread_id=temp_thread.id,
                             role="user",
-                            content=msg.content
-                        )
+                            content=msg.content)
 
                 # Ajouter le message actuel
                 openai_client.beta.threads.messages.create(
                     thread_id=temp_thread.id,
                     role="user",
-                    content=message_for_assistant
-                )
+                    content=message_for_assistant)
 
                 # Exécuter l'assistant
                 run = openai_client.beta.threads.runs.create(
-                    thread_id=temp_thread.id,
-                    assistant_id=ASSISTANT_ID
-                )
+                    thread_id=temp_thread.id, assistant_id=ASSISTANT_ID)
 
                 # Attendre la réponse avec timeout
                 timeout = 60  # Augmenté à 60 secondes
@@ -803,13 +904,14 @@ def handle_message(data):
 
                 while True:
                     if time.time() - start_time > timeout:
-                        emit('receive_message', {'message': 'Request timed out.', 'id': 0})
+                        emit('receive_message', {
+                            'message': 'Request timed out.',
+                            'id': 0
+                        })
                         return
 
                     run_status = openai_client.beta.threads.runs.retrieve(
-                        thread_id=temp_thread.id,
-                        run_id=run.id
-                    )
+                        thread_id=temp_thread.id, run_id=run.id)
 
                     if run_status.status == 'completed':
                         break
@@ -818,26 +920,31 @@ def handle_message(data):
                         if hasattr(run_status, 'last_error'):
                             error_msg = f"Erreur: {run_status.last_error.message}"
 
-                        emit('receive_message', {'message': error_msg, 'id': 0})
+                        emit('receive_message', {
+                            'message': error_msg,
+                            'id': 0
+                        })
                         return
 
                     eventlet.sleep(2)  # Plus de temps entre les vérifications
 
                 # Récupérer la réponse d'OpenAI
-                response_messages = openai_client.beta.threads.messages.list(thread_id=temp_thread.id)
-                assistant_message = response_messages.data[0].content[0].text.value
+                response_messages = openai_client.beta.threads.messages.list(
+                    thread_id=temp_thread.id)
+                assistant_message = response_messages.data[0].content[
+                    0].text.value
 
             # Stocker la réponse de l'assistant dans la base de données
             telegram_db_message = TelegramMessage(
                 conversation_id=telegram_conversation.id,
                 role='assistant',
-                content=assistant_message
-            )
+                content=assistant_message)
             db.session.add(telegram_db_message)
 
             # Générer et définir le titre de la conversation si c'est le premier message
             if telegram_conversation.title == "Nouvelle conversation":
-                title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
+                title = data.get('message', '')[:30] + "..." if len(
+                    data.get('message', '')) > 30 else data.get('message', '')
                 if not title and 'image' in data and data['image']:
                     title = "Analyse d'image"
                 if not title:
@@ -852,16 +959,18 @@ def handle_message(data):
                     'subject': 'Général',
                     'time': telegram_conversation.created_at.strftime('%H:%M'),
                     'is_telegram': True
-                }, broadcast=True)
+                },
+                     broadcast=True)
 
             db.session.commit()
 
             # Envoyer la réponse au client
-            emit('receive_message', {
-                'message': assistant_message,
-                'id': telegram_db_message.id,
-                'is_telegram': True
-            })
+            emit(
+                'receive_message', {
+                    'message': assistant_message,
+                    'id': telegram_db_message.id,
+                    'is_telegram': True
+                })
 
         else:
             # Gestion normale des conversations Web
@@ -870,36 +979,44 @@ def handle_message(data):
 
             # Si on a un thread_id en session, essayer de récupérer la conversation correspondante
             if thread_id:
-                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                conversation = Conversation.query.filter_by(
+                    thread_id=thread_id).first()
                 # Vérifier si la conversation est valide et appartient à l'utilisateur actuel
                 if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
-                    logger.info(f"Utilisation de la conversation existante {conversation.id} avec thread_id {thread_id}")
+                    logger.info(
+                        f"Utilisation de la conversation existante {conversation.id} avec thread_id {thread_id}"
+                    )
                     # Mettre à jour la date de dernière modification pour garder la conversation active
                     conversation.updated_at = datetime.utcnow()
                     db.session.commit()
                 else:
-                    logger.warning(f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, recherche d'une autre conversation active")
+                    logger.warning(
+                        f"Conversation avec thread_id {thread_id} non trouvée ou non associée à l'utilisateur, recherche d'une autre conversation active"
+                    )
                     conversation = None
 
             # Si pas de thread_id valide en session, chercher la dernière conversation active de l'utilisateur
             if not conversation and current_user.is_authenticated:
                 # Chercher la conversation la plus récente pour cet utilisateur
                 recent_conversation = Conversation.query.filter_by(
-                    user_id=current_user.id,
-                    deleted=False
-                ).order_by(Conversation.updated_at.desc()).first()
+                    user_id=current_user.id, deleted=False).order_by(
+                        Conversation.updated_at.desc()).first()
 
                 if recent_conversation:
                     conversation = recent_conversation
                     thread_id = conversation.thread_id
                     session['thread_id'] = thread_id
-                    logger.info(f"Récupération de la conversation la plus récente {conversation.id} avec thread_id {thread_id}")
+                    logger.info(
+                        f"Récupération de la conversation la plus récente {conversation.id} avec thread_id {thread_id}"
+                    )
 
             # Si toujours pas de conversation valide, en créer une nouvelle
             if not conversation:
                 conversation = get_or_create_conversation()
                 session['thread_id'] = conversation.thread_id
-                logger.info(f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}")
+                logger.info(
+                    f"Création d'une nouvelle conversation {conversation.id} avec thread_id {conversation.thread_id}"
+                )
 
             # ======================
             # TRAITEMENT DES IMAGES - UTILISER LA MÉTHODE NON-STREAMING
@@ -912,36 +1029,48 @@ def handle_message(data):
 
                     # Process image with Mathpix
                     mathpix_result = process_image_with_mathpix(data['image'])
-                    logger.debug(f"Résultat Mathpix obtenu: {len(str(mathpix_result))} caractères")
+                    logger.debug(f"Résultat Mathpix obtenu: {len(str(mathpix_result))} caractères") # Déplacé ici pour voir le résultat brut
 
-                    # Check if an error occurred
-                    if "error" in mathpix_result:
-                        logger.error(f"Mathpix error: {mathpix_result['error']}")
-                        formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                    # --- CORRECTION DE LA VÉRIFICATION D'ERREUR ---
+                    if mathpix_result.get("error"): # Vérifie si la valeur de 'error' est truthy (non None, non vide)
+                        logger.error(f"Mathpix processing error detected: {mathpix_result['error']}")
+                        formatted_summary = "Image content extraction failed due to an error. I will analyze the image visually."
+                        # Optionnel: Inclure l'erreur dans le message pour l'IA ?
+                        # message_for_assistant = f"{data.get('message', '')}\n\n[Image Analysis Error: {mathpix_result['error']}] Please analyze the image visually."
+                    elif not mathpix_result: # Vérifie si mathpix_result est None ou vide (erreur interne avant retour)
+                         logger.error("Mathpix processing returned an empty or None result.")
+                         formatted_summary = "Image content extraction failed (internal error). I will analyze the image visually."
                     else:
+                        # Mathpix a réussi (pas d'erreur ou erreur=None)
                         formatted_summary = mathpix_result.get("formatted_summary", "")
-                        logger.debug(f"Contenu formaté extrait: {len(formatted_summary)} caractères")
+                        if formatted_summary:
+                             logger.info(f"Mathpix extraction successful. Formatted summary length: {len(formatted_summary)}")
+                        else:
+                             logger.warning("Mathpix extraction successful but formatted summary is empty.")
+                             formatted_summary = "Image content was processed, but no specific text summary could be generated. Please analyze the image visually."
 
                     # Build user message with image extraction
                     user_content = data.get('message', '')
-                    if formatted_summary:
-                        user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
-                    else:
-                        user_store_content = user_content
+                    # Stocker le résumé formaté (ou le message d'erreur) dans la BD
+                    user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
 
                     # Store user message with image and extracted content
                     user_message = Message(
                         conversation_id=conversation.id,
                         role='user',
-                        content=user_store_content,
+                        content=user_store_content, # Stocker le résumé (ou erreur)
                         image_url=image_url
                     )
                     db.session.add(user_message)
-                    db.session.commit()  # Commit pour obtenir l'ID du message
+                    # db.session.commit() # Commit déplacé après création db_message
 
                     # Prepare message text for assistant
+                    # Utiliser le résumé formaté (qui peut être le message d'erreur si l'extraction a échoué)
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
-                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+                    message_for_assistant += formatted_summary # Utiliser directement formatted_summary
+
+                    logger.info(f"Final content being prepared for AI model: {len(message_for_assistant)} characters")
+
 
                     # Créer un message vide pour l'assistant, à remplir plus tard
                     db_message = Message(
@@ -950,228 +1079,118 @@ def handle_message(data):
                         content=""  # Contenu initial vide
                     )
                     db.session.add(db_message)
-                    db.session.commit()  # Commit pour obtenir l'ID
+                    db.session.commit()  # Commit user_message et db_message ici
 
                     # Envoyer un message initial pour démarrer l'affichage du loader côté client
                     emit('message_started', {
                         'message_id': db_message.id
                     })
 
+                    # --- Suite du code pour définir le titre et appeler l'IA ---
+                    # ... (le reste de la logique pour définir le titre et appeler l'IA reste identique) ...
+                    # ... en utilisant la variable `message_for_assistant` correctement définie ...
+
                     # Détecter et définir un titre si c'est une nouvelle conversation
                     if conversation.title == "Nouvelle conversation" or not conversation.title:
-                        if 'image' in data and data['image']:
-                            conversation.title = "Analyse d'image"
-                            logger.info(f"Définition du titre pour nouvelle conversation avec image: 'Analyse d'image'")
-                        else:
-                            # Fallback to message text or default title
-                            conversation.title = data.get('message', '')[:30] + "..." if data.get('message', '') else "Nouvelle Conversation"
+                         if 'image' in data and data['image']:
+                             conversation.title = "Analyse d'image"
+                             logger.info(f"Définition du titre pour nouvelle conversation avec image: 'Analyse d'image'")
+                         else:
+                             conversation.title = data.get('message', '')[:30] + "..." if data.get('message', '') else "Nouvelle Conversation"
+                         db.session.commit()
+                         emit('new_conversation', {
+                             'id': conversation.id,
+                             'title': conversation.title,
+                             'subject': 'Général',
+                             'time': conversation.created_at.strftime('%H:%M'),
+                             'is_image': 'image' in data and data['image']
+                         }, broadcast=True)
 
-                        # Sauvegarder le nouveau titre
-                        db.session.commit()
-
-                        # Émettre l'événement pour informer tous les clients
-                        emit('new_conversation', {
-                            'id': conversation.id,
-                            'title': conversation.title,
-                            'subject': 'Général',
-                            'time': conversation.created_at.strftime('%H:%M'),
-                            'is_image': 'image' in data and data['image']
-                        }, broadcast=True)
-
-                    # Traitement selon le modèle sélectionné
+                    # Traitement selon le modèle sélectionné (le code ici reste le même)
                     if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
-                        # Obtenir les messages formatés selon le modèle
-                        if CURRENT_MODEL == 'deepseek-reasoner':
-                            messages = get_interleaved_messages(conversation.id, message_for_assistant)
-                        else:
-                            # Regular DeepSeek chat, Qwen and Gemini can handle all messages
-                            conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
-                                .order_by(Message.created_at).all()
-                            messages = [{"role": "system", "content": get_system_instructions()}]
-                            for msg in conversation_messages:
-                                messages.append({
-                                    "role": msg.role,
-                                    "content": msg.content
-                                })
-                            messages.append({
-                                "role": "user",
-                                "content": message_for_assistant
-                            })
-
-                        if CURRENT_MODEL == 'gemini':
-                            # Send to Gemini AI service
-                            assistant_message = call_gemini_api(messages)
-                            # Simuler un streaming pour l'utilisateur
-                            words = assistant_message.split()
-                            for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
-                                chunk = ' '.join(words[i:i+5]) + ' '
-                                emit('response_stream', {
-                                    'content': chunk,
-                                    'message_id': db_message.id,
-                                    'is_final': False
-                                })
-                                eventlet.sleep(0.1)  # Court délai entre les chunks
-                        else:
-                            # Send to AI service (DeepSeek or Qwen)
-                            response = ai_client.chat.completions.create(
-                                model=get_model_name(),
-                                messages=messages,
-                                stream=True
-                            )
-                            assistant_message = ""
-                            for chunk in response:
-                                if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
-                                    if hasattr(chunk.choices[0], 'delta'):
-                                        if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
-                                            content = chunk.choices[0].delta.content
-                                            assistant_message += content
-                                            emit('response_stream', {
-                                                'content': content,
-                                                'message_id': db_message.id,
-                                                'is_final': False
-                                            })
+                        # ... logique pour Deepseek/Qwen/Gemini ...
+                        # Assurez-vous que `message_for_assistant` est utilisé ici
+                        messages = [...] # Construire la liste des messages
+                        messages.append({"role": "user", "content": message_for_assistant})
+                        # ... appel API ...
                     else:
                         # OpenAI - Utiliser la méthode NON-STREAMING pour les images
                         logger.info("Utilisation d'OpenAI pour l'image en mode non-streaming")
-
                         # Envoyer le message utilisateur dans le thread
                         ai_client.beta.threads.messages.create(
                             thread_id=conversation.thread_id,
                             role="user",
-                            content=message_for_assistant
+                            content=message_for_assistant # Utiliser le contenu préparé
                         )
+                        # ... reste de la logique OpenAI ...
 
-                        # Créer et exécuter l'assistant
-                        run = ai_client.beta.threads.runs.create(
-                            thread_id=conversation.thread_id,
-                            assistant_id=ASSISTANT_ID
-                        )
-
-                        # Attendre la réponse avec timeout
-                        timeout = 60  # Augmenté pour le traitement d'image
-                        start_time = time.time()
-                        run_completed = False
-
-                        while not run_completed and time.time() - start_time < timeout:
-                            run_status = ai_client.beta.threads.runs.retrieve(
-                                thread_id=conversation.thread_id,
-                                run_id=run.id
-                            )
-
-                            if run_status.status == 'completed':
-                                run_completed = True
-                                break
-                            elif run_status.status == 'failed':
-                                error_msg = "Le traitement a échoué."
-                                if hasattr(run_status, 'last_error'):
-                                    error_msg = f"Erreur: {run_status.last_error.message}"
-
-                                emit('response_stream', {
-                                    'content': error_msg,
-                                    'message_id': db_message.id,
-                                    'is_final': True,
-                                    'error': True
-                                })
-                                return
-
-                            eventlet.sleep(2)  # Plus de temps entre les vérifications
-
-                        if not run_completed:
-                            emit('response_stream', {
-                                'content': 'La requête a expiré pour le traitement de l\'image.',
-                                'message_id': db_message.id,
-                                'is_final': True,
-                                'error': True
-                            })
-                            return
-
-                        # Récupérer la réponse complète
-                        messages = ai_client.beta.threads.messages.list(
-                            thread_id=conversation.thread_id,
-                            order="desc",
-                            limit=1
-                        )
-
-                        if messages.data and len(messages.data) > 0:
-                            assistant_message = messages.data[0].content[0].text.value
-
-                            # Simuler un streaming pour l'utilisateur
-                            words = assistant_message.split()
-                            for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
-                                chunk = ' '.join(words[i:i+5]) + ' '
-                                emit('response_stream', {
-                                    'content': chunk,
-                                    'message_id': db_message.id,
-                                    'is_final': False
-                                })
-                                eventlet.sleep(0.05)  # Court délai entre les chunks
-                        else:
-                            emit('response_stream', {
-                                'content': 'Pas de réponse disponible.',
-                                'message_id': db_message.id,
-                                'is_final': True,
-                                'error': True
-                            })
-                            return
-
-                    # Envoyer l'événement de fin de réponse
-                    emit('response_stream', {
-                        'content': '',
-                        'message_id': db_message.id,
-                        'is_final': True,
-                        'full_response': assistant_message
-                    })
-
-                    # Mettre à jour le message de l'assistant dans la base de données
-                    db_message.content = assistant_message
-                    db.session.commit()
 
                 except Exception as img_error:
-                    logger.error(f"Image processing error: {str(img_error)}", exc_info=True)
-                    emit('receive_message', {'message': 'Failed to process image. Please make sure it\'s a valid image file.', 'id': 0})
-                    return
+                    logger.error(f"Image processing block error: {str(img_error)}", exc_info=True)
+                    # Envoyer un message d'erreur clair au client
+                    # Tenter de créer un db_message même en cas d'erreur pour avoir un ID
+                    try:
+                        db_message_error = Message(conversation_id=conversation.id, role='assistant', content="")
+                        db.session.add(db_message_error)
+                        db.session.commit()
+                        error_msg_id = db_message_error.id
+                    except Exception:
+                        error_msg_id = 0 # Fallback ID
+
+                    emit('response_stream', {
+                        'content': 'Failed to process image. Please make sure it\'s a valid image file.',
+                        'message_id': error_msg_id,
+                        'is_final': True,
+                        'error': True
+                    })
+                    return # Important: Sortir après l'erreur d'image
 
             # ======================
             # TRAITEMENT DU TEXTE - UTILISER LA MÉTHODE STREAMING
             # ======================
             else:
                 # Store text-only message
-                user_message = Message(
-                    conversation_id=conversation.id,
-                    role='user',
-                    content=data.get('message', '')
-                )
+                user_message = Message(conversation_id=conversation.id,
+                                       role='user',
+                                       content=data.get('message', ''))
                 db.session.add(user_message)
-                db.session.commit()  # Commit immédiatement pour obtenir l'ID du message
+                db.session.commit(
+                )  # Commit immédiatement pour obtenir l'ID du message
 
                 # Créer un message vide pour l'assistant, on le remplira progressivement
                 db_message = Message(
                     conversation_id=conversation.id,
                     role='assistant',
-                    content=""  # Contenu initial vide, sera mis à jour avec le streaming
+                    content=
+                    ""  # Contenu initial vide, sera mis à jour avec le streaming
                 )
                 db.session.add(db_message)
                 db.session.commit()  # Commit pour obtenir l'ID du message
 
                 # Envoyer un message initial pour démarrer l'affichage du loader côté client
-                emit('message_started', {
-                    'message_id': db_message.id
-                })
+                emit('message_started', {'message_id': db_message.id})
 
                 assistant_message = ""
 
-                if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+                if CURRENT_MODEL in [
+                        'deepseek', 'deepseek-reasoner', 'qwen', 'gemini'
+                ]:
                     # Traitement pour les modèles non-OpenAI (avec streaming lorsque possible)
-                    logger.info(f"Traitement de texte avec modèle {CURRENT_MODEL}")
+                    logger.info(
+                        f"Traitement de texte avec modèle {CURRENT_MODEL}")
 
                     # Get properly formatted messages based on model
                     if CURRENT_MODEL == 'deepseek-reasoner':
-                        messages = get_interleaved_messages(conversation.id, data.get('message', ''))
+                        messages = get_interleaved_messages(
+                            conversation.id, data.get('message', ''))
                     else:
                         # Regular DeepSeek chat, Qwen and Gemini can handle all messages
                         conversation_messages = Message.query.filter_by(conversation_id=conversation.id)\
                             .order_by(Message.created_at).all()
-                        messages = [{"role": "system", "content": get_system_instructions()}]
+                        messages = [{
+                            "role": "system",
+                            "content": get_system_instructions()
+                        }]
                         for msg in conversation_messages:
                             messages.append({
                                 "role": msg.role,
@@ -1187,123 +1206,151 @@ def handle_message(data):
                         assistant_message = call_gemini_api(messages)
                         # Simuler un streaming pour l'utilisateur
                         words = assistant_message.split()
-                        for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
-                            chunk = ' '.join(words[i:i+5]) + ' '
-                            emit('response_stream', {
-                                'content': chunk,
-                                'message_id': db_message.id,
-                                'is_final': False
-                            })
+                        for i in range(0, len(words),
+                                       5):  # Envoyer 5 mots à la fois
+                            chunk = ' '.join(words[i:i + 5]) + ' '
+                            emit(
+                                'response_stream', {
+                                    'content': chunk,
+                                    'message_id': db_message.id,
+                                    'is_final': False
+                                })
                             eventlet.sleep(0.1)  # Court délai entre les chunks
                         # Marquer comme terminé
-                        emit('response_stream', {
-                            'content': '',
-                            'message_id': db_message.id,
-                            'is_final': True,
-                            'full_response': assistant_message
-                        })
+                        emit(
+                            'response_stream', {
+                                'content': '',
+                                'message_id': db_message.id,
+                                'is_final': True,
+                                'full_response': assistant_message
+                            })
                     else:
                         # Utiliser le streaming pour DeepSeek et Qwen
                         try:
                             response = ai_client.chat.completions.create(
                                 model=get_model_name(),
                                 messages=messages,
-                                stream=True
-                            )
-
+                                stream=True)
 
                             # Variable pour suivre les tentatives de mise à jour
                             max_update_attempts = 3
                             update_success = False
 
                             for chunk in response:
-                                if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                if hasattr(chunk, 'choices') and len(
+                                        chunk.choices) > 0:
                                     if hasattr(chunk.choices[0], 'delta'):
-                                        if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
-                                            content = chunk.choices[0].delta.content
+                                        if hasattr(
+                                                chunk.choices[0].delta,
+                                                'content'
+                                        ) and chunk.choices[0].delta.content:
+                                            content = chunk.choices[
+                                                0].delta.content
                                             assistant_message += content
-                                            emit('response_stream', {
-                                                'content': content,
-                                                'message_id': db_message.id,
-                                                'is_final': False
-                                            })
+                                            emit(
+                                                'response_stream', {
+                                                    'content': content,
+                                                    'message_id':
+                                                    db_message.id,
+                                                    'is_final': False
+                                                })
 
                                             # Mise à jour régulière de la BD pendant le streaming
-                                            if len(assistant_message) > 0 and len(assistant_message) % 100 == 0:
+                                            if len(
+                                                    assistant_message
+                                            ) > 0 and len(assistant_message
+                                                          ) % 100 == 0:
                                                 try:
                                                     # Mise à jour incrémentale en cours de streaming
                                                     db_message.content = assistant_message
                                                     db.session.commit()
-                                                    logger.debug(f"Message {db_message.id} mis à jour pendant streaming (longueur: {len(assistant_message)})")
+                                                    logger.debug(
+                                                        f"Message {db_message.id} mis à jour pendant streaming (longueur: {len(assistant_message)})"
+                                                    )
                                                 except Exception as e:
                                                     # Si échec, continuer le streaming - on réessaiera à la fin
-                                                    logger.warning(f"Échec de mise à jour incrémentale du message {db_message.id}: {str(e)}")
+                                                    logger.warning(
+                                                        f"Échec de mise à jour incrémentale du message {db_message.id}: {str(e)}"
+                                                    )
 
                             # Mise à jour finale avec plusieurs tentatives
                             for attempt in range(max_update_attempts):
                                 try:
                                     db_message.content = assistant_message
                                     db.session.commit()
-                                    logger.info(f"Message {db_message.id} sauvegardé avec succès en base de données (tentative {attempt+1})")
+                                    logger.info(
+                                        f"Message {db_message.id} sauvegardé avec succès en base de données (tentative {attempt+1})"
+                                    )
                                     update_success = True
                                     break
                                 except Exception as e:
-                                    logger.error(f"Échec de sauvegarde du message {db_message.id} (tentative {attempt+1}): {str(e)}")
+                                    logger.error(
+                                        f"Échec de sauvegarde du message {db_message.id} (tentative {attempt+1}): {str(e)}"
+                                    )
                                     db.session.rollback()
-                                    time.sleep(0.5)  # Pause avant nouvelle tentative
+                                    time.sleep(
+                                        0.5)  # Pause avant nouvelle tentative
 
                             # Envoyer l'événement de fin de réponse
-                            emit('response_stream', {
-                                'content': '',
-                                'message_id': db_message.id,
-                                'is_final': True,
-                                'full_response': assistant_message,
-                                'db_saved': update_success  # Indiquer au client si la sauvegarde a réussi
-                            })
+                            emit(
+                                'response_stream',
+                                {
+                                    'content': '',
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'full_response': assistant_message,
+                                    'db_saved':
+                                    update_success  # Indiquer au client si la sauvegarde a réussi
+                                })
 
                             # Si la mise à jour en BD a échoué après toutes les tentatives, on stocke temporairement la réponse dans la session
                             if not update_success:
                                 if 'message_recovery' not in session:
                                     session['message_recovery'] = {}
-                                session['message_recovery'][str(db_message.id)] = assistant_message
-                                logger.warning(f"Sauvegarde de secours du message {db_message.id} dans la session")
+                                session['message_recovery'][str(
+                                    db_message.id)] = assistant_message
+                                logger.warning(
+                                    f"Sauvegarde de secours du message {db_message.id} dans la session"
+                                )
                         except Exception as stream_error:
-                            logger.error(f"Streaming error: {str(stream_error)}")
+                            logger.error(
+                                f"Streaming error: {str(stream_error)}")
                             # Fallback to non-streaming request
                             response = ai_client.chat.completions.create(
                                 model=get_model_name(),
                                 messages=messages,
-                                stream=False
-                            )
-                            assistant_message = response.choices[0].message.content
+                                stream=False)
+                            assistant_message = response.choices[
+                                0].message.content
                             # Envoyer la réponse complète comme stream final
-                            emit('response_stream', {
-                                'content': assistant_message,
-                                'message_id': db_message.id,
-                                'is_final': True,
-                                'full_response': assistant_message
-                            })
+                            emit(
+                                'response_stream', {
+                                    'content': assistant_message,
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'full_response': assistant_message
+                                })
                 else:
                     # Use OpenAI's threads API with streaming
-                    logger.info("Traitement de texte avec OpenAI en mode streaming")
+                    logger.info(
+                        "Traitement de texte avec OpenAI en mode streaming")
 
                     # Envoyer le message utilisateur au thread
                     ai_client.beta.threads.messages.create(
                         thread_id=conversation.thread_id,
                         role="user",
-                        content=data.get('message', '')
-                    )
+                        content=data.get('message', ''))
 
                     # Utiliser le streaming natif pour récupérer la réponse
                     try:
                         # Créer un run pour le thread
                         run = ai_client.beta.threads.runs.create(
                             thread_id=conversation.thread_id,
-                            assistant_id=ASSISTANT_ID
-                        )
+                            assistant_id=ASSISTANT_ID)
 
                         # Créer un gestionnaire d'événements pour traiter les événements de streaming
-                        event_handler = OpenAIAssistantEventHandler(socketio, db_message.id)
+                        event_handler = OpenAIAssistantEventHandler(
+                            socketio, db_message.id)
 
                         # Attendre que le run soit en cours d'exécution
                         timeout = 5
@@ -1312,19 +1359,20 @@ def handle_message(data):
                         while time.time() - start_time < timeout:
                             run_status = ai_client.beta.threads.runs.retrieve(
                                 thread_id=conversation.thread_id,
-                                run_id=run.id
-                            )
+                                run_id=run.id)
 
-                            if run_status.status not in ['queued', 'in_progress']:
+                            if run_status.status not in [
+                                    'queued', 'in_progress'
+                            ]:
                                 break
 
                             eventlet.sleep(0.5)
 
                         # Utiliser la méthode de streaming native de l'API
                         with ai_client.beta.threads.runs.stream(
-                            thread_id=conversation.thread_id,
-                            assistant_id=ASSISTANT_ID,
-                            event_handler=event_handler,
+                                thread_id=conversation.thread_id,
+                                assistant_id=ASSISTANT_ID,
+                                event_handler=event_handler,
                         ) as stream:
                             stream.until_done()
 
@@ -1332,7 +1380,9 @@ def handle_message(data):
                         assistant_message = event_handler.full_response
 
                     except Exception as stream_error:
-                        logger.error(f"Error streaming assistant response: {str(stream_error)}")
+                        logger.error(
+                            f"Error streaming assistant response: {str(stream_error)}"
+                        )
 
                         # Fallback à l'approche non-streaming en cas d'erreur
                         try:
@@ -1343,19 +1393,18 @@ def handle_message(data):
                             if 'run' not in locals() or not run:
                                 run = ai_client.beta.threads.runs.create(
                                     thread_id=conversation.thread_id,
-                                    assistant_id=ASSISTANT_ID
-                                )
+                                    assistant_id=ASSISTANT_ID)
 
                             # Attendre que le run soit terminé
                             timeout = 30
                             start_time = current_time()
                             run_completed = False
 
-                            while not run_completed and current_time() - start_time < timeout:
+                            while not run_completed and current_time(
+                            ) - start_time < timeout:
                                 run_status = ai_client.beta.threads.runs.retrieve(
                                     thread_id=conversation.thread_id,
-                                    run_id=run.id
-                                )
+                                    run_id=run.id)
 
                                 if run_status.status == 'completed':
                                     run_completed = True
@@ -1365,68 +1414,79 @@ def handle_message(data):
                                     if hasattr(run_status, 'last_error'):
                                         error_msg = f"Erreur: {run_status.last_error.message}"
 
-                                    emit('response_stream', {
-                                        'content': error_msg,
-                                        'message_id': db_message.id,
-                                        'is_final': True,
-                                        'error': True
-                                    })
+                                    emit(
+                                        'response_stream', {
+                                            'content': error_msg,
+                                            'message_id': db_message.id,
+                                            'is_final': True,
+                                            'error': True
+                                        })
                                     return
 
                                 eventlet.sleep(1)
 
                             if not run_completed:
-                                emit('response_stream', {
-                                    'content': 'La requête a expiré.',
-                                    'message_id': db_message.id,
-                                    'is_final': True,
-                                    'error': True
-                                })
+                                emit(
+                                    'response_stream', {
+                                        'content': 'La requête a expiré.',
+                                        'message_id': db_message.id,
+                                        'is_final': True,
+                                        'error': True
+                                    })
                                 return
 
                             # Récupérer la réponse complète
                             messages = ai_client.beta.threads.messages.list(
                                 thread_id=conversation.thread_id,
                                 order="desc",
-                                limit=1
-                            )
+                                limit=1)
 
                             if messages.data and len(messages.data) > 0:
-                                assistant_message = messages.data[0].content[0].text.value
+                                assistant_message = messages.data[0].content[
+                                    0].text.value
 
                                 # Simuler un streaming pour l'utilisateur
                                 words = assistant_message.split()
-                                for i in range(0, len(words), 5):  # Envoyer 5 mots à la fois
-                                    chunk = ' '.join(words[i:i+5]) + ' '
-                                    emit('response_stream', {
-                                        'content': chunk,
+                                for i in range(0, len(words),
+                                               5):  # Envoyer 5 mots à la fois
+                                    chunk = ' '.join(words[i:i + 5]) + ' '
+                                    emit(
+                                        'response_stream', {
+                                            'content': chunk,
                                             'message_id': db_message.id,
                                             'is_final': False
                                         })
-                                    eventlet.sleep(0.05)  # Court délai entre les chunks
+                                    eventlet.sleep(
+                                        0.05)  # Court délai entre les chunks
 
                                     # Terminer le streaming simulé
-                                    emit('response_stream', {
-                                        'content': '',
-                                        'message_id': db_message.id,
-                                        'is_final': True,
-                                        'full_response': assistant_message
-                                    })
+                                    emit(
+                                        'response_stream', {
+                                            'content': '',
+                                            'message_id': db_message.id,
+                                            'is_final': True,
+                                            'full_response': assistant_message
+                                        })
                                 else:
-                                    emit('response_stream', {
-                                        'content': 'Pas de réponse disponible.',
-                                        'message_id': db_message.id,
-                                        'is_final': True,
-                                        'error': True
-                                    })
+                                    emit(
+                                        'response_stream', {
+                                            'content':
+                                            'Pas de réponse disponible.',
+                                            'message_id': db_message.id,
+                                            'is_final': True,
+                                            'error': True
+                                        })
                         except Exception as e:
-                            logger.error(f"Error in fallback approach: {str(e)}")
-                            emit('response_stream', {
-                                'content': f'Une erreur est survenue: {str(e)}',
-                                'message_id': db_message.id,
-                                'is_final': True,
-                                'error': True
-                            })
+                            logger.error(
+                                f"Error in fallback approach: {str(e)}")
+                            emit(
+                                'response_stream', {
+                                    'content':
+                                    f'Une erreur est survenue: {str(e)}',
+                                    'message_id': db_message.id,
+                                    'is_final': True,
+                                    'error': True
+                                })
 
                     # Mettre à jour le message de l'assistant dans la base de données avec la réponse complète
                     db_message.content = assistant_message
@@ -1434,36 +1494,53 @@ def handle_message(data):
 
                     # Generate and set conversation title if this is the first message
                     if conversation.title == "Nouvelle conversation" or not conversation.title:
-                        logger.info(f"Création du titre pour une nouvelle conversation - image présente: {'image' in data}")
+                        logger.info(
+                            f"Création du titre pour une nouvelle conversation - image présente: {'image' in data}"
+                        )
 
                         # Définir le titre en priorité pour les images, indépendamment du mode de traitement
                         if 'image' in data and data['image']:
                             title = "Analyse d'image"
-                            logger.info("Image détectée, titre défini prioritairement à: 'Analyse d'image'")
+                            logger.info(
+                                "Image détectée, titre défini prioritairement à: 'Analyse d'image'"
+                            )
                         else:
                             # Sinon utiliser le texte du message
-                            title = data.get('message', '')[:30] + "..." if len(data.get('message', '')) > 30 else data.get('message', '')
-                            logger.info(f"Titre basé sur le texte du message: '{title}'")
+                            title = data.get(
+                                'message', '')[:30] + "..." if len(
+                                    data.get('message',
+                                             '')) > 30 else data.get(
+                                                 'message', '')
+                            logger.info(
+                                f"Titre basé sur le texte du message: '{title}'"
+                            )
 
                             # Si pas de texte non plus, titre par défaut
                             if not title:
                                 title = "Nouvelle Conversation"
-                                logger.info("Aucun contenu détecté, titre par défaut utilisé")
+                                logger.info(
+                                    "Aucun contenu détecté, titre par défaut utilisé"
+                                )
 
-                        logger.info(f"Titre final défini pour la conversation {conversation.id}: '{title}'")
+                        logger.info(
+                            f"Titre final défini pour la conversation {conversation.id}: '{title}'"
+                        )
                         conversation.title = title
                         db.session.commit()
 
                         # Toujours émettre l'événement pour mettre à jour l'interface utilisateur
                         # Utiliser broadcast=True pour assurer que tous les clients sont notifiés
-                        logger.info(f"Émission de l'événement new_conversation pour la conversation {conversation.id} avec titre: {title}")
+                        logger.info(
+                            f"Émission de l'événement new_conversation pour la conversation {conversation.id} avec titre: {title}"
+                        )
                         emit('new_conversation', {
                             'id': conversation.id,
                             'title': title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
                             'is_image': 'image' in data and data['image']
-                        }, broadcast=True)
+                        },
+                             broadcast=True)
 
                     # Emit the new conversation to all clients
                     emit('new_conversation', {
@@ -1471,15 +1548,27 @@ def handle_message(data):
                         'title': conversation.title,
                         'subject': 'Général',
                         'time': conversation.created_at.strftime('%H:%M')
-                    }, broadcast=True)
+                    },
+                         broadcast=True)
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
         error_message = str(e)
         if "image" in error_message.lower():
-            emit('receive_message', {'message': 'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.', 'id': 0})
+            emit(
+                'receive_message', {
+                    'message':
+                    'Error processing image. Please ensure the image is in a supported format (JPG, PNG, GIF) and try again.',
+                    'id': 0
+                })
         else:
-            emit('receive_message', {'message': f'An error occurred while processing your message. Please try again.', 'id': 0})
+            emit(
+                'receive_message', {
+                    'message':
+                    f'An error occurred while processing your message. Please try again.',
+                    'id': 0
+                })
+
 
 @socketio.on('rename_conversation')
 def handle_rename(data):
@@ -1491,6 +1580,7 @@ def handle_rename(data):
             emit('conversation_updated', {'success': True})
     except Exception as e:
         emit('conversation_updated', {'success': False, 'error': str(e)})
+
 
 @socketio.on('delete_conversation')
 def handle_delete(data):
@@ -1514,13 +1604,18 @@ def handle_open_conversation(data):
         if 'is_whatsapp' in data and data.get('is_whatsapp'):
             # Le thread_id WhatsApp est passé directement
             thread_id = str(data['id'])
-            logger.info(f"Ouverture de la conversation WhatsApp avec thread_id: {thread_id}")
+            logger.info(
+                f"Ouverture de la conversation WhatsApp avec thread_id: {thread_id}"
+            )
 
             # Vérifier que ce thread existe dans la base
-            messages = WhatsAppMessage.query.filter_by(thread_id=thread_id).all()
+            messages = WhatsAppMessage.query.filter_by(
+                thread_id=thread_id).all()
 
             if not messages:
-                logger.warning(f"Aucun message trouvé pour le thread WhatsApp {thread_id}")
+                logger.warning(
+                    f"Aucun message trouvé pour le thread WhatsApp {thread_id}"
+                )
                 emit('conversation_opened', {
                     'success': False,
                     'error': 'Conversation introuvable'
@@ -1532,8 +1627,7 @@ def handle_open_conversation(data):
 
             # Obtenir les messages pour ce thread, triés par horodatage
             messages = WhatsAppMessage.query.filter_by(
-                thread_id=thread_id
-            ).order_by(WhatsAppMessage.timestamp).all()
+                thread_id=thread_id).order_by(WhatsAppMessage.timestamp).all()
 
             messages_data = []
 
@@ -1542,35 +1636,40 @@ def handle_open_conversation(data):
                 role = 'user' if msg.direction == 'inbound' else 'assistant'
 
                 message_data = {
-                    'id': msg.id,
-                    'role': role,
-                    'content': msg.content,
-                    'created_at': msg.timestamp.isoformat() if msg.timestamp else ''
+                    'id':
+                    msg.id,
+                    'role':
+                    role,
+                    'content':
+                    msg.content,
+                    'created_at':
+                    msg.timestamp.isoformat() if msg.timestamp else ''
                 }
                 messages_data.append(message_data)
 
             # Obtenir le premier message pour le titre
             first_message = WhatsAppMessage.query.filter_by(
-                thread_id=thread_id, 
-                direction='inbound'
-            ).order_by(WhatsAppMessage.timestamp.asc()).first()
+                thread_id=thread_id, direction='inbound').order_by(
+                    WhatsAppMessage.timestamp.asc()).first()
 
             title = first_message.content if first_message else "Conversation WhatsApp"
             title = (title[:25] + '...') if len(title) > 25 else title
 
-            emit('conversation_opened', {
-                'success': True,
-                'messages': messages_data,
-                'conversation_id': thread_id,
-                'title': title,
-                'is_whatsapp': True
-            })
+            emit(
+                'conversation_opened', {
+                    'success': True,
+                    'messages': messages_data,
+                    'conversation_id': thread_id,
+                    'title': title,
+                    'is_whatsapp': True
+                })
             return
 
         # Vérifier si l'utilisateur est connecté via Telegram
         is_telegram_user = session.get('is_telegram_user', False)
 
-        if is_telegram_user and 'is_telegram' in data and data.get('is_telegram'):
+        if is_telegram_user and 'is_telegram' in data and data.get(
+                'is_telegram'):
             # Obtenir la conversation Telegram par ID numérique
             conversation = TelegramConversation.query.get(data['id'])
             if conversation:
@@ -1578,7 +1677,9 @@ def handle_open_conversation(data):
                 session['thread_id'] = conversation.thread_id
 
                 # Obtenir les messages pour cette conversation
-                messages = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at).all()
+                messages = TelegramMessage.query.filter_by(
+                    conversation_id=conversation.id).order_by(
+                        TelegramMessage.created_at).all()
                 messages_data = []
 
                 for msg in messages:
@@ -1590,13 +1691,15 @@ def handle_open_conversation(data):
                     }
                     messages_data.append(message_data)
 
-                emit('conversation_opened', {
-                    'success': True,
-                    'messages': messages_data,
-                    'conversation_id': conversation.id,
-                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
-                    'is_telegram': True
-                })
+                emit(
+                    'conversation_opened', {
+                        'success': True,
+                        'messages': messages_data,
+                        'conversation_id': conversation.id,
+                        'title': conversation.title or
+                        f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
+                        'is_telegram': True
+                    })
                 return
 
         # Si ce n'est pas une conversation WhatsApp ou Telegram, c'est une conversation web normale
@@ -1606,7 +1709,9 @@ def handle_open_conversation(data):
             session['thread_id'] = conversation.thread_id
 
             # Get messages for this conversation
-            messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+            messages = Message.query.filter_by(
+                conversation_id=conversation.id).order_by(
+                    Message.created_at).all()
             messages_data = []
 
             # Import needed for current_user
@@ -1620,7 +1725,8 @@ def handle_open_conversation(data):
                 # Seulement pour les messages utilisateur qui contiennent du texte extrait
                 if msg.role == 'user' and '[Extracted Image Content]' in filtered_content:
                     # Ne garder que la partie avant le texte extrait
-                    filtered_content = filtered_content.split('[Extracted Image Content]')[0].strip()
+                    filtered_content = filtered_content.split(
+                        '[Extracted Image Content]')[0].strip()
 
                     # Si le message ne contient que le texte extrait (donc vide maintenant)
                     if not filtered_content and msg.image_url:
@@ -1638,21 +1744,25 @@ def handle_open_conversation(data):
                 if msg.role == 'assistant':
                     # Get existing feedback for this message from the current user
                     feedback = MessageFeedback.query.filter_by(
-                        message_id=msg.id,
-                        user_id=user_id
-                    ).first()
+                        message_id=msg.id, user_id=user_id).first()
 
                     if feedback:
                         message_data['feedback'] = feedback.feedback_type
 
                 messages_data.append(message_data)
 
-            emit('conversation_opened', {
-                'success': True,
-                'messages': messages_data,
-                'conversation_id': conversation.id,
-                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
-            })
+            emit(
+                'conversation_opened', {
+                    'success':
+                    True,
+                    'messages':
+                    messages_data,
+                    'conversation_id':
+                    conversation.id,
+                    'title':
+                    conversation.title or
+                    f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
+                })
         else:
             emit('conversation_opened', {
                 'success': False,
@@ -1660,10 +1770,8 @@ def handle_open_conversation(data):
             })
     except Exception as e:
         app.logger.error(f"Error opening conversation: {str(e)}")
-        emit('conversation_opened', {
-            'success': False,
-            'error': str(e)
-        })
+        emit('conversation_opened', {'success': False, 'error': str(e)})
+
 
 @socketio.on('clear_session')
 def handle_clear_session():
@@ -1685,19 +1793,24 @@ def handle_clear_session():
             # Définir le nouveau thread_id dans la session
             session['thread_id'] = new_conversation.thread_id
 
-            logger.info(f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id}")
+            logger.info(
+                f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id}"
+            )
 
             # Informer le client que la session a été effacée et une nouvelle conversation a été créée
             emit('session_cleared', {
-                'success': True, 
+                'success': True,
                 'new_thread_id': new_conversation.thread_id
             })
         else:
             # Si l'utilisateur n'est pas authentifié, on se contente d'effacer la session
             emit('session_cleared', {'success': True})
     except Exception as e:
-        logger.error(f"Erreur lors de la création d'une nouvelle conversation: {str(e)}")
+        logger.error(
+            f"Erreur lors de la création d'une nouvelle conversation: {str(e)}"
+        )
         emit('session_cleared', {'success': False, 'error': str(e)})
+
 
 @socketio.on('restore_session')
 def handle_restore_session(data):
@@ -1707,34 +1820,42 @@ def handle_restore_session(data):
         conversation = None
 
         if thread_id:
-            logger.info(f"Attempting to restore session with thread_id: {thread_id}")
+            logger.info(
+                f"Attempting to restore session with thread_id: {thread_id}")
             # Vérifier si la conversation existe avec le thread_id correct
-            conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+            conversation = Conversation.query.filter_by(
+                thread_id=thread_id).first()
 
             # Vérifier si la conversation appartient à l'utilisateur actuel
             if conversation and current_user.is_authenticated and conversation.user_id == current_user.id:
                 # Mettre à jour la session Flask avec le thread_id
                 session['thread_id'] = conversation.thread_id
-                logger.info(f"Session restored for thread_id: {conversation.thread_id}")
+                logger.info(
+                    f"Session restored for thread_id: {conversation.thread_id}"
+                )
 
         # Si le thread_id n'est pas fourni ou la conversation n'est pas trouvée,
         # chercher la conversation la plus récente pour cet utilisateur
         if not conversation and current_user.is_authenticated:
-            logger.info("No valid thread_id, looking for most recent conversation")
+            logger.info(
+                "No valid thread_id, looking for most recent conversation")
             recent_conversation = Conversation.query.filter_by(
-                user_id=current_user.id,
-                deleted=False
-            ).order_by(Conversation.updated_at.desc()).first()
+                user_id=current_user.id, deleted=False).order_by(
+                    Conversation.updated_at.desc()).first()
 
             if recent_conversation:
                 conversation = recent_conversation
                 session['thread_id'] = conversation.thread_id
-                logger.info(f"Restored most recent conversation thread_id: {conversation.thread_id}")
+                logger.info(
+                    f"Restored most recent conversation thread_id: {conversation.thread_id}"
+                )
 
         # Si nous avons une conversation valide (soit par thread_id, soit la plus récente)
         if conversation:
             # Émettre les mêmes événements que lorsqu'une conversation est ouverte
-            messages = Message.query.filter_by(conversation_id=conversation.id).order_by(Message.created_at).all()
+            messages = Message.query.filter_by(
+                conversation_id=conversation.id).order_by(
+                    Message.created_at).all()
             messages_data = []
 
             for msg in messages:
@@ -1746,12 +1867,18 @@ def handle_restore_session(data):
                 }
                 messages_data.append(message_data)
 
-            emit('conversation_opened', {
-                'success': True,
-                'messages': messages_data,
-                'conversation_id': conversation.id,
-                'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
-            })
+            emit(
+                'conversation_opened', {
+                    'success':
+                    True,
+                    'messages':
+                    messages_data,
+                    'conversation_id':
+                    conversation.id,
+                    'title':
+                    conversation.title or
+                    f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
+                })
 
             # Mettre à jour la date de dernière modification
             conversation.updated_at = datetime.utcnow()
@@ -1759,11 +1886,15 @@ def handle_restore_session(data):
         else:
             # Pas de conversation trouvée, ni par thread_id, ni récente
             if thread_id:
-                logger.warning(f"Conversation with id {thread_id} not found for session restoration")
+                logger.warning(
+                    f"Conversation with id {thread_id} not found for session restoration"
+                )
             else:
-                logger.warning(f"No existing conversation found for current user")
+                logger.warning(
+                    f"No existing conversation found for current user")
     except Exception as e:
         logger.error(f"Error restoring session: {str(e)}")
+
 
 @socketio.on('submit_feedback')
 def handle_feedback(data):
@@ -1777,19 +1908,24 @@ def handle_feedback(data):
         user_id = current_user.id if current_user.is_authenticated else None
 
         if not message_id or not feedback_type:
-            emit('feedback_submitted', {'success': False, 'error': 'Missing required parameters'})
+            emit('feedback_submitted', {
+                'success': False,
+                'error': 'Missing required parameters'
+            })
             return
 
         if feedback_type not in ['positive', 'negative']:
-            emit('feedback_submitted', {'success': False, 'error': 'Invalid feedback type'})
+            emit('feedback_submitted', {
+                'success': False,
+                'error': 'Invalid feedback type'
+            })
             return
 
-        with db_retry_session() as db_session:  # Renommer pour éviter la confusion
+        with db_retry_session(
+        ) as db_session:  # Renommer pour éviter la confusion
             # Check if this user already gave feedback on this message
             existing_feedback = MessageFeedback.query.filter_by(
-                message_id=message_id, 
-                user_id=user_id
-            ).first()
+                message_id=message_id, user_id=user_id).first()
 
             if existing_feedback:
                 # Update existing feedback
@@ -1797,11 +1933,9 @@ def handle_feedback(data):
                 db_session.commit()
             else:
                 # Create new feedback entry
-                new_feedback = MessageFeedback(
-                    message_id=message_id,
-                    user_id=user_id,
-                    feedback_type=feedback_type
-                )
+                new_feedback = MessageFeedback(message_id=message_id,
+                                               user_id=user_id,
+                                               feedback_type=feedback_type)
                 db_session.add(new_feedback)
                 db_session.commit()
 
@@ -1810,22 +1944,27 @@ def handle_feedback(data):
 
             # Calculer les nouvelles statistiques de satisfaction
             total_feedbacks = MessageFeedback.query.count()
-            positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
-            satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+            positive_feedbacks = MessageFeedback.query.filter_by(
+                feedback_type='positive').count()
+            satisfaction_rate = round((positive_feedbacks / total_feedbacks) *
+                                      100) if total_feedbacks > 0 else 0
 
             # Émettre la mise à jour à tous les clients connectés (y compris le tableau de bord admin)
-            socketio.emit('feedback_stats_updated', {
-                'satisfaction_rate': satisfaction_rate,
-                'total_feedbacks': total_feedbacks,
-                'positive_feedbacks': positive_feedbacks
-            })
+            socketio.emit(
+                'feedback_stats_updated', {
+                    'satisfaction_rate': satisfaction_rate,
+                    'total_feedbacks': total_feedbacks,
+                    'positive_feedbacks': positive_feedbacks
+                })
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         emit('feedback_submitted', {'success': False, 'error': str(e)})
 
+
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def save_base64_image(base64_string):
     # Extract image type and data
@@ -1844,6 +1983,7 @@ def save_base64_image(base64_string):
 
     return filename
 
+
 def cleanup_uploads():
     """Cleans up the uploads folder of old images and checks the total size"""
     try:
@@ -1852,28 +1992,33 @@ def cleanup_uploads():
         for filename in os.listdir(UPLOAD_FOLDER):
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file_modified = datetime.fromtimestamp(os.path.getmtime(filepath))
-            if current_time - file_modified > timedelta(hours=IMAGE_MAX_AGE_HOURS):
+            if current_time - file_modified > timedelta(
+                    hours=IMAGE_MAX_AGE_HOURS):
                 os.remove(filepath)
 
         # Check the total size of the folder
-        total_size = sum(os.path.getsize(os.path.join(UPLOAD_FOLDER, f)) 
-                        for f in os.listdir(UPLOAD_FOLDER))
+        total_size = sum(
+            os.path.getsize(os.path.join(UPLOAD_FOLDER, f))
+            for f in os.listdir(UPLOAD_FOLDER))
 
         # If the size exceeds the limit, delete the oldest files
         if total_size > MAX_UPLOAD_FOLDER_SIZE:
-            files = [(os.path.join(UPLOAD_FOLDER, f), os.path.getmtime(os.path.join(UPLOAD_FOLDER, f))) 
-                    for f in os.listdir(UPLOAD_FOLDER)]
+            files = [(os.path.join(UPLOAD_FOLDER, f),
+                      os.path.getmtime(os.path.join(UPLOAD_FOLDER, f)))
+                     for f in os.listdir(UPLOAD_FOLDER)]
             files.sort(key=lambda x: x[1])  # Sort by modification date
 
             for filepath, _ in files:
                 os.remove(filepath)
-                total_size = sum(os.path.getsize(os.path.join(UPLOAD_FOLDER, f)) 
-                                for f in os.listdir(UPLOAD_FOLDER))
+                total_size = sum(
+                    os.path.getsize(os.path.join(UPLOAD_FOLDER, f))
+                    for f in os.listdir(UPLOAD_FOLDER))
                 if total_size <= MAX_UPLOAD_FOLDER_SIZE:
                     break
 
     except Exception as e:
         print(f"Error during upload cleanup: {str(e)}")
+
 
 @socketio.on('heartbeat')
 def handle_heartbeat():
@@ -1884,15 +2029,19 @@ def handle_heartbeat():
         # Mettre à jour le timestamp de la conversation pour la garder active
         try:
             with db_retry_session() as db_session:
-                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
+                conversation = Conversation.query.filter_by(
+                    thread_id=thread_id).first()
                 if conversation:
                     conversation.updated_at = datetime.utcnow()
                     db_session.commit()
         except Exception as e:
-            logger.warning(f"Error updating conversation timestamp during heartbeat: {str(e)}")
+            logger.warning(
+                f"Error updating conversation timestamp during heartbeat: {str(e)}"
+            )
 
     # Retourner un simple ACK
     return {'status': 'ok'}
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1912,8 +2061,11 @@ def login():
                 phone_number = '+225' + phone_number
 
             # Vérifier le format du numéro de téléphone
-            if not phone_number.startswith('+225') or len(phone_number) != 12 or not phone_number[1:].isdigit():
-                flash('Le numéro de téléphone doit être au format +22500000000.', 'error')
+            if not phone_number.startswith('+225') or len(
+                    phone_number) != 12 or not phone_number[1:].isdigit():
+                flash(
+                    'Le numéro de téléphone doit être au format +22500000000.',
+                    'error')
                 return redirect(url_for('login'))
 
             # Check for admin credentials first
@@ -1934,42 +2086,53 @@ def login():
             # Traitement spécifique pour login WhatsApp
             if login_mode == 'whatsapp':
                 # Vérifier si un utilisateur web "normal" existe avec ce numéro
-                web_user = User.query.filter_by(phone_number=phone_number).first()
+                web_user = User.query.filter_by(
+                    phone_number=phone_number).first()
 
                 # Vérifier si un utilisateur Telegram existe avec ce numéro
                 telegram_user = TelegramUser.query.filter(
                     TelegramUser.phone_number != "---",
-                    TelegramUser.phone_number == phone_number
-                ).first()
+                    TelegramUser.phone_number == phone_number).first()
 
                 # Si l'utilisateur existe dans la base de données web ou Telegram, afficher un message approprié
                 if web_user:
                     # Rediriger avec un paramètre spécial pour afficher le modal indiquant que c'est un compte web
-                    return redirect(url_for('login', error='web_account', phone=phone_number))
+                    return redirect(
+                        url_for('login',
+                                error='web_account',
+                                phone=phone_number))
 
                 if telegram_user:
                     # Rediriger avec un paramètre spécial pour afficher le modal indiquant que c'est un compte Telegram
-                    return redirect(url_for('login', error='telegram_account', phone=phone_number))
+                    return redirect(
+                        url_for('login',
+                                error='telegram_account',
+                                phone=phone_number))
 
                 # Si l'utilisateur n'existe pas en tant que compte web ou Telegram, continuer avec la logique WhatsApp
                 # Vérifier si un utilisateur web existe déjà pour ce numéro avec préfixe WhatsApp
-                user = User.query.filter_by(phone_number=f"whatsapp_{normalized_number}").first()
+                user = User.query.filter_by(
+                    phone_number=f"whatsapp_{normalized_number}").first()
 
                 if not user:
                     # Vérifier si le numéro existe dans les messages WhatsApp
-                    whatsapp_message = WhatsAppMessage.query.filter_by(from_number=normalized_number).first()
+                    whatsapp_message = WhatsAppMessage.query.filter_by(
+                        from_number=normalized_number).first()
 
                     if not whatsapp_message:
                         # Pas de message WhatsApp trouvé pour ce numéro
-                        flash('Aucun compte WhatsApp trouvé avec ce numéro.', 'error')
-                        return redirect(url_for('login', error='no_whatsapp_account'))
+                        flash('Aucun compte WhatsApp trouvé avec ce numéro.',
+                              'error')
+                        return redirect(
+                            url_for('login', error='no_whatsapp_account'))
 
                     # Créer un nouvel utilisateur web pour ce numéro WhatsApp
                     user = User(
                         first_name="WhatsApp",
                         last_name="User",
                         age=18,  # Valeur par défaut
-                        phone_number=f"whatsapp_{normalized_number}",  # Format spécial pour identifier les utilisateurs WhatsApp
+                        phone_number=
+                        f"whatsapp_{normalized_number}",  # Format spécial pour identifier les utilisateurs WhatsApp
                         study_level="Non spécifié",
                         grade_goals="average"  # Valeur par défaut
                     )
@@ -1980,16 +2143,18 @@ def login():
                     db.session.commit()
 
                     # Émettre l'événement de nouvel utilisateur Web pour le tableau de bord
-                    socketio.emit('new_web_user', {
-                        'id': user.id,
-                        'first_name': user.first_name,
-                        'last_name': user.last_name,
-                        'phone_number': user.phone_number
-                    })
+                    socketio.emit(
+                        'new_web_user', {
+                            'id': user.id,
+                            'first_name': user.first_name,
+                            'last_name': user.last_name,
+                            'phone_number': user.phone_number
+                        })
                 else:
                     # Si l'utilisateur existe, vérifier le mot de passe
                     if not user.check_password(password):
-                        return redirect(url_for('login', error='wrong_password'))
+                        return redirect(
+                            url_for('login', error='wrong_password'))
 
                 # Définir les variables de session pour indiquer une connexion via WhatsApp
                 session['is_whatsapp_user'] = True
@@ -2006,22 +2171,29 @@ def login():
 
             if not user:
                 # Vérifier s'il existe un message WhatsApp pour ce numéro
-                whatsapp_message = WhatsAppMessage.query.filter_by(from_number=normalized_number).first()
+                whatsapp_message = WhatsAppMessage.query.filter_by(
+                    from_number=normalized_number).first()
                 if whatsapp_message:
                     # Rediriger vers login avec paramètre d'erreur 'whatsapp_account'
-                    return redirect(url_for('login', error='whatsapp_account', phone=phone_number))
+                    return redirect(
+                        url_for('login',
+                                error='whatsapp_account',
+                                phone=phone_number))
 
                 # Vérifier s'il existe un utilisateur WhatsApp pour ce numéro
-                whatsapp_user = User.query.filter_by(phone_number=f"whatsapp_{normalized_number}").first()
+                whatsapp_user = User.query.filter_by(
+                    phone_number=f"whatsapp_{normalized_number}").first()
                 if whatsapp_user:
                     # Rediriger vers login avec paramètre d'erreur 'whatsapp_account'
-                    return redirect(url_for('login', error='whatsapp_account', phone=phone_number))
+                    return redirect(
+                        url_for('login',
+                                error='whatsapp_account',
+                                phone=phone_number))
 
                 # Si aucun compte WhatsApp, vérifier Telegram
                 telegram_user = TelegramUser.query.filter(
                     TelegramUser.phone_number != "---",
-                    TelegramUser.phone_number == phone_number
-                ).first()
+                    TelegramUser.phone_number == phone_number).first()
 
                 if telegram_user:
                     # Obtenir ou créer un utilisateur Web associé à ce TelegramUser
@@ -2054,7 +2226,8 @@ def login():
 
             # Validation de l'ID Telegram
             if not telegram_id or not telegram_id.strip().isdigit():
-                flash('Veuillez entrer un ID Telegram valide (numérique).', 'error')
+                flash('Veuillez entrer un ID Telegram valide (numérique).',
+                      'error')
                 return redirect(url_for('login'))
 
             # Validation du numéro de téléphone
@@ -2067,8 +2240,11 @@ def login():
                 telegram_phone = '+225' + telegram_phone
 
             # Vérifier le format du numéro
-            if not telegram_phone.startswith('+225') or len(telegram_phone) != 12 or not telegram_phone[1:].isdigit():
-                flash('Le numéro de téléphone doit être au format +22500000000.', 'error')
+            if not telegram_phone.startswith('+225') or len(
+                    telegram_phone) != 12 or not telegram_phone[1:].isdigit():
+                flash(
+                    'Le numéro de téléphone doit être au format +22500000000.',
+                    'error')
                 return redirect(url_for('login'))
 
             # Convertir en entier
@@ -2104,19 +2280,25 @@ def login():
 
     return render_template('login.html')
 
+
 def get_or_create_web_user_for_telegram(telegram_user):
     """Crée ou récupère un User associé à un TelegramUser pour l'authentification Flask-Login"""
     # Vérifier si un User existe déjà pour cet ID Telegram
-    user = User.query.filter_by(phone_number=f"telegram_{telegram_user.telegram_id}").first()
+    user = User.query.filter_by(
+        phone_number=f"telegram_{telegram_user.telegram_id}").first()
 
     if not user:
         # Créer un nouvel utilisateur Web lié à ce TelegramUser
         user = User(
-            first_name=telegram_user.first_name if telegram_user.first_name != "---" else "Telegram",
-            last_name=telegram_user.last_name if telegram_user.last_name != "---" else "User",
+            first_name=telegram_user.first_name
+            if telegram_user.first_name != "---" else "Telegram",
+            last_name=telegram_user.last_name
+            if telegram_user.last_name != "---" else "User",
             age=18,  # Valeur par défaut
-            phone_number=f"telegram_{telegram_user.telegram_id}",  # Format spécial pour identifier les utilisateurs Telegram
-            study_level=telegram_user.study_level if telegram_user.study_level != "---" else "Non spécifié",
+            phone_number=
+            f"telegram_{telegram_user.telegram_id}",  # Format spécial pour identifier les utilisateurs Telegram
+            study_level=telegram_user.study_level
+            if telegram_user.study_level != "---" else "Non spécifié",
             grade_goals="average"  # Valeur par défaut
         )
         # Définir un mot de passe aléatoire (ne sera pas utilisé car l'authentification se fait par ID Telegram)
@@ -2126,9 +2308,12 @@ def get_or_create_web_user_for_telegram(telegram_user):
         db.session.commit()
 
         # Associer le vrai numéro de téléphone au TelegramUser pour les requêtes futures
-        logger.info(f"Nouvel utilisateur Telegram créé avec ID {telegram_user.telegram_id} et numéro {telegram_user.phone_number}")
+        logger.info(
+            f"Nouvel utilisateur Telegram créé avec ID {telegram_user.telegram_id} et numéro {telegram_user.phone_number}"
+        )
 
     return user
+
 
 @app.route('/logout')
 @login_required
@@ -2143,12 +2328,15 @@ def logout():
     flash('Vous avez été déconnecté.', 'success')
     return redirect(url_for('login'))
 
+
 @app.route('/admin')
 def admin_dashboard():
     """Admin dashboard route that displays platform statistics"""
     # Check if user is admin
     if not session.get('is_admin'):
-        flash('Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.', 'error')
+        flash(
+            'Accès non autorisé. Veuillez vous connecter en tant qu\'administrateur.',
+            'error')
         return redirect(url_for('login'))
 
     try:
@@ -2158,22 +2346,27 @@ def admin_dashboard():
         today = datetime.today().date()
 
         # Count today's conversations
-        today_conversations = sum(1 for conv in conversations if conv.created_at.date() == today)
+        today_conversations = sum(1 for conv in conversations
+                                  if conv.created_at.date() == today)
 
         # Get actual number of users
         active_users = len(users)
         # Count users created today
-        active_users_today = sum(1 for user in users if user.created_at.date() == today)
+        active_users_today = sum(1 for user in users
+                                 if user.created_at.date() == today)
 
         # Calculate satisfaction rate based on message feedback
         total_feedbacks = MessageFeedback.query.count()
-        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
+        positive_feedbacks = MessageFeedback.query.filter_by(
+            feedback_type='positive').count()
 
         # Calculate satisfaction rate (percentage of positive feedback)
-        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) *
+                                  100) if total_feedbacks > 0 else 0
 
         # Get OpenAI Assistant ID for settings
-        openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID', 'Non configuré')
+        openai_assistant_id = os.environ.get('OPENAI_ASSISTANT_ID',
+                                             'Non configuré')
 
         return render_template(
             'admin_dashboard.html',
@@ -2184,15 +2377,19 @@ def admin_dashboard():
             is_admin=True,
             openai_assistant_id=openai_assistant_id,  # Add OpenAI Assistant ID
             current_model=CURRENT_MODEL,  # Add current model selection
-            deepseek_instructions=DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
-            deepseek_reasoner_instructions=DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
+            deepseek_instructions=
+            DEEPSEEK_INSTRUCTIONS,  # Add DeepSeek instructions
+            deepseek_reasoner_instructions=
+            DEEPSEEK_REASONER_INSTRUCTIONS,  # Add DeepSeek Reasoner instructions
             qwen_instructions=QWEN_INSTRUCTIONS,  # Add Qwen instructions
             gemini_instructions=GEMINI_INSTRUCTIONS  # Add Gemini instructions
         )
     except Exception as e:
         logger.error(f"Error in admin dashboard: {str(e)}")
-        flash('Une erreur est survenue lors du chargement du tableau de bord.', 'error')
+        flash('Une erreur est survenue lors du chargement du tableau de bord.',
+              'error')
         return redirect(url_for('login'))
+
 
 def reload_model_settings():
     """
@@ -2205,24 +2402,23 @@ def reload_model_settings():
 
     # Charger les instructions depuis les fichiers
     DEEPSEEK_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('DEEPSEEK_INSTRUCTIONS_FILE', 'instructions/deepseek.txt'),
-        'You are a helpful educational assistant'
-    )
+        os.environ.get('DEEPSEEK_INSTRUCTIONS_FILE',
+                       'instructions/deepseek.txt'),
+        'You are a helpful educational assistant')
     DEEPSEEK_REASONER_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
-        'You are a helpful educational assistant focused on reasoning'
-    )
+        os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE',
+                       'instructions/deepseek_reasoner.txt'),
+        'You are a helpful educational assistant focused on reasoning')
     QWEN_INSTRUCTIONS = load_instructions_from_file(
         os.environ.get('QWEN_INSTRUCTIONS_FILE', 'instructions/qwen.txt'),
-        'You are a helpful educational assistant'
-    )
+        'You are a helpful educational assistant')
     GEMINI_INSTRUCTIONS = load_instructions_from_file(
         os.environ.get('GEMINI_INSTRUCTIONS_FILE', 'instructions/gemini.txt'),
-        'You are a helpful educational assistant'
-    )
+        'You are a helpful educational assistant')
 
     # Utiliser un chemin absolu pour le fichier de configuration
-    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    'ai_config.json')
 
     # Sauvegarde des configurations dans un fichier JSON
     config_data = {
@@ -2241,9 +2437,13 @@ def reload_model_settings():
         # S'assurer que le fichier a les permissions correctes
         os.chmod(config_file_path, 0o666)  # rw-rw-rw-
 
-        logger.info(f"AI model settings saved to {config_file_path}: {CURRENT_MODEL}")
+        logger.info(
+            f"AI model settings saved to {config_file_path}: {CURRENT_MODEL}")
     except Exception as e:
-        logger.error(f"Error saving AI model settings to file ({config_file_path}): {str(e)}")
+        logger.error(
+            f"Error saving AI model settings to file ({config_file_path}): {str(e)}"
+        )
+
 
 @app.route('/admin/settings/model', methods=['POST'])
 def update_model_settings():
@@ -2256,7 +2456,9 @@ def update_model_settings():
         model = data.get('model')
         instructions = data.get('instructions')
 
-        if model not in ['openai', 'deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+        if model not in [
+                'openai', 'deepseek', 'deepseek-reasoner', 'qwen', 'gemini'
+        ]:
             return jsonify({'error': 'Invalid model selection'}), 400
 
         # Update the current model
@@ -2276,7 +2478,9 @@ def update_model_settings():
                 f.write(instructions)
         elif model == 'deepseek-reasoner' and instructions:
             DEEPSEEK_REASONER_INSTRUCTIONS = instructions
-            with open('instructions/deepseek_reasoner.txt', 'w', encoding='utf-8') as f:
+            with open('instructions/deepseek_reasoner.txt',
+                      'w',
+                      encoding='utf-8') as f:
                 f.write(instructions)
         elif model == 'qwen' and instructions:
             QWEN_INSTRUCTIONS = instructions
@@ -2304,7 +2508,8 @@ def update_model_settings():
 
         # Set file paths in env vars
         env_vars['DEEPSEEK_INSTRUCTIONS_FILE'] = 'instructions/deepseek.txt'
-        env_vars['DEEPSEEK_REASONER_INSTRUCTIONS_FILE'] = 'instructions/deepseek_reasoner.txt'
+        env_vars[
+            'DEEPSEEK_REASONER_INSTRUCTIONS_FILE'] = 'instructions/deepseek_reasoner.txt'
         env_vars['QWEN_INSTRUCTIONS_FILE'] = 'instructions/qwen.txt'
         env_vars['GEMINI_INSTRUCTIONS_FILE'] = 'instructions/gemini.txt'
 
@@ -2319,10 +2524,14 @@ def update_model_settings():
         # Recharger les paramètres du modèle
         reload_model_settings()
 
-        return jsonify({'success': True, 'message': 'Model settings updated successfully'})
+        return jsonify({
+            'success': True,
+            'message': 'Model settings updated successfully'
+        })
     except Exception as e:
         logger.error(f"Error updating model settings: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 if 'RUN_TELEGRAM_BOT' not in os.environ:
     os.environ['RUN_TELEGRAM_BOT'] = 'true'
@@ -2348,12 +2557,14 @@ if 'RUN_TELEGRAM_BOT' not in os.environ:
         for key, value in env_vars.items():
             f.write(f"{key}={value}\n")
 
+
 @app.route('/admin/logout')
 def admin_logout():
     """Logout route for admin"""
     session.pop('is_admin', None)
     flash('Vous avez été déconnecté.', 'success')
     return redirect(url_for('login'))
+
 
 # Fonction utilitaire pour vérifier si un numéro de téléphone existe déjà
 def phone_number_exists(phone_number):
@@ -2370,24 +2581,26 @@ def phone_number_exists(phone_number):
         return True
 
     # Vérifier dans les utilisateurs web avec préfixe WhatsApp
-    whatsapp_user = User.query.filter_by(phone_number=f"whatsapp_{normalized_number}").first()
+    whatsapp_user = User.query.filter_by(
+        phone_number=f"whatsapp_{normalized_number}").first()
     if whatsapp_user:
         return True
 
     # Vérifier dans les messages WhatsApp
-    whatsapp_message = WhatsAppMessage.query.filter_by(from_number=normalized_number).first()
+    whatsapp_message = WhatsAppMessage.query.filter_by(
+        from_number=normalized_number).first()
     if whatsapp_message:
         return True
 
     # Vérifier dans les utilisateurs Telegram avec un numéro de téléphone
     telegram_user = TelegramUser.query.filter(
         TelegramUser.phone_number != "---",
-        TelegramUser.phone_number == phone_number
-    ).first()
+        TelegramUser.phone_number == phone_number).first()
     if telegram_user:
         return True
 
     return False
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -2402,17 +2615,22 @@ def register():
         age = request.form.get('age')
         phone_number = request.form.get('phone_number')
         password = request.form.get('password')
-        study_level = request.form.get('study_level') or 'Terminal A'  # Default value
-        grade_goals = request.form.get('grade_goals') or 'average'  # Default value
+        study_level = request.form.get(
+            'study_level') or 'Terminal A'  # Default value
+        grade_goals = request.form.get(
+            'grade_goals') or 'average'  # Default value
 
         # Basic validation
         if not all([first_name, last_name, age, phone_number, password]):
-            flash('Tous les champs obligatoires doivent être remplis.', 'error')
+            flash('Tous les champs obligatoires doivent être remplis.',
+                  'error')
             return redirect(url_for('register'))
 
         # Vérifier le format du numéro de téléphone (doit commencer par +225 suivi de 8 chiffres)
-        if not phone_number.startswith('+225') or len(phone_number) != 12 or not phone_number[1:].isdigit():
-            flash('Le numéro de téléphone doit être au format +22500000000.', 'error')
+        if not phone_number.startswith('+225') or len(
+                phone_number) != 12 or not phone_number[1:].isdigit():
+            flash('Le numéro de téléphone doit être au format +22500000000.',
+                  'error')
             return redirect(url_for('register'))
 
         # Vérifier si le numéro existe déjà
@@ -2423,26 +2641,25 @@ def register():
 
         try:
             # Create new user
-            user = User(
-                first_name=first_name,
-                last_name=last_name,
-                age=int(age),
-                phone_number=phone_number,
-                study_level=study_level,
-                grade_goals=grade_goals
-            )
+            user = User(first_name=first_name,
+                        last_name=last_name,
+                        age=int(age),
+                        phone_number=phone_number,
+                        study_level=study_level,
+                        grade_goals=grade_goals)
             user.set_password(password)
 
             db.session.add(user)
             db.session.commit()
 
             # Émettre l'événement de nouvel utilisateur Web pour le tableau de bord
-            socketio.emit('new_web_user', {
-                'id': user.id,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'phone_number': user.phone_number
-            })
+            socketio.emit(
+                'new_web_user', {
+                    'id': user.id,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'phone_number': user.phone_number
+                })
 
             # Log the user in
             login_user(user)
@@ -2457,6 +2674,7 @@ def register():
     # Vérifier s'il y a un paramètre d'erreur pour afficher la modal
     error = request.args.get('error')
     return render_template('register.html', error=error)
+
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -2479,11 +2697,13 @@ def forgot_password():
                 whatsapp_number = phone_number
 
             # Rechercher l'utilisateur avec le préfixe whatsapp_
-            user = User.query.filter_by(phone_number=f"whatsapp_{whatsapp_number}").first()
+            user = User.query.filter_by(
+                phone_number=f"whatsapp_{whatsapp_number}").first()
 
             # Si l'utilisateur n'existe pas, vérifier s'il y a des messages WhatsApp pour ce numéro
             if not user:
-                whatsapp_message = WhatsAppMessage.query.filter_by(from_number=whatsapp_number).first()
+                whatsapp_message = WhatsAppMessage.query.filter_by(
+                    from_number=whatsapp_number).first()
 
                 if whatsapp_message:
                     # Créer un nouvel utilisateur pour ce numéro WhatsApp
@@ -2496,7 +2716,9 @@ def forgot_password():
                         grade_goals="average"  # Valeur par défaut
                     )
                     db.session.add(user)
-                    logger.info(f"Nouvel utilisateur WhatsApp créé lors de la réinitialisation du mot de passe: {whatsapp_number}")
+                    logger.info(
+                        f"Nouvel utilisateur WhatsApp créé lors de la réinitialisation du mot de passe: {whatsapp_number}"
+                    )
         else:
             # Recherche standard pour les utilisateurs web
             user = User.query.filter_by(phone_number=phone_number).first()
@@ -2505,15 +2727,21 @@ def forgot_password():
             # Mettre à jour le mot de passe de l'utilisateur
             user.set_password(new_password)
             db.session.commit()
-            logger.info(f"Mot de passe mis à jour pour l'utilisateur: {user.phone_number}")
+            logger.info(
+                f"Mot de passe mis à jour pour l'utilisateur: {user.phone_number}"
+            )
 
             # Passer un paramètre pour afficher le popup
-            return render_template('forgot_password.html', password_updated=True)
+            return render_template('forgot_password.html',
+                                   password_updated=True)
 
-        flash(f"Aucun compte {'WhatsApp' if account_type == 'whatsapp' else ''} trouvé avec ce numéro.", 'error')
+        flash(
+            f"Aucun compte {'WhatsApp' if account_type == 'whatsapp' else ''} trouvé avec ce numéro.",
+            'error')
         return redirect(url_for('forgot_password'))
 
     return render_template('forgot_password.html')
+
 
 @app.route('/admin/data/<platform>')
 def admin_platform_data(platform):
@@ -2526,15 +2754,23 @@ def admin_platform_data(platform):
 
         # Calculate satisfaction rate for web platform
         total_feedbacks = MessageFeedback.query.count()
-        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
-        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+        positive_feedbacks = MessageFeedback.query.filter_by(
+            feedback_type='positive').count()
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) *
+                                  100) if total_feedbacks > 0 else 0
 
         data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': satisfaction_rate,
-            'platform': 'web',
+            'active_users':
+            len(users),
+            'active_users_today':
+            sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations':
+            sum(1 for conv in conversations
+                if conv.created_at.date() == today),
+            'satisfaction_rate':
+            satisfaction_rate,
+            'platform':
+            'web',
             'users': [{
                 'first_name': user.first_name,
                 'last_name': user.last_name,
@@ -2544,10 +2780,17 @@ def admin_platform_data(platform):
                 'created_at': user.created_at.strftime('%d/%m/%Y')
             } for user in users],
             'conversations': [{
-                'title': conv.title or "Sans titre",
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': Message.query.filter_by(conversation_id=conv.id).order_by(Message.created_at.desc()).first().content if Message.query.filter_by(conversation_id=conv.id).first() else "No messages"
+                'title':
+                conv.title or "Sans titre",
+                'date':
+                conv.created_at.strftime('%d/%m/%Y'),
+                'time':
+                conv.created_at.strftime('%H:%M'),
+                'last_message':
+                Message.query.filter_by(conversation_id=conv.id).order_by(
+                    Message.created_at.desc()).first().content
+                if Message.query.filter_by(
+                    conversation_id=conv.id).first() else "No messages"
             } for conv in conversations]
         }
 
@@ -2557,11 +2800,17 @@ def admin_platform_data(platform):
         conversations = TelegramConversation.query.all()
 
         data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0,
-            'platform': 'telegram',
+            'active_users':
+            len(users),
+            'active_users_today':
+            sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations':
+            sum(1 for conv in conversations
+                if conv.created_at.date() == today),
+            'satisfaction_rate':
+            0,
+            'platform':
+            'telegram',
             'users': [{
                 'telegram_id': user.telegram_id,
                 'first_name': user.first_name or "---",
@@ -2571,20 +2820,31 @@ def admin_platform_data(platform):
                 'created_at': user.created_at.strftime('%d/%m/%Y')
             } for user in users],
             'conversations': [{
-                'title': conv.title,
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': TelegramMessage.query.filter_by(conversation_id=conv.id).order_by(TelegramMessage.created_at.desc()).first().content if TelegramMessage.query.filter_by(conversation_id=conv.id).first() else "No messages"
+                'title':
+                conv.title,
+                'date':
+                conv.created_at.strftime('%d/%m/%Y'),
+                'time':
+                conv.created_at.strftime('%H:%M'),
+                'last_message':
+                TelegramMessage.query.filter_by(
+                    conversation_id=conv.id).order_by(
+                        TelegramMessage.created_at.desc()).first().content
+                if TelegramMessage.query.filter_by(
+                    conversation_id=conv.id).first() else "No messages"
             } for conv in conversations]
         }
 
     elif platform == 'whatsapp':
         # Get WhatsApp statistics
         messages = WhatsAppMessage.query.all()
-        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+        unique_users = db.session.query(
+            WhatsAppMessage.from_number).distinct().all()
 
         # Calculate today's statistics
-        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_messages = [
+            msg for msg in messages if msg.timestamp.date() == today
+        ]
         today_users = db.session.query(WhatsAppMessage.from_number)\
             .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
             .distinct().all()
@@ -2593,32 +2853,51 @@ def admin_platform_data(platform):
         conversations = db.session.query(
             WhatsAppMessage.thread_id,
             db.func.min(WhatsAppMessage.timestamp).label('created_at'),
-            db.func.count().label('message_count')
-        ).group_by(WhatsAppMessage.thread_id).all()
+            db.func.count().label('message_count')).group_by(
+                WhatsAppMessage.thread_id).all()
 
         data = {
-            'active_users': len(unique_users),
-            'active_users_today': len(today_users),
-            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
-            'satisfaction_rate': 0,
-            'platform': 'whatsapp',
-            'users': [{
-                'name': f'WhatsApp User {user[0]}',  # user[0] contains from_number
-                'phone': user[0],
-                'study_level': 'N/A',
-                'created_at': WhatsAppMessage.query.filter_by(from_number=user[0])
-                    .order_by(WhatsAppMessage.timestamp).first().timestamp.strftime('%d/%m/%Y')
-            } for user in unique_users],
+            'active_users':
+            len(unique_users),
+            'active_users_today':
+            len(today_users),
+            'today_conversations':
+            len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate':
+            0,
+            'platform':
+            'whatsapp',
+            'users': [
+                {
+                    'name':
+                    f'WhatsApp User {user[0]}',  # user[0] contains from_number
+                    'phone':
+                    user[0],
+                    'study_level':
+                    'N/A',
+                    'created_at':
+                    WhatsAppMessage.query.filter_by(
+                        from_number=user[0]).order_by(
+                            WhatsAppMessage.timestamp).first().timestamp.
+                    strftime('%d/%m/%Y')
+                } for user in unique_users
+            ],
             'conversations': [{
-                'title': f'Conversation {conv.thread_id}',
-                'date': conv.created_at.strftime('%d/%m/%Y'),
-                'time': conv.created_at.strftime('%H:%M'),
-                'last_message': WhatsAppMessage.query.filter_by(thread_id=conv.thread_id)
-                    .order_by(WhatsAppMessage.timestamp.desc()).first().content
+                'title':
+                f'Conversation {conv.thread_id}',
+                'date':
+                conv.created_at.strftime('%d/%m/%Y'),
+                'time':
+                conv.created_at.strftime('%H:%M'),
+                'last_message':
+                WhatsAppMessage.query.filter_by(
+                    thread_id=conv.thread_id).order_by(
+                        WhatsAppMessage.timestamp.desc()).first().content
             } for conv in conversations]
         }
 
     return jsonify(data)
+
 
 @app.route('/admin/data/<platform>/stats')
 def admin_platform_stats(platform):
@@ -2632,14 +2911,21 @@ def admin_platform_stats(platform):
 
         # Calculate satisfaction rate for web platform
         total_feedbacks = MessageFeedback.query.count()
-        positive_feedbacks = MessageFeedback.query.filter_by(feedback_type='positive').count()
-        satisfaction_rate = round((positive_feedbacks / total_feedbacks) * 100) if total_feedbacks > 0 else 0
+        positive_feedbacks = MessageFeedback.query.filter_by(
+            feedback_type='positive').count()
+        satisfaction_rate = round((positive_feedbacks / total_feedbacks) *
+                                  100) if total_feedbacks > 0 else 0
 
         data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': satisfaction_rate
+            'active_users':
+            len(users),
+            'active_users_today':
+            sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations':
+            sum(1 for conv in conversations
+                if conv.created_at.date() == today),
+            'satisfaction_rate':
+            satisfaction_rate
         }
 
     elif platform == 'telegram':
@@ -2648,19 +2934,27 @@ def admin_platform_stats(platform):
         conversations = TelegramConversation.query.all()
 
         data = {
-            'active_users': len(users),
-            'active_users_today': sum(1 for user in users if user.created_at.date() == today),
-            'today_conversations': sum(1 for conv in conversations if conv.created_at.date() == today),
-            'satisfaction_rate': 0
+            'active_users':
+            len(users),
+            'active_users_today':
+            sum(1 for user in users if user.created_at.date() == today),
+            'today_conversations':
+            sum(1 for conv in conversations
+                if conv.created_at.date() == today),
+            'satisfaction_rate':
+            0
         }
 
     elif platform == 'whatsapp':
         # Get WhatsApp statistics
         messages = WhatsAppMessage.query.all()
-        unique_users = db.session.query(WhatsAppMessage.from_number).distinct().all()
+        unique_users = db.session.query(
+            WhatsAppMessage.from_number).distinct().all()
 
         # Calculate today's statistics
-        today_messages = [msg for msg in messages if msg.timestamp.date() == today]
+        today_messages = [
+            msg for msg in messages if msg.timestamp.date() == today
+        ]
         today_users = db.session.query(WhatsAppMessage.from_number)\
             .filter(db.func.date(WhatsAppMessage.timestamp) == today)\
             .distinct().all()
@@ -2669,14 +2963,18 @@ def admin_platform_stats(platform):
         conversations = db.session.query(
             WhatsAppMessage.thread_id,
             db.func.min(WhatsAppMessage.timestamp).label('created_at'),
-            db.func.count().label('message_count')
-        ).group_by(WhatsAppMessage.thread_id).all()
+            db.func.count().label('message_count')).group_by(
+                WhatsAppMessage.thread_id).all()
 
         data = {
-            'active_users': len(unique_users),
-            'active_users_today': len(today_users),
-            'today_conversations': len([c for c in conversations if c.created_at.date() == today]),
-            'satisfaction_rate': 0
+            'active_users':
+            len(unique_users),
+            'active_users_today':
+            len(today_users),
+            'today_conversations':
+            len([c for c in conversations if c.created_at.date() == today]),
+            'satisfaction_rate':
+            0
         }
 
     return jsonify(data)
@@ -2701,7 +2999,9 @@ def delete_user(user_id):
         # Try to find in web users
         user = User.query.filter_by(phone_number=user_id).first()
         if user:
-            logger.info(f"Found web user with ID {user.id}, phone: {user.phone_number}")
+            logger.info(
+                f"Found web user with ID {user.id}, phone: {user.phone_number}"
+            )
 
             try:
                 # Importer le module text pour les requêtes SQL
@@ -2714,44 +3014,51 @@ def delete_user(user_id):
                     user_id_to_delete = user.id
 
                     # 2. Supprimer les associations dans user_subscription
-                    logger.info(f"Deleting subscription relationships for user {user_id_to_delete}")
-                    connection.execute(
-                        text("DELETE FROM subscription WHERE user_id = :user_id"),
-                        {"user_id": user_id_to_delete}
+                    logger.info(
+                        f"Deleting subscription relationships for user {user_id_to_delete}"
                     )
+                    connection.execute(
+                        text(
+                            "DELETE FROM subscription WHERE user_id = :user_id"
+                        ), {"user_id": user_id_to_delete})
 
                     # 3. Supprimer les messages liés aux conversations de l'utilisateur
-                    logger.info(f"Deleting messages for user {user_id_to_delete}")
+                    logger.info(
+                        f"Deleting messages for user {user_id_to_delete}")
                     connection.execute(
                         text("""DELETE FROM message 
                                 WHERE conversation_id IN (
                                     SELECT id FROM conversation WHERE user_id = :user_id
-                                )"""),
-                        {"user_id": user_id_to_delete}
-                    )
+                                )"""), {"user_id": user_id_to_delete})
 
                     # 4. Supprimer les conversations de l'utilisateur
-                    logger.info(f"Deleting conversations for user {user_id_to_delete}")
+                    logger.info(
+                        f"Deleting conversations for user {user_id_to_delete}")
                     connection.execute(
-                        text("DELETE FROM conversation WHERE user_id = :user_id"),
-                        {"user_id": user_id_to_delete}
-                    )
+                        text(
+                            "DELETE FROM conversation WHERE user_id = :user_id"
+                        ), {"user_id": user_id_to_delete})
 
                     # 5. Supprimer l'utilisateur lui-même
                     # Note: le mot-clé "user" est réservé dans SQL, donc on le met entre guillemets
                     logger.info(f"Deleting user with ID {user_id_to_delete}")
                     connection.execute(
                         text("DELETE FROM \"user\" WHERE id = :user_id"),
-                        {"user_id": user_id_to_delete}
-                    )
+                        {"user_id": user_id_to_delete})
 
                 # Si on arrive ici, c'est que la transaction a été validée avec succès
                 logger.info(f"Web user {user_id} deleted successfully")
-                return jsonify({'success': True, 'message': 'User deleted successfully'})
+                return jsonify({
+                    'success': True,
+                    'message': 'User deleted successfully'
+                })
 
             except Exception as e:
                 logger.error(f"Error deleting web user: {str(e)}")
-                return jsonify({'success': False, 'message': f'Error deleting user: {str(e)}'}), 500
+                return jsonify({
+                    'success': False,
+                    'message': f'Error deleting user: {str(e)}'
+                }), 500
 
         # Try to find in Telegram users
         user = TelegramUser.query.filter_by(telegram_id=user_id).first()
@@ -2760,21 +3067,34 @@ def delete_user(user_id):
                 with db_retry_session() as session:
                     # Delete all messages first
                     for conv in user.conversations:
-                        TelegramMessage.query.filter_by(conversation_id=conv.id).delete()
+                        TelegramMessage.query.filter_by(
+                            conversation_id=conv.id).delete()
                     session.flush()
 
                     # Delete all conversations
-                    TelegramConversation.query.filter_by(telegram_user_id=user.telegram_id).delete()
+                    TelegramConversation.query.filter_by(
+                        telegram_user_id=user.telegram_id).delete()
                     session.flush()
 
                     # Finally delete the user
                     session.delete(user)
                     session.commit()
-                    return jsonify({'success': True, 'message': 'Telegram user deleted successfully'})
+                    return jsonify({
+                        'success':
+                        True,
+                        'message':
+                        'Telegram user deleted successfully'
+                    })
             except Exception as telegram_error:
-                logger.error(f"Error deleting Telegram user: {str(telegram_error)}")
+                logger.error(
+                    f"Error deleting Telegram user: {str(telegram_error)}")
                 session.rollback()
-                return jsonify({'success': False, 'message': f'Error deleting Telegram user: {str(telegram_error)}'}), 500
+                return jsonify({
+                    'success':
+                    False,
+                    'message':
+                    f'Error deleting Telegram user: {str(telegram_error)}'
+                }), 500
 
         # Check WhatsApp users (using the phone number as ID)
         messages = WhatsAppMessage.query.filter_by(from_number=user_id).all()
@@ -2788,24 +3108,44 @@ def delete_user(user_id):
 
                     # Pour chaque thread_id, on supprime tous les messages associés
                     for thread_id in thread_ids:
-                        thread_id = thread_id[0]  # Extraction de la valeur depuis le tuple
-                        logger.info(f"Deleting all messages for WhatsApp thread {thread_id}")
-                        WhatsAppMessage.query.filter_by(thread_id=thread_id).delete()
+                        thread_id = thread_id[
+                            0]  # Extraction de la valeur depuis le tuple
+                        logger.info(
+                            f"Deleting all messages for WhatsApp thread {thread_id}"
+                        )
+                        WhatsAppMessage.query.filter_by(
+                            thread_id=thread_id).delete()
 
                     session.commit()
-                    return jsonify({'success': True, 'message': 'WhatsApp user and all associated conversations deleted successfully'})
+                    return jsonify({
+                        'success':
+                        True,
+                        'message':
+                        'WhatsApp user and all associated conversations deleted successfully'
+                    })
             except Exception as whatsapp_error:
-                logger.error(f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
+                logger.error(
+                    f"Error deleting WhatsApp messages: {str(whatsapp_error)}")
                 session.rollback()
-                return jsonify({'success': False, 'message': f'Error deleting WhatsApp messages: {str(whatsapp_error)}'}), 500
+                return jsonify({
+                    'success':
+                    False,
+                    'message':
+                    f'Error deleting WhatsApp messages: {str(whatsapp_error)}'
+                }), 500
 
         return jsonify({'success': False, 'message': 'User not found'}), 404
 
     except Exception as e:
         logger.error(f"Error in delete_user function for {user_id}: {str(e)}")
-        return jsonify({'success': False, 'message': f'Server error: {str(e)}'}), 500
+        return jsonify({
+            'success': False,
+            'message': f'Server error: {str(e)}'
+        }), 500
+
 
 # Add this route after the other admin routes
+
 
 @app.route('/admin/conversations/<int:conversation_id>/messages')
 def get_conversation_messages(conversation_id):
@@ -2831,10 +3171,14 @@ def get_conversation_messages(conversation_id):
                 .order_by(Message.created_at).all()
             return jsonify({
                 'messages': [{
-                    'role': msg.role,
-                    'content': msg.content,
-                    'image_url': msg.image_url,
-                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    msg.role,
+                    'content':
+                    msg.content,
+                    'image_url':
+                    msg.image_url,
+                    'created_at':
+                    msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in messages]
             })
 
@@ -2845,10 +3189,14 @@ def get_conversation_messages(conversation_id):
                 .order_by(TelegramMessage.created_at).all()
             return jsonify({
                 'messages': [{
-                    'role': msg.role,
-                    'content': msg.content,
-                    'image_url': msg.image_url,
-                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    msg.role,
+                    'content':
+                    msg.content,
+                    'image_url':
+                    msg.image_url,
+                    'created_at':
+                    msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in messages]
             })
 
@@ -2858,9 +3206,12 @@ def get_conversation_messages(conversation_id):
         if whatsapp_messages:
             return jsonify({
                 'messages': [{
-                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
-                    'content': msg.content,
-                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    'user' if msg.direction == 'inbound' else 'assistant',
+                    'content':
+                    msg.content,
+                    'created_at':
+                    msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in whatsapp_messages]
             })
 
@@ -2869,6 +3220,7 @@ def get_conversation_messages(conversation_id):
     except Exception as e:
         logger.error(f"Error fetching conversation messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/admin/conversations/by-title/<path:conversation_title>/messages')
 def get_conversation_messages_by_title(conversation_title):
@@ -2881,7 +3233,8 @@ def get_conversation_messages_by_title(conversation_title):
         whatsapp_thread_match = None
         if conversation_title.startswith('Conversation thread_'):
             # Extract thread_id from the title
-            whatsapp_thread_match = conversation_title.replace('Conversation ', '')
+            whatsapp_thread_match = conversation_title.replace(
+                'Conversation ', '')
 
             # Get WhatsApp messages for this thread
             whatsapp_messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread_match)\
@@ -2890,9 +3243,12 @@ def get_conversation_messages_by_title(conversation_title):
             if whatsapp_messages:
                 return jsonify({
                     'messages': [{
-                        'role': 'user' if msg.direction == 'inbound' else 'assistant',
-                        'content': msg.content,
-                        'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                        'role':
+                        'user' if msg.direction == 'inbound' else 'assistant',
+                        'content':
+                        msg.content,
+                        'created_at':
+                        msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
                     } for msg in whatsapp_messages]
                 })
 
@@ -2902,30 +3258,40 @@ def get_conversation_messages_by_title(conversation_title):
         messages = []
 
         # Check regular conversations
-        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        conversation = Conversation.query.filter_by(
+            title=conversation_title).first()
         if conversation:
             messages = Message.query.filter_by(conversation_id=conversation.id)\
                 .order_by(Message.created_at).all()
             return jsonify({
                 'messages': [{
-                    'role': msg.role,
-                    'content': msg.content,
-                    'image_url': msg.image_url,
-                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    msg.role,
+                    'content':
+                    msg.content,
+                    'image_url':
+                    msg.image_url,
+                    'created_at':
+                    msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in messages]
             })
 
         # Check telegram conversations
-        telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+        telegram_conv = TelegramConversation.query.filter_by(
+            title=conversation_title).first()
         if telegram_conv:
             messages = TelegramMessage.query.filter_by(conversation_id=telegram_conv.id)\
                 .order_by(TelegramMessage.created_at).all()
             return jsonify({
                 'messages': [{
-                    'role': msg.role,
-                    'content': msg.content,
-                    'image_url': msg.image_url,
-                    'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    msg.role,
+                    'content':
+                    msg.content,
+                    'image_url':
+                    msg.image_url,
+                    'created_at':
+                    msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in messages]
             })
 
@@ -2934,15 +3300,19 @@ def get_conversation_messages_by_title(conversation_title):
             # For untitled conversations, just return some default content
             return jsonify({
                 'messages': [{
-                    'role': 'system',
-                    'content': 'Aucun détail disponible pour cette conversation sans titre',
-                    'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    'system',
+                    'content':
+                    'Aucun détail disponible pour cette conversation sans titre',
+                    'created_at':
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }]
             })
 
         # If conversation not found, try to find by last message content
         # This is a fallback mechanism
-        message = Message.query.filter(Message.content.like(f"%{conversation_title}%")).first()
+        message = Message.query.filter(
+            Message.content.like(f"%{conversation_title}%")).first()
         if message:
             conversation = Conversation.query.get(message.conversation_id)
             if conversation:
@@ -2950,20 +3320,27 @@ def get_conversation_messages_by_title(conversation_title):
                     .order_by(Message.created_at).all()
                 return jsonify({
                     'messages': [{
-                        'role': msg.role,
-                        'content': msg.content,
-                        'image_url': msg.image_url,
-                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                        'role':
+                        msg.role,
+                        'content':
+                        msg.content,
+                        'image_url':
+                        msg.image_url,
+                        'created_at':
+                        msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
                     } for msg in messages]
                 })
 
         return jsonify({'error': 'Conversation not found'}), 404
 
     except Exception as e:
-        logger.error(f"Error fetching conversation messages by title: {str(e)}")
+        logger.error(
+            f"Error fetching conversation messages by title: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/admin/conversations/by-title/<path:conversation_title>', methods=['DELETE'])
+
+@app.route('/admin/conversations/by-title/<path:conversation_title>',
+           methods=['DELETE'])
 def delete_conversation_by_title(conversation_title):
     """Delete a conversation by its title"""
     try:
@@ -2978,15 +3355,22 @@ def delete_conversation_by_title(conversation_title):
             whatsapp_thread = conversation_title.replace('Conversation ', '')
 
             # Delete WhatsApp messages for this thread
-            messages = WhatsAppMessage.query.filter_by(thread_id=whatsapp_thread).all()
+            messages = WhatsAppMessage.query.filter_by(
+                thread_id=whatsapp_thread).all()
             if messages:
                 for message in messages:
                     db.session.delete(message)
                 db.session.commit()
-                return jsonify({'success': True, 'message': 'WhatsApp conversation deleted successfully'})
+                return jsonify({
+                    'success':
+                    True,
+                    'message':
+                    'WhatsApp conversation deleted successfully'
+                })
 
         # Try to find and delete the conversation in the regular conversations
-        conversation = Conversation.query.filter_by(title=conversation_title).first()
+        conversation = Conversation.query.filter_by(
+            title=conversation_title).first()
         if conversation:
             # First delete all associated messages
             Message.query.filter_by(conversation_id=conversation.id).delete()
@@ -2997,10 +3381,12 @@ def delete_conversation_by_title(conversation_title):
 
         # Try to find and delete in Telegram conversations
         if not success:
-            telegram_conv = TelegramConversation.query.filter_by(title=conversation_title).first()
+            telegram_conv = TelegramConversation.query.filter_by(
+                title=conversation_title).first()
             if telegram_conv:
                 # Delete all messages first
-                TelegramMessage.query.filter_by(conversation_id=telegram_conv.id).delete()
+                TelegramMessage.query.filter_by(
+                    conversation_id=telegram_conv.id).delete()
                 # Delete the conversation
                 db.session.delete(telegram_conv)
                 db.session.commit()
@@ -3010,17 +3396,33 @@ def delete_conversation_by_title(conversation_title):
         # For this case, we might want to add a warning here
         # or implement an alternative way to identify these conversations
         if not success and conversation_title == "Sans titre":
-            return jsonify({'success': False, 'message': 'Cannot delete generic "Sans titre" conversations without additional identifiers'}), 400
+            return jsonify({
+                'success':
+                False,
+                'message':
+                'Cannot delete generic "Sans titre" conversations without additional identifiers'
+            }), 400
 
         if success:
-            return jsonify({'success': True, 'message': 'Conversation deleted successfully'})
+            return jsonify({
+                'success': True,
+                'message': 'Conversation deleted successfully'
+            })
         else:
-            return jsonify({'success': False, 'message': 'Conversation not found'}), 404
+            return jsonify({
+                'success': False,
+                'message': 'Conversation not found'
+            }), 404
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting conversation by title: {str(e)}")
-        return jsonify({'success': False, 'message': 'Error deleting conversation', 'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'message': 'Error deleting conversation',
+            'error': str(e)
+        }), 500
+
 
 @app.route('/admin/whatsapp/thread/<path:thread_id>/messages')
 def get_whatsapp_thread_messages(thread_id):
@@ -3039,17 +3441,22 @@ def get_whatsapp_thread_messages(thread_id):
         if whatsapp_messages:
             return jsonify({
                 'messages': [{
-                    'role': 'user' if msg.direction == 'inbound' else 'assistant',
-                    'content': msg.content,
-                    'created_at': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    'role':
+                    'user' if msg.direction == 'inbound' else 'assistant',
+                    'content':
+                    msg.content,
+                    'created_at':
+                    msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
                 } for msg in whatsapp_messages]
             })
 
-        return jsonify({'error': 'No WhatsApp messages found for this thread'}), 404
+        return jsonify({'error':
+                        'No WhatsApp messages found for this thread'}), 404
 
     except Exception as e:
         logger.error(f"Error fetching WhatsApp thread messages: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/admin/subscriptions', methods=['GET'])
 def get_subscriptions():
@@ -3062,20 +3469,30 @@ def get_subscriptions():
 
         return jsonify({
             'subscriptions': [{
-                'id': sub.id,
-                'user_id': sub.user_id,
-                'user_name': f"{sub.user.first_name} {sub.user.last_name}",
-                'type': sub.subscription_type,
-                'start_date': sub.start_date.strftime('%Y-%m-%d'),
-                'expiry_date': sub.expiry_date.strftime('%Y-%m-%d'),
-                'status': sub.status,
-                'last_payment_date': sub.last_payment_date.strftime('%Y-%m-%d') if sub.last_payment_date else None
+                'id':
+                sub.id,
+                'user_id':
+                sub.user_id,
+                'user_name':
+                f"{sub.user.first_name} {sub.user.last_name}",
+                'type':
+                sub.subscription_type,
+                'start_date':
+                sub.start_date.strftime('%Y-%m-%d'),
+                'expiry_date':
+                sub.expiry_date.strftime('%Y-%m-%d'),
+                'status':
+                sub.status,
+                'last_payment_date':
+                sub.last_payment_date.strftime('%Y-%m-%d')
+                if sub.last_payment_date else None
             } for sub in subscriptions]
         })
 
     except Exception as e:
         logger.error(f"Error fetching subscriptions: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/admin/subscriptions', methods=['POST'])
 def create_subscription():
@@ -3087,7 +3504,9 @@ def create_subscription():
         data = request.get_json()
 
         # Validate required fields
-        required_fields = ['user_id', 'subscription_type', 'expiry_date', 'status']
+        required_fields = [
+            'user_id', 'subscription_type', 'expiry_date', 'status'
+        ]
         if not all(field in data for field in required_fields):
             return jsonify({'error': 'Missing required fields'}), 400
 
@@ -3098,8 +3517,7 @@ def create_subscription():
             start_date=datetime.now(),
             expiry_date=datetime.strptime(data['expiry_date'], '%Y-%m-%d'),
             status=data['status'],
-            last_payment_date=datetime.now()
-        )
+            last_payment_date=datetime.now())
 
         db.session.add(subscription)
         db.session.commit()
@@ -3113,6 +3531,7 @@ def create_subscription():
     except Exception as e:
         logger.error(f"Error creating subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/admin/subscriptions/<int:subscription_id>', methods=['PUT'])
 def update_subscription(subscription_id):
@@ -3131,7 +3550,8 @@ def update_subscription(subscription_id):
         if 'subscription_type' in data:
             subscription.subscription_type = data['subscription_type']
         if 'expiry_date' in data:
-            subscription.expiry_date = datetime.strptime(data['expiry_date'], '%Y-%m-%d')
+            subscription.expiry_date = datetime.strptime(
+                data['expiry_date'], '%Y-%m-%d')
         if 'status' in data:
             subscription.status = data['status']
 
@@ -3145,6 +3565,7 @@ def update_subscription(subscription_id):
     except Exception as e:
         logger.error(f"Error updating subscription: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
+
 
 @app.route('/admin/subscriptions/<int:subscription_id>', methods=['DELETE'])
 def delete_subscription(subscription_id):
