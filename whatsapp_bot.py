@@ -38,31 +38,26 @@ class WhatsAppMessage(db.Model):
 def get_or_create_thread(phone_number, force_new=False):
     """Get existing thread or create new one for a phone number"""
     try:
-        # Récupérer la configuration actuelle
         config = get_app_config()
-        current_model = config.get('CURRENT_MODEL', 'deepseek')  # Modèle par défaut sécurisé
+        current_model = config.get('CURRENT_MODEL', 'deepseek')
 
-        logger.info(f"Creating/retrieving thread for {phone_number} using model: {current_model}")
+        logger.info(f"Recherche/création de thread pour {phone_number} avec modèle: {current_model}")
 
-        # Si force_new, créer un nouveau thread en fonction du modèle actuel uniquement
+        # Cas simple: si on force un nouveau thread, on le crée et on l'utilise
         if force_new:
             thread_id = None
             if current_model == 'openai':
-                # Uniquement si le modèle actuel est OpenAI
                 thread = client.beta.threads.create()
                 thread_id = thread.id
             else:
-                # Pour les autres modèles, utiliser un UUID
                 thread_id = f"thread_{phone_number}_{int(time.time())}"
 
-            logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
+            logger.info(f"Création forcée d'un nouveau thread {thread_id} pour {phone_number}")
 
-            # Émettre un événement pour le tableau de bord si c'est un nouvel utilisateur
+            # Émettre l'événement si c'est un nouvel utilisateur
             try:
-                # Vérifier si c'est la première interaction de cet utilisateur
                 is_new_user = WhatsAppMessage.query.filter_by(from_number=phone_number).count() == 0
-                if is_new_user and force_new:
-                    # Émettre l'événement de nouvel utilisateur
+                if is_new_user:
                     from app import socketio
                     user_data = {
                         'name': f'WhatsApp User {phone_number}',
@@ -71,73 +66,55 @@ def get_or_create_thread(phone_number, force_new=False):
                         'created_at': datetime.now().strftime('%d/%m/%Y')
                     }
                     socketio.emit('new_whatsapp_user', user_data)
-                    logger.info(f"Emitted new_whatsapp_user event for {phone_number}")
             except Exception as event_error:
-                logger.error(f"Error emitting new user event: {str(event_error)}")
-                # Continuer malgré l'erreur d'émission
-
-            # Mettre à jour les messages récents
-            try:
-                recent_messages = WhatsAppMessage.query.filter(
-                    WhatsAppMessage.from_number == phone_number
-                ).order_by(WhatsAppMessage.timestamp.desc()).limit(20).all()
-
-                for msg in recent_messages:
-                    msg.thread_id = thread_id
-
-                db.session.commit()
-            except Exception as db_error:
-                logger.error(f"Failed to update thread_id in database: {str(db_error)}")
-                db.session.rollback()
+                logger.error(f"Erreur d'émission d'événement: {str(event_error)}")
 
             return thread_id
 
-        # Rechercher le thread existant
+        # Chercher le thread existant le plus récent
         message = WhatsAppMessage.query.filter(
             WhatsAppMessage.from_number == phone_number,
             WhatsAppMessage.thread_id.isnot(None)
         ).order_by(WhatsAppMessage.timestamp.desc()).first()
 
+        # Si un thread existe, l'utiliser - sauf cas particuliers
         if message and message.thread_id:
-            # Vérifier si le thread existant est compatible avec le modèle actuel
             existing_thread_id = message.thread_id
 
-            # Si le thread commence par "thread_", c'est un thread pour modèles non-OpenAI
-            is_non_openai_thread = existing_thread_id.startswith("thread_")
+            # Pour OpenAI, on vérifie que le thread existe encore
+            if current_model == 'openai' and not existing_thread_id.startswith("thread_"):
+                try:
+                    # Test si le thread OpenAI existe
+                    client.beta.threads.messages.list(thread_id=existing_thread_id, limit=1)
+                    logger.info(f"Utilisation du thread OpenAI existant {existing_thread_id}")
+                    return existing_thread_id
+                except Exception as e:
+                    logger.warning(f"Thread OpenAI {existing_thread_id} invalide: {str(e)}")
+                    # Créer un nouveau thread si celui-ci n'est plus valide
+                    thread = client.beta.threads.create()
+                    thread_id = thread.id
+                    logger.info(f"Création d'un nouveau thread OpenAI {thread_id}")
+                    return thread_id
 
-            # Si OpenAI est le modèle actuel mais le thread est non-OpenAI, créer un nouveau thread
-            if current_model == 'openai' and is_non_openai_thread:
-                thread = client.beta.threads.create()
-                thread_id = thread.id
-                logger.info(f"Switching to OpenAI, created new thread {thread_id}")
-                return thread_id
-
-            # Si un modèle non-OpenAI est actuel mais thread est OpenAI, créer un nouveau thread non-OpenAI
-            elif current_model != 'openai' and not is_non_openai_thread:
-                thread_id = f"thread_{phone_number}_{int(time.time())}"
-                logger.info(f"Switching from OpenAI to {current_model}, created new thread {thread_id}")
-                return thread_id
-
-            # Le thread est compatible avec le modèle actuel
-            logger.info(f"Using existing thread {existing_thread_id} for {phone_number}")
+            # Pour les threads non-OpenAI ou si le modèle n'est pas OpenAI, on utilise le thread existant
+            logger.info(f"Utilisation du thread existant {existing_thread_id}")
             return existing_thread_id
 
-        # Aucun thread existant, créer un nouveau selon le modèle actuel
+        # Aucun thread existant, en créer un nouveau
+        thread_id = None
         if current_model == 'openai':
             thread = client.beta.threads.create()
             thread_id = thread.id
         else:
             thread_id = f"thread_{phone_number}_{int(time.time())}"
 
-        logger.info(f"Created new thread {thread_id} for {phone_number} with model {current_model}")
+        logger.info(f"Création d'un nouveau thread {thread_id} pour {phone_number}")
         return thread_id
 
     except Exception as e:
-        logger.error(f"Error in get_or_create_thread: {str(e)}")
-
-        # En cas d'erreur, créer un thread non-OpenAI par sécurité
+        logger.error(f"Erreur dans get_or_create_thread: {str(e)}")
+        # Thread de secours en cas d'erreur
         fallback_thread_id = f"thread_{phone_number}_{int(time.time())}_fallback"
-        logger.info(f"Created fallback thread {fallback_thread_id} after error")
         return fallback_thread_id
 
 # Fonction modifiée pour également retourner les données en base64 pour Mathpix
@@ -249,23 +226,13 @@ def generate_ai_response(message_body, thread_id, sender=None):
         if current_model == 'openai':
             # Uniquement si OpenAI est explicitement configuré
             try:
-                # Vérifier que le thread est un thread OpenAI valide
-                if not thread_id.startswith("thread_"):
-                    try:
-                        # Tester si le thread existe dans OpenAI
-                        client.beta.threads.messages.list(thread_id=thread_id)
-                    except Exception:
-                        # Créer un nouveau thread si celui-ci n'existe pas
-                        thread = client.beta.threads.create()
-                        thread_id = thread.id
-                        logger.info(f"Created new OpenAI thread {thread_id} as previous was invalid")
-                else:
-                    # Si le thread commence par "thread_", il n'est pas compatible avec OpenAI
-                    thread = client.beta.threads.create()
-                    thread_id = thread.id
-                    logger.info(f"Created new OpenAI thread {thread_id} to replace non-OpenAI thread")
+                # IMPORTANT: Utiliser le thread_id fourni sans créer de nouveau thread
+                # Vérifier seulement si le thread_id est valide pour OpenAI
 
-                # Ajouter le message au thread OpenAI
+                if thread_id.startswith("thread_"):
+                    logger.warning(f"Thread {thread_id} non compatible avec OpenAI, mais utilisation forcée")
+
+                # Ajouter le message au thread OpenAI existant
                 client.beta.threads.messages.create(
                     thread_id=thread_id,
                     role="user",
@@ -482,32 +449,27 @@ def receive_webhook():
                         # Continuer même en cas d'erreur de vérification
 
                     try:
-                        # Get or create thread for this user - avec respect strict du modèle configuré
-                        max_retries = 3
+                        # Récupérer ou créer un thread pour cet utilisateur - sans forcer un nouveau thread
+                        max_retries = 3  # Définir cette variable car elle est utilisée ailleurs dans le code
                         thread_id = None
-                        for attempt in range(max_retries):
-                            try:
-                                thread_id = get_or_create_thread(sender)
-                                if thread_id:
-                                    break
-                            except Exception as thread_error:
-                                if attempt == max_retries - 1:
-                                    logger.error(f"Failed to get thread after {max_retries} attempts: {str(thread_error)}")
-                                    # Créer un thread de secours non-OpenAI
-                                    thread_id = f"thread_{sender}_{int(time.time())}_fallback"
-                                else:
-                                    logger.warning(f"Thread error (attempt {attempt+1}): {str(thread_error)}")
-                                    time.sleep(1)
-
-                        # Vérifier si c'est une nouvelle conversation 
                         try:
+                            # Utiliser le thread existant plutôt que d'en créer un nouveau
+                            thread_id = get_or_create_thread(sender, force_new=False)
+                            if not thread_id:
+                                # Uniquement en cas d'échec, créer un thread de secours
+                                logger.error(f"Impossible de récupérer un thread pour {sender}")
+                                thread_id = f"thread_{sender}_{int(time.time())}_fallback"
+                        except Exception as thread_error:
+                            logger.error(f"Erreur lors de la récupération du thread: {str(thread_error)}")
+                            thread_id = f"thread_{sender}_{int(time.time())}_fallback"
+
+                        # Vérifier si c'est une nouvelle conversation mais sans influer sur la création de thread
+                        try:
+                            # Vérifier si c'est la première fois qu'on utilise ce thread
                             is_new_conversation = not WhatsAppMessage.query.filter_by(thread_id=thread_id).first()
                             if is_new_conversation:
                                 # Émettre l'événement de nouvelle conversation
                                 from app import socketio
-                                # Obtenir un titre préliminaire pour la conversation (on ne connaît pas encore message_body)
-                                title = "Nouvelle conversation"
-
                                 conversation_data = {
                                     'id': thread_id,
                                     'title': f"Conversation WhatsApp",
@@ -517,9 +479,9 @@ def receive_webhook():
                                     'platform': 'whatsapp'
                                 }
                                 socketio.emit('new_whatsapp_conversation', conversation_data)
-                                logger.info(f"Emitted new_whatsapp_conversation event for thread {thread_id}")
+                                logger.info(f"Émission de l'événement new_whatsapp_conversation pour {thread_id}")
                         except Exception as event_error:
-                            logger.error(f"Error emitting new conversation event: {str(event_error)}")
+                            logger.error(f"Erreur lors de l'émission de l'événement: {str(event_error)}")
                             # Continuer malgré l'erreur d'émission
 
                         # Traiter différemment selon le type de message

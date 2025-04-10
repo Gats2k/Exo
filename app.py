@@ -125,7 +125,7 @@ def get_model_name():
     elif CURRENT_MODEL == 'deepseek-reasoner':
         return "deepseek-reasoner"
     elif CURRENT_MODEL == 'qwen':
-        return "qwen-max"
+        return "qwen-max-latest"
     elif CURRENT_MODEL == 'gemini':
         return "gemini-2.5-pro-exp-03-25"
     return None  # For OpenAI, model is determined by assistant
@@ -448,14 +448,16 @@ def privacy_policy():
 def chat():
     try:
         with db_retry_session() as db_session:
-            # Vérifier si le thread_id dans la session appartient à l'utilisateur actuel
-            thread_id = session.get('thread_id')
-            if thread_id and current_user.is_authenticated:
-                conversation = Conversation.query.filter_by(thread_id=thread_id).first()
-                if not conversation or conversation.user_id != current_user.id:
-                    # Ce thread_id n'appartient pas à l'utilisateur actuel, le supprimer
+            # Forcer la création d'une nouvelle conversation à chaque rechargement
+            if current_user.is_authenticated:
+                # Nettoyer l'ancien thread_id
+                if 'thread_id' in session:
                     session.pop('thread_id')
-                    logger.warning(f"Thread_id {thread_id} n'appartient pas à l'utilisateur {current_user.id}, nettoyage effectué")
+
+                # Créer un nouveau thread et conversation
+                new_conversation = get_or_create_conversation(thread_id=None)
+                session['thread_id'] = new_conversation.thread_id
+                logger.info(f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id} lors du rechargement de page")
 
             conversation_history = []
 
@@ -554,10 +556,6 @@ def chat():
                         'subject': 'Général',
                         'time': conv.created_at.strftime('%H:%M')
                     })
-
-            # Clear any existing thread_id from Flask's session
-            if 'thread_id' in session:
-                session.pop('thread_id')
 
             return render_template('chat.html', 
                                 history=[], 
