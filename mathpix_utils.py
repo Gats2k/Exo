@@ -35,22 +35,15 @@ def process_image_with_mathpix(image_data):
         if isinstance(image_data, str) and "base64," in image_data:
             image_data = image_data.split("base64,")[1]
 
-        # Configuration plus complète pour capturer tous les formats disponibles
+        # Configuration simplifiée mais efficace pour la détection mathématique
         payload = {
             "src": f"data:image/jpeg;base64,{image_data}",
-            "formats": ["text", "data", "html", "latex_styled"],
+            "formats": ["text", "data", "html"],
             "data_options": {
                 "include_asciimath": True,
-                "include_latex": True,
-                "include_mathml": True,
-                "include_svg": True,
-                "include_table_html": True,
-                "include_tsv": True
+                "include_latex": True
             },
-            "include_line_data": True,
-            "include_word_data": True,
-            "include_geometry_data": True,
-            "include_detected_alphabets": True
+            "include_geometry_data": True
         }
 
         # Send request to Mathpix
@@ -60,21 +53,9 @@ def process_image_with_mathpix(image_data):
 
         result = response.json()
 
-        # Log full response size and structure
-        logger.debug(f"Complete Mathpix API response size: {len(str(result))} characters")
-
-        # Preserve the entire original response
-        raw_response = result
-
-        # Structure the response but preserve more data
+        # Structure the response
         structured_result = {
             "text": result.get("text", ""),
-            "html": result.get("html", ""),
-            "latex_styled": result.get("latex_styled", ""),
-            "data": result.get("data", []),
-            "line_data": result.get("line_data", []),
-            "word_data": result.get("word_data", []),
-            "raw_response": raw_response,
             "has_math": False,
             "has_table": False,
             "has_chemistry": False,
@@ -128,10 +109,6 @@ def format_mathpix_result_for_assistant(result):
     """
     summary = []
 
-    # Log original sizes for debugging
-    original_text_length = len(result.get("text", ""))
-    logger.debug(f"Original text length: {original_text_length} characters")
-
     # Add header based on content
     content_types = []
     if result["has_math"]: content_types.append("mathematical formulas")
@@ -142,30 +119,10 @@ def format_mathpix_result_for_assistant(result):
     if content_types:
         summary.append(f"Image contains {', '.join(content_types)}.")
 
-    # Add main text - conserve intact
+    # Add main text
     if result.get("text"):
         summary.append("\nExtracted content:")
         summary.append(result["text"])
-
-    # Include detailed mathematical notations if available
-    if result["has_math"] and "math_details" in result["details"]:
-        summary.append("\nMathematical notations details:")
-        for math_item in result["details"]["math_details"]:
-            math_type = math_item.get("type", "unknown")
-            math_value = math_item.get("value", "")
-            if math_value:
-                summary.append(f"\n- {math_type} representation:")
-                summary.append(f"{math_value}")
-
-    # Add detailed table data if available
-    if result["has_table"] and "table_details" in result["details"]:
-        summary.append("\nTable details:")
-        for table_item in result["details"]["table_details"]:
-            table_type = table_item.get("type", "unknown")
-            table_value = table_item.get("value", "")
-            if table_value:
-                summary.append(f"\n- {table_type} table data:")
-                summary.append(f"{table_value}")
 
     # Add geometry details if present
     if result["has_geometry"] and "geometry_details" in result["details"]:
@@ -178,16 +135,11 @@ def format_mathpix_result_for_assistant(result):
         for formula in result["details"]["chemistry_details"]:
             summary.append(f"- {formula}")
 
-    formatted_result = "\n".join(summary)
-    logger.debug(f"Formatted result length: {len(formatted_result)} characters")
+    # Mention tables specifically
+    if result["has_table"]:
+        summary.append("\nA table was detected in the image. The data is included in the text above.")
 
-    # Log difference for debugging
-    if original_text_length > len(formatted_result):
-        logger.debug(f"Content reduction: {original_text_length - len(formatted_result)} characters lost")
-    else:
-        logger.debug(f"Content expansion: {len(formatted_result) - original_text_length} characters added")
-
-    return formatted_result
+    return "\n".join(summary)
 
 def process_geometry_data(geometry_data):
     """
