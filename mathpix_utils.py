@@ -40,6 +40,7 @@ def process_image_with_mathpix(image_data):
             "src": f"data:image/jpeg;base64,{image_data}",
             "formats": ["text", "data", "html"],
             "data_options": {
+                "enable_tables_fallback": True,
                 "include_asciimath": True,
                 "include_latex": True
             },
