@@ -536,8 +536,16 @@ def receive_webhook():
                                     message_for_assistant += f"{caption}\n\n"
 
                                 # Ajouter les résultats d'extraction Mathpix s'ils existent
-                                if formatted_summary:
-                                    message_for_assistant += formatted_summary
+                                if "error" not in mathpix_result and mathpix_result:
+                                    # Get the raw text content from Mathpix
+                                    raw_text = mathpix_result.get("text", "")
+                                    
+                                    # Build a complete message with both formatted summary and raw text
+                                    message_for_assistant += f"[Extracted Image Content]\n{formatted_summary}\n\n"
+                                    
+                                    # Add the full raw text if it's different from the formatted summary
+                                    if raw_text and raw_text.strip() != formatted_summary.strip():
+                                        message_for_assistant += f"[Complete Raw Extraction]\n{raw_text}"
                                 else:
                                     # Message par défaut si pas d'extraction et pas de légende
                                     if not caption:
