@@ -918,11 +918,16 @@ def handle_message(data):
                     if "error" in mathpix_result:
                         logger.error(f"Mathpix error: {mathpix_result['error']}")
                         formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                        formatted_full_data = formatted_summary
                     else:
+                        # Get both the summary for UI and full data for the AI
                         formatted_summary = mathpix_result.get("formatted_summary", "")
-                        logger.debug(f"Contenu formaté extrait: {len(formatted_summary)} caractères")
-
-                    # Build user message with image extraction
+                        formatted_full_data = mathpix_result.get("formatted_full_data", "")
+                    
+                    logger.debug(f"Contenu formaté extrait (UI): {len(formatted_summary)} caractères")
+                    logger.debug(f"Contenu complet extrait (AI): {len(formatted_full_data)} caractères")
+                    
+                    # Build user message with image extraction for UI display
                     user_content = data.get('message', '')
                     if formatted_summary:
                         user_store_content = f"{user_content}\n\n[Extracted Image Content]\n{formatted_summary}" if user_content else f"[Extracted Image Content]\n{formatted_summary}"
@@ -939,9 +944,10 @@ def handle_message(data):
                     db.session.add(user_message)
                     db.session.commit()  # Commit pour obtenir l'ID du message
 
-                    # Prepare message text for assistant
+                    # Prepare message text for assistant with FULL extracted data
                     message_for_assistant = data.get('message', '') + "\n\n" if data.get('message') else ""
-                    message_for_assistant += formatted_summary if formatted_summary else "Please analyze the image I uploaded."
+                    # Use the full extracted data for the AI
+                    message_for_assistant += formatted_full_data if formatted_full_data else "Please analyze the image I uploaded."
 
                     # Créer un message vide pour l'assistant, à remplir plus tard
                     db_message = Message(

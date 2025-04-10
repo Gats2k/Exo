@@ -518,12 +518,21 @@ def receive_webhook():
                                 # Traiter l'image avec Mathpix - avec gestion plus robuste d'erreurs
                                 mathpix_result = None
                                 formatted_summary = None
+                                formatted_full_data = None
 
                                 if base64_data:
                                     try:
                                         mathpix_result = process_image_with_mathpix(base64_data)
                                         if "error" not in mathpix_result:
+                                            # Get both versions: summary for UI, full data for AI
                                             formatted_summary = mathpix_result.get("formatted_summary", "")
+                                            formatted_full_data = mathpix_result.get("formatted_full_data", "")
+                                            logger.debug(f"Contenu formaté extrait (UI): {len(formatted_summary)} caractères")
+                                            logger.debug(f"Contenu complet extrait (AI): {len(formatted_full_data)} caractères")
+                                        else:
+                                            logger.error(f"Mathpix error: {mathpix_result.get('error')}")
+                                            formatted_summary = "Image content extraction failed. I will analyze the image visually."
+                                            formatted_full_data = formatted_summary
                                     except Exception as mathpix_error:
                                         logger.error(f"Mathpix processing error: {str(mathpix_error)}")
                                         # Continuer sans extraction plutôt que d'échouer complètement
@@ -535,9 +544,9 @@ def receive_webhook():
                                 if caption:
                                     message_for_assistant += f"{caption}\n\n"
 
-                                # Ajouter les résultats d'extraction Mathpix s'ils existent
-                                if formatted_summary:
-                                    message_for_assistant += formatted_summary
+                                # Ajouter les résultats COMPLETS d'extraction Mathpix pour l'AI
+                                if formatted_full_data:
+                                    message_for_assistant += formatted_full_data
                                 else:
                                     # Message par défaut si pas d'extraction et pas de légende
                                     if not caption:

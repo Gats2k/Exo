@@ -93,10 +93,9 @@ def process_image_with_mathpix(image_data):
                 structured_result["has_chemistry"] = True
                 structured_result["details"]["chemistry_details"] = smiles_matches
 
-        # Format summary for assistant
-        formatted_summary = format_mathpix_result_for_assistant(structured_result)
-        structured_result["formatted_summary"] = formatted_summary
-
+        # Format summary for assistant (now also sets the formatted_summary and formatted_full_data fields)
+        format_mathpix_result_for_assistant(structured_result)
+        
         return structured_result
 
     except Exception as e:
@@ -108,6 +107,7 @@ def format_mathpix_result_for_assistant(result):
     Format Mathpix results into a well-structured text summary for the assistant
     """
     summary = []
+    full_data = []
 
     # Add header based on content
     content_types = []
@@ -118,28 +118,61 @@ def format_mathpix_result_for_assistant(result):
 
     if content_types:
         summary.append(f"Image contains {', '.join(content_types)}.")
+        full_data.append(f"Image contains {', '.join(content_types)}.")
 
     # Add main text
     if result.get("text"):
         summary.append("\nExtracted content:")
         summary.append(result["text"])
+        
+        full_data.append("\nExtracted content:")
+        full_data.append(result["text"])
+
+    # Add math details
+    if result["has_math"] and "math_details" in result["details"]:
+        full_data.append("\nMathematical formulas details:")
+        for math_item in result["details"]["math_details"]:
+            math_type = math_item.get("type", "unknown")
+            math_value = math_item.get("value", "")
+            if math_value:
+                full_data.append(f"- {math_type}: {math_value}")
+
+    # Add all table details
+    if result["has_table"] and "table_details" in result["details"]:
+        full_data.append("\nTable details:")
+        for table_item in result["details"]["table_details"]:
+            table_type = table_item.get("type", "unknown")
+            table_value = table_item.get("value", "")
+            if table_value:
+                full_data.append(f"- {table_type}:")
+                full_data.append(table_value)
 
     # Add geometry details if present
     if result["has_geometry"] and "geometry_details" in result["details"]:
         summary.append("\nGeometric figure details:")
         summary.append(result["details"]["geometry_details"])
+        
+        full_data.append("\nGeometric figure details:")
+        full_data.append(result["details"]["geometry_details"])
 
     # Add chemical formulas
     if result["has_chemistry"] and "chemistry_details" in result["details"]:
         summary.append("\nDetected chemical formulas (SMILES):")
+        full_data.append("\nDetected chemical formulas (SMILES):")
+        
         for formula in result["details"]["chemistry_details"]:
             summary.append(f"- {formula}")
+            full_data.append(f"- {formula}")
 
-    # Mention tables specifically
+    # Mention tables specifically in the summary
     if result["has_table"]:
         summary.append("\nA table was detected in the image. The data is included in the text above.")
-
-    return "\n".join(summary)
+    
+    # Store both versions
+    result["formatted_summary"] = "\n".join(summary)  # For UI display
+    result["formatted_full_data"] = "\n".join(full_data)  # Complete data for AI
+    
+    return result["formatted_summary"]
 
 def process_geometry_data(geometry_data):
     """
