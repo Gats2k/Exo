@@ -524,32 +524,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "error" in mathpix_result:
                 logger.error(f"Mathpix error: {mathpix_result['error']}")
                 formatted_summary = "Image content extraction failed. I will analyze the image visually."
-                formatted_full_data = formatted_summary
             else:
-                # Get both summary (for UI display) and full data (for AI)
                 formatted_summary = mathpix_result.get("formatted_summary", "")
-                formatted_full_data = mathpix_result.get("formatted_full_data", "")
                 logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
-                logger.debug(f"Contenu formaté extrait (UI): {len(formatted_summary)} caractères")
-                logger.debug(f"Contenu complet extrait (AI): {len(formatted_full_data)} caractères")
 
             # Récupération de la légende si présente
             caption = update.message.caption or ""
 
-            # User-facing content uses simplified summary
-            user_store_content = caption + "\n\n" if caption else ""
-            user_store_content += f"[Extracted Image Content]\n{formatted_summary}" if formatted_summary else ""
-
-            # Construction du message pour l'assistant (with FULL data)
+            # Construction du message pour l'assistant
             message_for_assistant = ""
 
             # Ajout du message de l'utilisateur s'il existe
             if caption:
                 message_for_assistant += f"{caption}\n\n"
 
-            # Ajout des résultats complets d'extraction Mathpix pour l'AI
-            if formatted_full_data:
-                message_for_assistant += formatted_full_data
+            # Ajout des résultats d'extraction Mathpix
+            if formatted_summary:
+                message_for_assistant += formatted_summary
             else:
                 # Message par défaut si pas d'extraction et pas de message utilisateur
                 if not caption:
