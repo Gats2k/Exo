@@ -1635,61 +1635,41 @@ def handle_message(data):
                     else:
                         logger.error("Variable db_message non trouvée lors de la sauvegarde finale.")
 
-                    # Generate and set conversation title if this is the first message
+                    # Toujours générer un titre pour toute nouvelle conversation ou message dans une conversation sans titre
                     if conversation.title == "Nouvelle conversation" or not conversation.title:
-                        logger.info(
-                            f"Création du titre pour une nouvelle conversation - image présente: {'image' in data}"
-                        )
+                        logger.info(f"Génération du titre pour la conversation {conversation.id} basée sur le message")
 
-                        # Définir le titre en priorité pour les images, indépendamment du mode de traitement
+                        # Définir le titre en priorité pour les images
                         if 'image' in data and data['image']:
                             title = "Analyse d'image"
-                            logger.info(
-                                "Image détectée, titre défini prioritairement à: 'Analyse d'image'"
-                            )
+                            logger.info(f"Image détectée, titre défini à: 'Analyse d'image'")
                         else:
                             # Sinon utiliser le texte du message
                             message_text = data.get('message', '').strip()
                             if message_text:
-                                title = message_text[:30] + "..." if len(message_text) > 30 else message_text
-                                logger.info(
-                                    f"Titre basé sur le texte du message: '{title}'"
-                                )
+                                # Limiter à 30 caractères et ajouter "..." si nécessaire
+                                title = message_text[:30] + ("..." if len(message_text) > 30 else "")
+                                logger.info(f"Titre généré depuis le texte du message: '{title}'")
                             else:
-                                # Si pas de texte, titre par défaut
-                                title = "Nouvelle Conversation"
-                                logger.info(
-                                    "Aucun contenu détecté, titre par défaut utilisé"
-                                )
+                                # Si pas de texte, utiliser la date formatée
+                                title = f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}"
+                                logger.info(f"Aucun contenu détecté, titre par défaut: '{title}'")
 
-                        logger.info(
-                            f"Titre final défini pour la conversation {conversation.id}: '{title}'"
-                        )
+                        # Mettre à jour le titre dans la base de données
                         conversation.title = title
                         db.session.commit()
+                        logger.info(f"Titre mis à jour en base de données: '{title}'")
 
-                        # Toujours émettre l'événement pour mettre à jour l'interface utilisateur
-                        # Utiliser broadcast=True pour assurer que tous les clients sont notifiés
-                        logger.info(
-                            f"Émission de l'événement new_conversation pour la conversation {conversation.id} avec titre: {title}"
-                        )
-                        emit('new_conversation', {
-                            'id': conversation.id,
-                            'title': title,
-                            'subject': 'Général',
-                            'time': conversation.created_at.strftime('%H:%M'),
-                            'is_image': 'image' in data and data['image']
-                        },
-                             broadcast=True)
-                    else:
-                        # Si la conversation a déjà un titre, émettre quand même l'événement pour mettre à jour l'interface
-                        emit('new_conversation', {
-                            'id': conversation.id,
-                            'title': conversation.title,
-                            'subject': 'Général',
-                            'time': conversation.created_at.strftime('%H:%M')
-                        },
-                             broadcast=True)
+                    # Émettre TOUJOURS l'événement new_conversation pour garantir la mise à jour de l'interface
+                    # même pour les conversations existantes, afin de s'assurer que l'interface est synchronisée
+                    emit('new_conversation', {
+                        'id': conversation.id,
+                        'title': conversation.title,
+                        'subject': 'Général',
+                        'time': conversation.created_at.strftime('%H:%M'),
+                        'is_image': 'image' in data and data['image']
+                    }, broadcast=True)
+                    logger.info(f"Événement new_conversation émis pour la conversation {conversation.id} avec titre: '{conversation.title}'")
 
     except Exception as e:
         logger.error(f"Error in handle_message: {str(e)}", exc_info=True)
@@ -1930,7 +1910,7 @@ def handle_clear_session():
         # Créer explicitement une nouvelle conversation avec un nouveau thread
         if current_user.is_authenticated:
             # Créer un nouveau thread avec OpenAI ou un UUID selon le modèle actuel
-            new_conversation = get_or_create_conversation(thread_id=None)
+            new_conversation = get_or_create_conversation(thread_id=None) # Force la création
 
             # Définir le nouveau thread_id dans la session
             session['thread_id'] = new_conversation.thread_id
@@ -1939,11 +1919,28 @@ def handle_clear_session():
                 f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id}"
             )
 
+            # Définir un titre par défaut pour la nouvelle conversation
+            new_conversation.title = "Nouvelle conversation"
+            db.session.commit()
+
             # Informer le client que la session a été effacée et une nouvelle conversation a été créée
             emit('session_cleared', {
                 'success': True,
-                'new_thread_id': new_conversation.thread_id
+                'new_thread_id': new_conversation.thread_id,
+                'conversation_id': new_conversation.id, # Important: ajouter l'ID de la conversation
+                'title': "Nouvelle conversation",
+                'created_at': new_conversation.created_at.strftime('%d/%m/%Y %H:%M')
             })
+
+            # Émettre également un événement new_conversation pour s'assurer que la sidebar est mise à jour
+            emit('new_conversation', {
+                'id': new_conversation.id,
+                'title': "Nouvelle conversation",
+                'subject': 'Général',
+                'time': new_conversation.created_at.strftime('%H:%M')
+            }, broadcast=False) # broadcast=False car c'est uniquement pour l'utilisateur actuel
+
+            logger.info(f"Événements session_cleared et new_conversation envoyés avec succès")
         else:
             # Si l'utilisateur n'est pas authentifié, on se contente d'effacer la session
             emit('session_cleared', {'success': True})
