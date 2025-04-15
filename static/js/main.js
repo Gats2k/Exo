@@ -969,13 +969,14 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('thread_id', data.id);
         }
 
-        // Vérifier si cette conversation existe déjà dans l'historique
-        const selectorExistingItem = `.history-item[onclick*="${data.id}"]`;
-        // --- DEBUT DEBUG ---
-        console.log(`[DEBUG] Recherche existingItem avec sélecteur: "${selectorExistingItem}"`);
-        // --- FIN DEBUG ---
-        const existingItem = document.querySelector(selectorExistingItem);
-
+        // Amélioration: utiliser une expression régulière plus robuste pour trouver l'élément de conversation
+        const items = Array.from(document.querySelectorAll('.history-item'));
+        const existingItem = items.find(item => {
+            const onclickAttr = item.getAttribute('onclick') || '';
+            // Recherche le pattern exact openConversation('ID_EXACT',...) pour éviter les correspondances partielles
+            return onclickAttr.includes(`openConversation('${data.id}',`);
+        });
+        
         // --- DEBUT DEBUG ---
         if (existingItem) {
             console.log('[DEBUG] existingItem TROUVÉ.', existingItem);
@@ -1002,10 +1003,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (titleDiv) {
                 const currentTitle = titleDiv.textContent;
-                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
+                // Toujours mettre à jour le titre si c'est une conversation par défaut ou si le titre est différent
+                const shouldUpdate = currentTitle.startsWith("Conversation du") || 
+                                    currentTitle === "Nouvelle conversation" || 
+                                    data.title !== currentTitle;
 
                 // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
+                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, isDefaultTitle=${currentTitle === "Nouvelle conversation"}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
                 // --- FIN DEBUG ---
 
                 if (shouldUpdate) {
