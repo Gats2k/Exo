@@ -946,128 +946,134 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Gestionnaire d'événement amélioré pour new_conversation (AVEC LOGS DE DEBUG)
     socket.on('new_conversation', function(data) {
-        console.log('[INFO] New conversation event received:', JSON.stringify(data));
+        // --- DEBUT DEBUG ---
+        console.log('[DEBUG] Event "new_conversation" RECU. Données:', JSON.stringify(data));
+        // --- FIN DEBUG ---
 
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
 
-        // Always update the header title
+        // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
+
+        // Update the header title with the new conversation title
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
+        // --- FIN DEBUG ---
         titleElement.textContent = data.title;
 
-        // Ensure we have a valid ID - prefer thread_id over id for stability
-        const conversationId = data.thread_id || data.id;
-        
-        // Always save thread_id in localStorage for restoration
-        if (conversationId) {
-            localStorage.setItem('thread_id', conversationId);
-            console.log('[INFO] Saved conversation ID to localStorage:', conversationId);
+        // Sauvegarder thread_id dans le stockage local
+        if (data.id) {
+            // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.id}"`);
+            // --- FIN DEBUG ---
+            localStorage.setItem('thread_id', data.id);
         }
 
-        // Find existing conversation in sidebar more reliably by ID
-        let existingItem = null;
-        
-        // First check by title element ID
-        existingItem = document.getElementById(`title-${conversationId}`);
-        if (existingItem) {
-            existingItem = existingItem.closest('.history-item');
-            console.log('[INFO] Found conversation by title element ID');
-        } 
-        
-        // Then try by data attribute
-        if (!existingItem) {
-            const historyItems = document.querySelectorAll('.history-item[data-conversation-id]');
-            for (const item of historyItems) {
-                if (item.dataset.conversationId === conversationId) {
-                    existingItem = item;
-                    console.log('[INFO] Found conversation by data attribute');
-                    break;
-                }
-            }
-        }
-        
-        // Finally try by onclick attribute as fallback
-        if (!existingItem) {
-            const historyItems = document.querySelectorAll('.history-item');
-            for (const item of historyItems) {
-                const onclickAttr = item.getAttribute('onclick') || '';
-                if (onclickAttr.includes(`'${conversationId}'`) || onclickAttr.includes(`"${conversationId}"`)) {
-                    existingItem = item;
-                    console.log('[INFO] Found conversation by onclick attribute');
-                    break;
-                }
-            }
-        }
+        // Vérifier si cette conversation existe déjà dans l'historique
+        const selectorExistingItem = `.history-item[onclick*="${data.id}"]`;
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Recherche existingItem avec sélecteur: "${selectorExistingItem}"`);
+        // --- FIN DEBUG ---
+        const existingItem = document.querySelector(selectorExistingItem);
 
-        // Update if found, otherwise create new item
+        // --- DEBUT DEBUG ---
         if (existingItem) {
-            console.log('[INFO] Updating existing conversation in sidebar:', conversationId);
-            
-            // Update the data attribute for future lookups
-            existingItem.setAttribute('data-conversation-id', conversationId);
-            
-            // Find the title div reliably
-            const titleDiv = existingItem.querySelector(`#title-${conversationId}`) || 
-                            existingItem.querySelector('.history-title');
-            
-            if (titleDiv) {
-                // Always update the title to ensure sync
-                titleDiv.textContent = data.title;
-                console.log('[INFO] Updated title to:', data.title);
-                
-                // Also update the input element if it exists (for edit mode)
-                const titleInput = existingItem.querySelector('.title-input');
-                if (titleInput) {
-                    titleInput.value = data.title;
-                }
-            }
+            console.log('[DEBUG] existingItem TROUVÉ.', existingItem);
         } else {
-            console.log('[INFO] Creating new conversation in sidebar:', conversationId);
-            
-            // Create new history item
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.setAttribute('data-conversation-id', conversationId);
-            
-            const isTelegram = data.is_telegram || false;
-            const isWhatsApp = data.is_whatsapp || false;
-            historyItem.setAttribute('onclick', `openConversation('${conversationId}', event, ${isTelegram}, ${isWhatsApp})`);
-
-            historyItem.innerHTML = `
-                <div class="history-content">
-                    <div class="history-title" id="title-${conversationId}">${data.title}</div>
-                    <div class="history-title-edit" id="edit-${conversationId}" style="display: none;">
-                        <input type="text" class="title-input" value="${data.title}"
-                               onkeydown="handleTitleKeydown(event, '${conversationId}')"
-                               onclick="event.stopPropagation()">
-                    </div>
-                    <div class="history-subject">${data.subject}</div>
-                </div>
-                <div class="history-actions">
-                    <div class="time">${data.time}</div>
-                    <div class="dropdown">
-                        <button class="btn-icon" onclick="toggleDropdown('${conversationId}', event)">
-                            <i class="bi bi-three-dots-vertical"></i>
-                        </button>
-                        <div id="dropdown-${conversationId}" class="dropdown-menu">
-                            <a href="#" onclick="startRename('${conversationId}', event)">
-                                <i class="bi bi-pencil"></i> Renommer
-                            </a>
-                            <a href="#" onclick="deleteConversation('${conversationId}', event)">
-                                <i class="bi bi-trash"></i> Supprimer
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Always insert at the beginning of the history for newest conversations
-            const firstHistoryItem = recentHistory.querySelector('.history-item');
-            if (firstHistoryItem) {
-                recentHistory.insertBefore(historyItem, firstHistoryItem);
-            } else {
-                recentHistory.appendChild(historyItem);
-            }
+            console.warn('[DEBUG] existingItem NON TROUVÉ. Passage à la création.');
         }
+        // --- FIN DEBUG ---
+
+        if (existingItem) {
+            // Mettre à jour le titre si l'élément existe déjà
+            const selectorTitleDiv = `#title-${data.id}`;
+             // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Recherche titleDiv dans existingItem avec sélecteur: "${selectorTitleDiv}"`);
+            // --- FIN DEBUG ---
+            const titleDiv = existingItem.querySelector(selectorTitleDiv);
+
+            // --- DEBUT DEBUG ---
+            if (titleDiv) {
+                console.log('[DEBUG] titleDiv TROUVÉ.', titleDiv);
+            } else {
+                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem ! Impossible de mettre à jour.');
+            }
+            // --- FIN DEBUG ---
+
+            if (titleDiv) {
+                const currentTitle = titleDiv.textContent;
+                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
+
+                // --- DEBUT DEBUG ---
+                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
+                // --- FIN DEBUG ---
+
+                if (shouldUpdate) {
+                     // --- DEBUT DEBUG ---
+                    console.log(`[DEBUG] ===> MISE À JOUR du textContent de titleDiv avec: "${data.title}"`);
+                    // --- FIN DEBUG ---
+                    titleDiv.textContent = data.title;
+                    // console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`); // Log original
+                } else {
+                     // --- DEBUT DEBUG ---
+                    console.log('[DEBUG] Condition de MAJ non remplie, titre non modifié.');
+                     // --- FIN DEBUG ---
+                }
+            }
+            // --- DEBUT DEBUG ---
+            console.log('[DEBUG] Fin du traitement pour existingItem. Return.');
+            // --- FIN DEBUG ---
+            return; // Ne pas créer de nouvel élément
+        }
+
+        // --- DEBUT DEBUG ---
+        console.log('[DEBUG] Création d\'un nouvel historyItem.');
+        // --- FIN DEBUG ---
+        // Create new history item (si existingItem n'est pas trouvé)
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item';
+        const isTelegram = data.is_telegram || false;
+        const isWhatsApp = data.is_whatsapp || false;
+        historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
+
+
+        historyItem.innerHTML = `
+            <div class="history-content">
+                <div class="history-title" id="title-${data.id}">${data.title}</div>
+                <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
+                    <input type="text" class="title-input" value="${data.title}"
+                           onkeydown="handleTitleKeydown(event, '${data.id}')"
+                           onclick="event.stopPropagation()">
+                </div>
+                <div class="history-subject">${data.subject}</div>
+            </div>
+            <div class="history-actions">
+                <div class="time">${data.time}</div>
+                <div class="dropdown">
+                    <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <div id="dropdown-${data.id}" class="dropdown-menu">
+                        <a href="#" onclick="startRename('${data.id}', event)">
+                            <i class="bi bi-pencil"></i> Renommer
+                        </a>
+                        <a href="#" onclick="deleteConversation('${data.id}', event)">
+                            <i class="bi bi-trash"></i> Supprimer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert at the beginning of the history
+        const firstHistoryItem = recentHistory.querySelector('.history-item');
+        if (firstHistoryItem) {
+            recentHistory.insertBefore(historyItem, firstHistoryItem);
+        } else {
+            recentHistory.appendChild(historyItem);
+        }
+
+        // console.log(`Nouvelle conversation ${data.id} ajoutée à l'historique avec titre "${data.title}"`); // Log original
     });
 
 

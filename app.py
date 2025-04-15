@@ -863,7 +863,6 @@ def handle_message(data):
                 # Émettre la nouvelle conversation à tous les clients
                 emit('new_conversation', {
                     'id': telegram_conversation.id,
-                    'thread_id': telegram_conversation.thread_id,
                     'title': telegram_conversation.title,
                     'subject': 'Général',
                     'time': telegram_conversation.created_at.strftime('%H:%M'),
@@ -925,7 +924,6 @@ def handle_message(data):
                 # Note: broadcast=False pour ne l'envoyer qu'à l'utilisateur actuel
                 emit('new_conversation', {
                     'id': conversation.id,
-                    'thread_id': conversation.thread_id,
                     'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
                     'subject': 'Général',
                     'time': conversation.created_at.strftime('%H:%M')
@@ -1003,7 +1001,7 @@ def handle_message(data):
                     emit('message_started', {'message_id': db_message.id})
 
                     # Détecter et définir un titre si c'est une nouvelle conversation
-                    if conversation.title == "Nouvelle conversation" or not conversation.title or conversation.title.startswith("Conversation du"):
+                    if conversation.title == "Nouvelle conversation" or not conversation.title:
                         if 'image' in data and data['image']:
                             conversation.title = "Analyse d'image"
                             logger.info(
@@ -1011,13 +1009,9 @@ def handle_message(data):
                             )
                         else:
                             # Fallback to message text or default title
-                            message_text = data.get('message', '').strip()
-                            if message_text:
-                                conversation.title = message_text[:30] + "..." if len(message_text) > 30 else message_text
-                                logger.info(f"Titre basé sur le message: '{conversation.title}'")
-                            else:
-                                conversation.title = "Nouvelle Conversation"
-                                logger.info("Titre par défaut utilisé")
+                            conversation.title = data.get(
+                                'message', '')[:30] + "..." if data.get(
+                                    'message', '') else "Nouvelle Conversation"
 
                         # Sauvegarder le nouveau titre
                         db.session.commit()
@@ -1025,7 +1019,6 @@ def handle_message(data):
                         # Émettre l'événement pour informer tous les clients
                         emit('new_conversation', {
                             'id': conversation.id,
-                            'thread_id': conversation.thread_id,
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
@@ -1682,7 +1675,6 @@ def handle_message(data):
                         )
                         emit('new_conversation', {
                             'id': conversation.id,
-                            'thread_id': conversation.thread_id,
                             'title': title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
@@ -1693,7 +1685,6 @@ def handle_message(data):
                         # Si la conversation a déjà un titre, émettre quand même l'événement pour mettre à jour l'interface
                         emit('new_conversation', {
                             'id': conversation.id,
-                            'thread_id': conversation.thread_id,
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M')
