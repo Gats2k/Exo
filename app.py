@@ -1024,7 +1024,8 @@ def handle_message(data):
 
                         # Émettre l'événement pour informer tous les clients
                         emit('new_conversation', {
-                            'id': conversation.thread_id,  # Utiliser thread_id au lieu de id
+                            'id': conversation.id,
+                            'thread_id': conversation.thread_id,
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
@@ -1681,6 +1682,7 @@ def handle_message(data):
                         )
                         emit('new_conversation', {
                             'id': conversation.id,
+                            'thread_id': conversation.thread_id,
                             'title': title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
@@ -1691,6 +1693,7 @@ def handle_message(data):
                         # Si la conversation a déjà un titre, émettre quand même l'événement pour mettre à jour l'interface
                         emit('new_conversation', {
                             'id': conversation.id,
+                            'thread_id': conversation.thread_id,
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M')
