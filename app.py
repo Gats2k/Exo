@@ -1001,7 +1001,7 @@ def handle_message(data):
                     emit('message_started', {'message_id': db_message.id})
 
                     # Détecter et définir un titre si c'est une nouvelle conversation
-                    if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    if conversation.title == "Nouvelle conversation" or not conversation.title or conversation.title.startswith("Conversation du"):
                         if 'image' in data and data['image']:
                             conversation.title = "Analyse d'image"
                             logger.info(
@@ -1009,16 +1009,20 @@ def handle_message(data):
                             )
                         else:
                             # Fallback to message text or default title
-                            conversation.title = data.get(
-                                'message', '')[:30] + "..." if data.get(
-                                    'message', '') else "Nouvelle Conversation"
+                            message_text = data.get('message', '').strip()
+                            if message_text:
+                                conversation.title = message_text[:30] + "..." if len(message_text) > 30 else message_text
+                                logger.info(f"Titre basé sur le message: '{conversation.title}'")
+                            else:
+                                conversation.title = "Nouvelle Conversation"
+                                logger.info("Titre par défaut utilisé")
 
                         # Sauvegarder le nouveau titre
                         db.session.commit()
 
                         # Émettre l'événement pour informer tous les clients
                         emit('new_conversation', {
-                            'id': conversation.id,
+                            'id': conversation.thread_id,  # Utiliser thread_id au lieu de id
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),
