@@ -946,33 +946,83 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Gestionnaire d'événement amélioré pour new_conversation (AVEC LOGS DE DEBUG)
     socket.on('new_conversation', function(data) {
-        console.log('[TITRE] Événement new_conversation reçu:', JSON.stringify(data));
+        // --- DEBUT DEBUG ---
+        console.log('[DEBUG] Event "new_conversation" RECU. Données:', JSON.stringify(data));
+        // --- FIN DEBUG ---
 
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
 
-        // Toujours mettre à jour le titre dans l'en-tête
+        // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
+
+        // Update the header title with the new conversation title
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
+        // --- FIN DEBUG ---
         titleElement.textContent = data.title;
 
         // Sauvegarder thread_id dans le stockage local
         if (data.id) {
+            // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.id}"`);
+            // --- FIN DEBUG ---
             localStorage.setItem('thread_id', data.id);
         }
 
-        // Recherche plus précise de l'élément existant avec un attribut data-id
-        const existingItem = document.querySelector(`.history-item[data-conversation-id="${data.id}"]`);
+        // Vérifier si cette conversation existe déjà dans l'historique
+        const selectorExistingItem = `.history-item[onclick*="${data.id}"]`;
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Recherche existingItem avec sélecteur: "${selectorExistingItem}"`);
+        // --- FIN DEBUG ---
+        const existingItem = document.querySelector(selectorExistingItem);
+
+        // --- DEBUT DEBUG ---
+        if (existingItem) {
+            console.log('[DEBUG] existingItem TROUVÉ.', existingItem);
+        } else {
+            console.warn('[DEBUG] existingItem NON TROUVÉ. Passage à la création.');
+        }
+        // --- FIN DEBUG ---
 
         if (existingItem) {
-            // Sélectionner le div de titre directement
-            const titleDiv = existingItem.querySelector(`#title-${data.id}`);
+            // Mettre à jour le titre si l'élément existe déjà
+            const selectorTitleDiv = `#title-${data.id}`;
+             // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Recherche titleDiv dans existingItem avec sélecteur: "${selectorTitleDiv}"`);
+            // --- FIN DEBUG ---
+            const titleDiv = existingItem.querySelector(selectorTitleDiv);
+
+            // --- DEBUT DEBUG ---
+            if (titleDiv) {
+                console.log('[DEBUG] titleDiv TROUVÉ.', titleDiv);
+            } else {
+                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem ! Impossible de mettre à jour.');
+            }
+            // --- FIN DEBUG ---
 
             if (titleDiv) {
-                // TOUJOURS mettre à jour le titre, quelle que soit sa valeur actuelle
-                console.log(`[TITRE] Mise à jour du titre existant de "${titleDiv.textContent}" vers "${data.title}"`);
-                titleDiv.textContent = data.title;
-            } else {
-                console.error(`[TITRE] Élément titre #title-${data.id} introuvable dans l'élément existant`);
+                const currentTitle = titleDiv.textContent;
+                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
+
+                // --- DEBUT DEBUG ---
+                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
+                // --- FIN DEBUG ---
+
+                if (shouldUpdate) {
+                     // --- DEBUT DEBUG ---
+                    console.log(`[DEBUG] ===> MISE À JOUR du textContent de titleDiv avec: "${data.title}"`);
+                    // --- FIN DEBUG ---
+                    titleDiv.textContent = data.title;
+                    // console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`); // Log original
+                } else {
+                     // --- DEBUT DEBUG ---
+                    console.log('[DEBUG] Condition de MAJ non remplie, titre non modifié.');
+                     // --- FIN DEBUG ---
+                }
             }
+            // --- DEBUT DEBUG ---
+            console.log('[DEBUG] Fin du traitement pour existingItem. Return.');
+            // --- FIN DEBUG ---
             return; // Ne pas créer de nouvel élément
         }
 
@@ -984,7 +1034,6 @@ document.addEventListener('DOMContentLoaded', function() {
         historyItem.className = 'history-item';
         const isTelegram = data.is_telegram || false;
         const isWhatsApp = data.is_whatsapp || false;
-        historyItem.setAttribute('data-conversation-id', data.id);
         historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
 
 
@@ -1155,7 +1204,8 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.emit('clear_session');
         });
     }
-    
+
+    // Listen for session cleared confirmation
     socket.on('session_cleared', function(data) {
         if (data.success) {
             console.log('Session cleared successfully');
@@ -1165,91 +1215,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('New thread_id received:', data.new_thread_id);
                 // Sauvegarder le nouveau thread_id dans le localStorage
                 localStorage.setItem('thread_id', data.new_thread_id);
-
-                // Créer immédiatement une entrée dans la sidebar pour la nouvelle conversation
-                const currentDate = new Date();
-                const formattedTime = currentDate.getHours().toString().padStart(2, '0') + ':' + 
-                                     currentDate.getMinutes().toString().padStart(2, '0');
-                const formattedDate = currentDate.getDate().toString().padStart(2, '0') + '/' +
-                                     (currentDate.getMonth() + 1).toString().padStart(2, '0') + '/' +
-                                     currentDate.getFullYear();
-
-                // Créer un objet de conversation par défaut
-                const newConversation = {
-                    id: data.new_thread_id,
-                    title: "Nouvelle conversation",
-                    subject: "Général",
-                    time: formattedTime,
-                    is_telegram: false,
-                    is_whatsapp: false
-                };
-
-                // Ajouter la conversation à la sidebar
-                addConversationToSidebar(newConversation);
-
-                // Mettre à jour le titre dans l'en-tête
-                const titleElement = document.querySelector('.conversation-title');
-                if (titleElement) {
-                    titleElement.textContent = "Nouvelle conversation";
-                }
             }
         } else if (data.error) {
             console.error('Error clearing session:', data.error);
         }
     });
-
-    // Fonction utilitaire pour ajouter une conversation à la sidebar
-    function addConversationToSidebar(data) {
-        const recentHistory = document.querySelector('.recent-history');
-        if (!recentHistory) return;
-
-        // Créer l'élément de conversation
-        const historyItem = document.createElement('div');
-        historyItem.className = 'history-item';
-        historyItem.setAttribute('data-conversation-id', data.id);
-        historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${data.is_telegram || false}, ${data.is_whatsapp || false})`);
-
-        historyItem.innerHTML = `
-            <div class="history-content">
-                <div class="history-title" id="title-${data.id}">${data.title}</div>
-                <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
-                    <input type="text" class="title-input" value="${data.title}"
-                           onkeydown="handleTitleKeydown(event, '${data.id}')"
-                           onclick="event.stopPropagation()">
-                </div>
-                <div class="history-subject">${data.subject}</div>
-            </div>
-            <div class="history-actions">
-                <div class="time">${data.time}</div>
-                <div class="dropdown">
-                    <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
-                        <i class="bi bi-three-dots-vertical"></i>
-                    </button>
-                    <div id="dropdown-${data.id}" class="dropdown-menu">
-                        <a href="#" onclick="startRename('${data.id}', event)">
-                            <i class="bi bi-pencil"></i> Renommer
-                        </a>
-                        <a href="#" onclick="deleteConversation('${data.id}', event)">
-                            <i class="bi bi-trash"></i> Supprimer
-                        </a>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Insérer au début de l'historique
-        const firstHistoryItem = recentHistory.querySelector('.history-item');
-        if (firstHistoryItem) {
-            recentHistory.insertBefore(historyItem, firstHistoryItem);
-        } else {
-            recentHistory.appendChild(historyItem);
-        }
-
-        console.log(`[SIDEBAR] Nouvelle conversation ajoutée: ${data.id} - ${data.title}`);
-    }
-
-    // Rendre la fonction disponible globalement
-    window.addConversationToSidebar = addConversationToSidebar;
 
     // Listen for feedback submission confirmation
     socket.on('feedback_submitted', function(data) {

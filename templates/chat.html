@@ -41,7 +41,7 @@
         <h6 class="history-section-title">Historique récent</h6>
         <div class="recent-history">
             {% for item in conversation_history %}
-            <div class="history-item {% if item.is_telegram %}telegram-item{% endif %}{% if item.is_whatsapp %}whatsapp-item{% endif %}" data-conversation-id="{{ item.id }}" onclick="openConversation('{{ item.id }}', event, {% if item.is_telegram %}true{% else %}false{% endif %}, {% if item.is_whatsapp %}true{% else %}false{% endif %})">
+            <div class="history-item {% if item.is_telegram %}telegram-item{% endif %}{% if item.is_whatsapp %}whatsapp-item{% endif %}" onclick="openConversation('{{ item.id }}', event, {% if item.is_telegram %}true{% else %}false{% endif %}, {% if item.is_whatsapp %}true{% else %}false{% endif %})">
                 <div class="history-content">
                     <div class="history-title" id="title-{{ item.id }}">{{ item.title }}</div>
                     <div class="history-title-edit" id="edit-{{ item.id }}" style="display: none;">
