@@ -954,25 +954,45 @@ document.addEventListener('DOMContentLoaded', function() {
         // Always update the header title
         titleElement.textContent = data.title;
 
-        // Always save thread_id in localStorage
-        if (data.id) {
-            localStorage.setItem('thread_id', data.id);
+        // Ensure we have a valid ID - prefer thread_id over id for stability
+        const conversationId = data.thread_id || data.id;
+        
+        // Always save thread_id in localStorage for restoration
+        if (conversationId) {
+            localStorage.setItem('thread_id', conversationId);
+            console.log('[INFO] Saved conversation ID to localStorage:', conversationId);
         }
 
         // Find existing conversation in sidebar more reliably by ID
         let existingItem = null;
         
-        // First try to find by exact title element ID
-        existingItem = document.getElementById(`title-${data.id}`);
+        // First check by title element ID
+        existingItem = document.getElementById(`title-${conversationId}`);
         if (existingItem) {
             existingItem = existingItem.closest('.history-item');
-        } else {
-            // Fallback to searching by onclick attribute
+            console.log('[INFO] Found conversation by title element ID');
+        } 
+        
+        // Then try by data attribute
+        if (!existingItem) {
+            const historyItems = document.querySelectorAll('.history-item[data-conversation-id]');
+            for (const item of historyItems) {
+                if (item.dataset.conversationId === conversationId) {
+                    existingItem = item;
+                    console.log('[INFO] Found conversation by data attribute');
+                    break;
+                }
+            }
+        }
+        
+        // Finally try by onclick attribute as fallback
+        if (!existingItem) {
             const historyItems = document.querySelectorAll('.history-item');
             for (const item of historyItems) {
                 const onclickAttr = item.getAttribute('onclick') || '';
-                if (onclickAttr.includes(`'${data.id}'`) || onclickAttr.includes(`"${data.id}"`)) {
+                if (onclickAttr.includes(`'${conversationId}'`) || onclickAttr.includes(`"${conversationId}"`)) {
                     existingItem = item;
+                    console.log('[INFO] Found conversation by onclick attribute');
                     break;
                 }
             }
@@ -980,15 +1000,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update if found, otherwise create new item
         if (existingItem) {
-            console.log('[INFO] Updating existing conversation in sidebar:', data.id);
+            console.log('[INFO] Updating existing conversation in sidebar:', conversationId);
+            
+            // Update the data attribute for future lookups
+            existingItem.setAttribute('data-conversation-id', conversationId);
             
             // Find the title div reliably
-            const titleDiv = existingItem.querySelector(`#title-${data.id}`) || 
+            const titleDiv = existingItem.querySelector(`#title-${conversationId}`) || 
                             existingItem.querySelector('.history-title');
             
             if (titleDiv) {
                 // Always update the title to ensure sync
                 titleDiv.textContent = data.title;
+                console.log('[INFO] Updated title to:', data.title);
                 
                 // Also update the input element if it exists (for edit mode)
                 const titleInput = existingItem.querySelector('.title-input');
@@ -997,21 +1021,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } else {
-            console.log('[INFO] Creating new conversation in sidebar:', data.id);
+            console.log('[INFO] Creating new conversation in sidebar:', conversationId);
             
             // Create new history item
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
+            historyItem.setAttribute('data-conversation-id', conversationId);
+            
             const isTelegram = data.is_telegram || false;
             const isWhatsApp = data.is_whatsapp || false;
-            historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
+            historyItem.setAttribute('onclick', `openConversation('${conversationId}', event, ${isTelegram}, ${isWhatsApp})`);
 
             historyItem.innerHTML = `
                 <div class="history-content">
-                    <div class="history-title" id="title-${data.id}">${data.title}</div>
-                    <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
+                    <div class="history-title" id="title-${conversationId}">${data.title}</div>
+                    <div class="history-title-edit" id="edit-${conversationId}" style="display: none;">
                         <input type="text" class="title-input" value="${data.title}"
-                               onkeydown="handleTitleKeydown(event, '${data.id}')"
+                               onkeydown="handleTitleKeydown(event, '${conversationId}')"
                                onclick="event.stopPropagation()">
                     </div>
                     <div class="history-subject">${data.subject}</div>
@@ -1019,14 +1045,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="history-actions">
                     <div class="time">${data.time}</div>
                     <div class="dropdown">
-                        <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
+                        <button class="btn-icon" onclick="toggleDropdown('${conversationId}', event)">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
-                        <div id="dropdown-${data.id}" class="dropdown-menu">
-                            <a href="#" onclick="startRename('${data.id}', event)">
+                        <div id="dropdown-${conversationId}" class="dropdown-menu">
+                            <a href="#" onclick="startRename('${conversationId}', event)">
                                 <i class="bi bi-pencil"></i> Renommer
                             </a>
-                            <a href="#" onclick="deleteConversation('${data.id}', event)">
+                            <a href="#" onclick="deleteConversation('${conversationId}', event)">
                                 <i class="bi bi-trash"></i> Supprimer
                             </a>
                         </div>

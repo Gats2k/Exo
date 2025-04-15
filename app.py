@@ -863,6 +863,7 @@ def handle_message(data):
                 # Émettre la nouvelle conversation à tous les clients
                 emit('new_conversation', {
                     'id': telegram_conversation.id,
+                    'thread_id': telegram_conversation.thread_id,
                     'title': telegram_conversation.title,
                     'subject': 'Général',
                     'time': telegram_conversation.created_at.strftime('%H:%M'),
@@ -924,6 +925,7 @@ def handle_message(data):
                 # Note: broadcast=False pour ne l'envoyer qu'à l'utilisateur actuel
                 emit('new_conversation', {
                     'id': conversation.id,
+                    'thread_id': conversation.thread_id,
                     'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
                     'subject': 'Général',
                     'time': conversation.created_at.strftime('%H:%M')
