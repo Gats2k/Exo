@@ -46,13 +46,15 @@ def get_or_create_thread(phone_number, force_new=False):
         # Cas simple: si on force un nouveau thread, on le crée et on l'utilise
         if force_new:
             thread_id = None
+            # Créer un vrai thread OpenAI seulement si le modèle actuel est OpenAI
             if current_model == 'openai':
                 thread = client.beta.threads.create()
                 thread_id = thread.id
+                logger.info(f"Création forcée d'un nouveau thread OpenAI {thread_id} pour {phone_number}")
             else:
+                # Pour les autres modèles, utiliser un format local
                 thread_id = f"thread_{phone_number}_{int(time.time())}"
-
-            logger.info(f"Création forcée d'un nouveau thread {thread_id} pour {phone_number}")
+                logger.info(f"Création forcée d'un nouveau thread local {thread_id} pour {phone_number}")
 
             # Émettre l'événement si c'est un nouvel utilisateur
             try:
@@ -80,9 +82,27 @@ def get_or_create_thread(phone_number, force_new=False):
         # Si un thread existe, l'utiliser - sauf cas particuliers
         if message and message.thread_id:
             existing_thread_id = message.thread_id
+            is_local_thread = existing_thread_id.startswith("thread_")
 
-            # Pour OpenAI, on vérifie que le thread existe encore
-            if current_model == 'openai' and not existing_thread_id.startswith("thread_"):
+            # On ne peut pas se fier uniquement au préfixe "thread_" car les vrais threads OpenAI 
+            # commencent également par "thread_". Test: on essaie d'utiliser le thread directement
+            if current_model == 'openai':
+                try:
+                    # Tester si le thread est utilisable avec OpenAI
+                    test_response = client.beta.threads.messages.list(thread_id=existing_thread_id, limit=1)
+                    # Si on arrive jusqu'ici, le thread est valide
+                    logger.info(f"Thread OpenAI existant {existing_thread_id} vérifié avec succès")
+                    return existing_thread_id
+                except Exception as e:
+                    # Le thread n'est pas utilisable avec OpenAI, créer un nouveau thread
+                    logger.info(f"Thread {existing_thread_id} non utilisable avec OpenAI ({str(e)}), création d'un nouveau thread")
+                    thread = client.beta.threads.create()
+                    thread_id = thread.id
+                    logger.info(f"Nouveau thread OpenAI créé: {thread_id}")
+                    return thread_id
+
+            # Si on a un thread OpenAI et que le modèle est aussi OpenAI, vérifier qu'il existe toujours
+            if not is_local_thread and current_model == 'openai':
                 try:
                     # Test si le thread OpenAI existe
                     client.beta.threads.messages.list(thread_id=existing_thread_id, limit=1)
@@ -96,7 +116,7 @@ def get_or_create_thread(phone_number, force_new=False):
                     logger.info(f"Création d'un nouveau thread OpenAI {thread_id}")
                     return thread_id
 
-            # Pour les threads non-OpenAI ou si le modèle n'est pas OpenAI, on utilise le thread existant
+            # Pour tous les autres cas (thread local avec modèle non-OpenAI, etc.)
             logger.info(f"Utilisation du thread existant {existing_thread_id}")
             return existing_thread_id
 
@@ -105,10 +125,11 @@ def get_or_create_thread(phone_number, force_new=False):
         if current_model == 'openai':
             thread = client.beta.threads.create()
             thread_id = thread.id
+            logger.info(f"Création d'un nouveau thread OpenAI {thread_id}")
         else:
             thread_id = f"thread_{phone_number}_{int(time.time())}"
+            logger.info(f"Création d'un nouveau thread local {thread_id}")
 
-        logger.info(f"Création d'un nouveau thread {thread_id} pour {phone_number}")
         return thread_id
 
     except Exception as e:
@@ -181,6 +202,29 @@ def generate_ai_response(message_body, thread_id, sender=None):
 
         logger.info(f"Generating response using model: {current_model} for thread {thread_id}")
 
+        # Pour OpenAI, tester directement si le thread est utilisable
+        if current_model == 'openai':
+            try:
+                # Tester si le thread est utilisable avec OpenAI
+                test_response = client.beta.threads.messages.list(thread_id=thread_id, limit=1)
+                # Si on arrive jusqu'ici, le thread est valide
+                logger.info(f"Thread OpenAI existant {thread_id} utilisable")
+            except Exception as e:
+                # Le thread n'est pas utilisable avec OpenAI, créer un nouveau thread
+                logger.info(f"Thread {thread_id} non utilisable avec OpenAI ({str(e)}), création d'un nouveau thread")
+                try:
+                    thread = client.beta.threads.create()
+                    new_thread_id = thread.id
+                    logger.info(f"Nouveau thread OpenAI créé: {new_thread_id} en remplacement de {thread_id}")
+
+                    # On utilisera ce nouveau thread pour cette requête
+                    thread_id = new_thread_id
+                except Exception as thread_error:
+                    logger.error(f"Erreur lors de la création d'un nouveau thread OpenAI: {str(thread_error)}")
+                    # En cas d'erreur, on bascule sur un autre modèle
+                    current_model = 'deepseek'
+                    logger.info(f"Basculement vers le modèle {current_model} suite à l'erreur")
+
         # Obtenir les fonctions appropriées pour le modèle actuel
         get_ai_client = config['get_ai_client']
         get_model_name = config['get_model_name']
@@ -224,13 +268,11 @@ def generate_ai_response(message_body, thread_id, sender=None):
 
         # Traitement différent selon le modèle configuré
         if current_model == 'openai':
-            # Uniquement si OpenAI est explicitement configuré
+            # Uniquement si OpenAI est explicitement configuré et que le thread est valide
             try:
-                # IMPORTANT: Utiliser le thread_id fourni sans créer de nouveau thread
-                # Vérifier seulement si le thread_id est valide pour OpenAI
-
-                if thread_id.startswith("thread_"):
-                    logger.warning(f"Thread {thread_id} non compatible avec OpenAI, mais utilisation forcée")
+                # Vérifier que le thread n'est pas au format local
+                if thread_id.startswith("thread_") and "_" in thread_id[7:]:  # Format thread_NUMERO_TIMESTAMP
+                    raise ValueError(f"Thread {thread_id} au format local, non compatible avec OpenAI")
 
                 # Ajouter le message au thread OpenAI existant
                 client.beta.threads.messages.create(
@@ -246,7 +288,7 @@ def generate_ai_response(message_body, thread_id, sender=None):
                 )
 
                 # Attendre la réponse avec timeout
-                timeout = 25
+                timeout = 60
                 start_time = time.time()
 
                 while True:
@@ -276,6 +318,7 @@ def generate_ai_response(message_body, thread_id, sender=None):
                 # En cas d'erreur avec OpenAI, essayer de passer à un autre modèle silencieusement
                 logger.error(f"OpenAI error: {str(openai_error)}, switching to fallback model")
                 current_model = 'deepseek'  # Passer à un modèle de secours
+                logger.info(f"Basculé vers modèle de secours: {current_model}")
 
         # Pour les modèles non-OpenAI (dont le fallback en cas d'échec OpenAI)        
         if current_model == 'gemini':
@@ -291,9 +334,22 @@ def generate_ai_response(message_body, thread_id, sender=None):
             ai_client = get_ai_client()
             model = get_model_name()
 
+            # CORRECTION DU BUG - Assurer que model n'est jamais None
+            if model is None:
+                if current_model == 'deepseek':
+                    model = "deepseek-chat"
+                elif current_model == 'deepseek-reasoner':
+                    model = "deepseek-reasoner"
+                elif current_model == 'qwen':
+                    model = "qwen-max-latest"
+                else:
+                    model = "deepseek-chat"  # Fallback par défaut
+                logger.warning(f"Model name was None, using fallback value: {model}")
+
             try:
+                logger.info(f"Appel API avec modèle: {model} et {len(previous_messages)} messages")
                 completion = ai_client.chat.completions.create(
-                    model=model,
+                    model=model,  # Ce paramètre ne sera plus jamais None
                     messages=previous_messages,
                     stream=False
                 )

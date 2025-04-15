@@ -69,14 +69,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // Fonction pour vérifier et récupérer les messages dont le streaming s'est arrêté
 function checkStalledStream(messageId) {
     const streamInfo = activeStreamMessages[messageId];
-    
+
     // Si le message n'est plus en mode streaming, ne rien faire
     if (!streamInfo) {
         return;
     }
-    
+
     console.log(`Attempting to recover stalled message ${messageId}`);
-    
+
     // Récupérer le message complet depuis le serveur
     fetch(`/api/recover_message/${messageId}`)
         .then(response => response.json())
@@ -88,22 +88,22 @@ function checkStalledStream(messageId) {
                     streamInfo.content = data.content;
                     streamInfo.element.innerHTML = data.content.replace(/\n/g, '<br>');
                     console.log(`Stalled message ${messageId} recovered successfully`);
-                    
+
                     // Ajouter une classe pour indiquer que le message a été récupéré
                     streamInfo.element.closest('.message').classList.add('recovered');
                 }
             }
-            
+
             // Même si on n'a pas récupéré de contenu, considérer le streaming comme terminé
             // pour éviter que le message reste en état de chargement indéfiniment
             delete activeStreamMessages[messageId];
         })
         .catch(error => {
             console.error(`Failed to recover stalled message ${messageId}:`, error);
-            
+
             // En cas d'échec, quand même terminer le streaming pour ne pas bloquer l'interface
             delete activeStreamMessages[messageId];
-            
+
             // Ajouter une indication visuelle que le message est incomplet
             streamInfo.element.closest('.message').classList.add('incomplete');
             streamInfo.element.innerHTML += '<div class="error-notice">⚠️ Message incomplet, actualisez la page pour réessayer</div>';
@@ -184,16 +184,48 @@ window.openConversation = function(id, event, isTelegram, isWhatsApp) {
 };
 
 function setupHeartbeat() {
-    // Envoyer un ping toutes les 30 secondes pour maintenir la connexion active
+    // Envoyer un ping toutes les 15 secondes pour maintenir la connexion active
     const heartbeatInterval = setInterval(function() {
         if (socket.connected) {
             socket.emit('heartbeat');
             console.log('Heartbeat envoyé');
+
+            // Actualiser le cookie de session
+            fetch('/refresh_session', { 
+                method: 'POST',
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.warn('Échec du rafraîchissement de session, statut:', response.status);
+                    // Si le serveur répond avec une erreur, forcer une reconnexion
+                    if (response.status === 401 || response.status === 403) {
+                        console.log('Session expirée, tentative de restauration...');
+                        // Tenter de restaurer la session avec le thread_id stocké localement
+                        const storedThreadId = localStorage.getItem('thread_id');
+                        if (storedThreadId) {
+                            socket.emit('restore_session', { thread_id: storedThreadId });
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erreur lors du rafraîchissement de session:', error);
+            });
         } else {
             console.log('Socket déconnecté, tentative de reconnexion...');
             socket.connect();
+
+            // Après reconnexion, tenter de restaurer le thread actif
+            socket.once('connect', function() {
+                console.log('Reconnecté, tentative de restauration du thread...');
+                const storedThreadId = localStorage.getItem('thread_id');
+                if (storedThreadId) {
+                    socket.emit('restore_session', { thread_id: storedThreadId });
+                }
+            });
         }
-    }, 30000);
+    }, 15000);
 
     // Nettoyer l'intervalle quand l'utilisateur quitte la page
     window.addEventListener('beforeunload', function() {
@@ -210,28 +242,64 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make socket available globally for our conversation functions
     window.socket = socket;
 
+    // Ajouter après le login réussi dans le code existant
+    socket.on('login_success', function(data) {
+        // Stocker l'ID utilisateur dans le localStorage
+        if (data.user_id) {
+            localStorage.setItem('user_id', data.user_id);
+        }
+    });
+
     // Gérer la reconnexion pour préserver le contexte
     socket.on('reconnect', function() {
         console.log('Reconnecté au serveur, récupération de la conversation');
+
         // Si nous avons un thread_id dans la session stockée localement, réutilisons-le
         const storedThreadId = localStorage.getItem('thread_id');
-        if (storedThreadId) {
-            socket.emit('restore_session', { thread_id: storedThreadId });
+        const storedUserId = localStorage.getItem('user_id');
 
-            // Ajouter un timeout pour vérifier si la restauration a réussi
+        if (storedThreadId) {
+            // Essayer de restaurer la session avec des informations supplémentaires
+            socket.emit('restore_session', { 
+                thread_id: storedThreadId,
+                user_id: storedUserId
+            });
+
+            // Vérifier si la session a été restaurée correctement
             setTimeout(function() {
                 // Si après 2 secondes nous n'avons pas reçu de confirmation de restauration,
-                // vérifier si des messages ont été chargés
-                if (chatMessages.children.length === 0) {
-                    console.log('La restauration de session a échoué, création d\'une nouvelle conversation');
-                    // Supprimer le thread_id invalide
-                    localStorage.removeItem('thread_id');
-                    // Émettre un événement de nouvelle conversation
-                    socket.emit('clear_session');
+                // mais que nous avons des messages en cache, essayer d'afficher ces messages
+                if (document.querySelector('.chat-messages').children.length === 0) {
+                    const cachedMessages = localStorage.getItem('cached_messages');
+                    if (cachedMessages) {
+                        try {
+                            const messages = JSON.parse(cachedMessages);
+                            // Afficher les messages en cache pendant que nous attendons la reconnexion
+                            displayCachedMessages(messages);
+                        } catch (e) {
+                            console.error('Erreur lors de la récupération des messages en cache', e);
+                        }
+                    }
                 }
             }, 2000);
         }
     });
+
+    // Stocker les messages dans le localStorage pour les restaurer en cas de déconnexion
+    function storeMessagesInCache(messages) {
+        try {
+            localStorage.setItem('cached_messages', JSON.stringify(messages));
+        } catch (e) {
+            console.error('Erreur lors du stockage des messages en cache', e);
+        }
+    }
+
+    // Fonction pour afficher les messages en cache
+    function displayCachedMessages(messages) {
+        // Afficher les messages en cache dans l'interface
+        const chatMessages = document.querySelector('.chat-messages');
+        // ... code pour afficher les messages ...
+    }
 
     // Ajouter un écouteur pour la confirmation de restauration de session
     socket.on('conversation_opened', function(data) {
@@ -266,6 +334,60 @@ document.addEventListener('DOMContentLoaded', function() {
     let sidebarTimeout;
     let currentImage = null;
     let activeStreamMessages = {};
+    let pageVisibilityState = 'visible';
+    let lastActiveTime = Date.now();
+
+    // Surveiller la visibilité de la page
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            pageVisibilityState = 'hidden';
+            console.log('Page mise en arrière-plan');
+        } else {
+            pageVisibilityState = 'visible';
+            console.log('Page revenue au premier plan');
+
+            // Vérifier si cela fait plus de 5 minutes que la page était inactive
+            const inactiveTime = (Date.now() - lastActiveTime) / 1000 / 60;
+            if (inactiveTime > 5) {
+                console.log(`Page inactive pendant ${inactiveTime.toFixed(2)} minutes, restauration de la conversation...`);
+
+                // Tenter de restaurer la session active
+                const storedThreadId = localStorage.getItem('thread_id');
+                if (storedThreadId) {
+                    socket.emit('restore_session', { thread_id: storedThreadId });
+                }
+            }
+
+            lastActiveTime = Date.now();
+        }
+    });
+
+    // Mettre à jour le temps d'activité lors des interactions utilisateur
+    ['click', 'keydown', 'scroll', 'mousemove', 'touchstart'].forEach(eventType => {
+        document.addEventListener(eventType, function() {
+            lastActiveTime = Date.now();
+        }, { passive: true });
+    });
+
+    // Vérifier périodiquement l'état de la page et du thread
+    setInterval(function() {
+        // Si la page est visible et le socket est connecté
+        if (pageVisibilityState === 'visible' && socket.connected) {
+            // Vérifier si un thread_id est stocké localement
+            const storedThreadId = localStorage.getItem('thread_id');
+
+            // Vérifier si la session côté serveur a un thread_id actif
+            // (Cette vérification se fait lors du heartbeat)
+
+            // Si cela fait plus de 5 minutes depuis la dernière activité
+            const inactiveMinutes = (Date.now() - lastActiveTime) / 1000 / 60;
+            if (inactiveMinutes > 5 && storedThreadId) {
+                console.log(`Vérification proactive du thread après ${inactiveMinutes.toFixed(2)} minutes d'inactivité`);
+                socket.emit('restore_session', { thread_id: storedThreadId });
+                lastActiveTime = Date.now(); // Réinitialiser pour éviter des vérifications répétées
+            }
+        }
+    }, 300000); // Vérifier toutes les 5 minutes
 
     // Vérifier que tous les éléments nécessaires existent
     if (!inputContainer || !responseTime || !chatMessages || !welcomeContainer || !suggestionsContainer) {
@@ -373,25 +495,127 @@ document.addEventListener('DOMContentLoaded', function() {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Image = e.target.result;
-                currentImage = base64Image;
 
-                // Create preview
-                imagePreviewContainer.innerHTML = `
-                    <div class="image-preview">
-                        <img src="${base64Image}" alt="Preview">
-                        <button class="remove-image" onclick="removeImage()">×</button>
-                    </div>
-                `;
-                imagePreviewContainer.classList.add('visible');
+                // Ouvrir le modal de recadrage
+                openCropModal(base64Image);
             };
             reader.readAsDataURL(file);
         }
     }
 
+    let cropper;
+    let originalImage;
+
+    function openCropModal(imageSrc) {
+        originalImage = imageSrc;
+        const cropModal = document.getElementById('cropModal');
+        const cropImage = document.getElementById('cropImage');
+
+        // Définir la source de l'image
+        cropImage.src = imageSrc;
+
+        // Configurer les événements du modal avant de l'afficher
+        setupCropModalEvents();
+
+        // Afficher le modal
+        cropModal.style.display = 'flex';
+
+        // Initialiser Cropper.js après que l'image soit chargée
+        cropImage.onload = function() {
+            if (cropper) {
+                cropper.destroy();
+            }
+
+            cropper = new Cropper(cropImage, {
+                aspectRatio: NaN, // Libre
+                viewMode: 1,      // Restreint le crop à l'intérieur de la zone visible
+                dragMode: 'move', // Par défaut déplacer l'image plutôt que faire un crop
+                autoCropArea: 0.8,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: true,
+            });
+        };
+
+        console.log('Modal de recadrage ouvert et événements configurés');
+    }
+
+    function closeCropModal() {
+        const cropModal = document.getElementById('cropModal');
+        cropModal.style.display = 'none';
+
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+
+        console.log('Modal de recadrage fermé');
+    }
+
+    function applyCrop() {
+        if (!cropper) return;
+
+        const canvas = cropper.getCroppedCanvas({
+            maxWidth: 1024,
+            maxHeight: 1024,
+            fillColor: '#000'
+        });
+
+        if (canvas) {
+            // Convertir le canvas en base64
+            const croppedImage = canvas.toDataURL('image/jpeg');
+            currentImage = croppedImage;
+
+            // Créer l'aperçu
+            imagePreviewContainer.innerHTML = `
+                <div class="image-preview">
+                    <img src="${croppedImage}" alt="Preview">
+                    <button class="remove-image" onclick="removeImage()">×</button>
+                </div>
+            `;
+            imagePreviewContainer.classList.add('visible');
+
+            // Fermer le modal
+            closeCropModal();
+        }
+    }
+
+    // Configuration des événements pour le modal de recadrage - Déplacé hors de DOMContentLoaded
+    function setupCropModalEvents() {
+        const closeCropBtn = document.getElementById('closeCropBtn');
+        const cropBtn = document.getElementById('cropBtn');
+        const cancelCropBtn = document.getElementById('cancelCropBtn');
+
+        if (closeCropBtn) {
+            closeCropBtn.addEventListener('click', closeCropModal);
+            console.log('Event listener ajouté pour closeCropBtn');
+        }
+
+        if (cropBtn) {
+            cropBtn.addEventListener('click', applyCrop);
+            console.log('Event listener ajouté pour cropBtn');
+        }
+
+        if (cancelCropBtn) {
+            cancelCropBtn.addEventListener('click', closeCropModal);
+            console.log('Event listener ajouté pour cancelCropBtn');
+        }
+    }
+
+    // Rendre la fonction removeImage capable de nettoyer le cropper si nécessaire
     window.removeImage = function() {
         currentImage = null;
         imagePreviewContainer.innerHTML = '';
         imagePreviewContainer.classList.remove('visible');
+
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
     };
 
     cameraInput.addEventListener('change', function(e) {
@@ -490,6 +714,18 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Après avoir ajouté le message, mettre à jour le cache
+        const allMessages = Array.from(chatMessages.children).map(message => {
+            // Extraire les détails des messages pour le stockage
+            return {
+                role: message.classList.contains('user') ? 'user' : 'assistant',
+                content: message.querySelector('.message-content').innerHTML,
+                id: message.id.replace('message-', '')
+            };
+        });
+
+        storeMessagesInCache(allMessages);
     });
 
     // Nouvel événement pour indiquer le début d'un message streamé
@@ -624,6 +860,7 @@ document.addEventListener('DOMContentLoaded', function() {
             data.messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.role}`;
+                messageDiv.id = `message-${msg.id}`;
 
                 let content = '';
                 if (msg.image_url) {
@@ -672,103 +909,139 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Tenter de récupérer le contenu du message
                     fetch(`/api/recover_message/${messageId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success && data.content) {
-                                // Mettre à jour le contenu du message
-                                contentDiv.innerHTML = data.content.replace(/\n/g, '<br>');
-                                console.log(`Message ${messageId} récupéré avec succès`);
-                            }
-                        })
-                        .catch(error => {
-                            console.error(`Erreur lors de la récupération du message ${messageId}:`, error);
-                        });
+                    .then(response => {
+                        // Vérifier si la requête a réussi (status 2xx) ET si le contenu JSON indique un succès
+                        if (response.ok) {
+                            return response.json().then(data => {
+                                if (data.success && data.content) {
+                                    // Mettre à jour le contenu du message
+                                    contentDiv.innerHTML = data.content.replace(/\n/g, '<br>');
+                                    messageDiv.classList.remove('recovered-failed'); // Retirer l'échec si réussi
+                                    console.log(`Message ${messageId} récupéré avec succès via API.`);
+                                } else {
+                                    // Succès HTTP mais contenu non trouvé dans le JSON
+                                    console.warn(`API /recover_message a retourné success:false pour ${messageId}. Contenu non disponible.`);
+                                    contentDiv.innerHTML = '[Contenu non disponible]';
+                                    messageDiv.classList.add('recovered-failed'); // Marquer comme échec
+                                }
+                            });
+                        } else {
+                            // Gérer les erreurs HTTP (ex: 404 Not Found)
+                            console.error(`Erreur HTTP ${response.status} lors de la récupération du message ${messageId}.`);
+                            contentDiv.innerHTML = `[Erreur ${response.status}]`;
+                            messageDiv.classList.add('recovered-failed'); // Marquer comme échec
+                            // Pas besoin de rejeter ici, on gère l'erreur directement
+                        }
+                    })
+                    .catch(error => {
+                        // Gérer les erreurs réseau ou de parsing JSON
+                        console.error(`Erreur réseau ou parsing lors de la récupération du message ${messageId}:`, error);
+                        contentDiv.innerHTML = '[Erreur réseau]';
+                        messageDiv.classList.add('recovered-failed'); // Marquer comme échec
+                    });
                 }
             }
         });
     }
-    
-    // Fonction pour vérifier et récupérer les messages dont le streaming s'est arrêté
-    function checkStalledStream(messageId) {
-        const streamInfo = activeStreamMessages[messageId];
-        
-        // Si le message n'est plus en mode streaming, ne rien faire
-        if (!streamInfo) {
-            return;
-        }
-        
-        console.log(`Attempting to recover stalled message ${messageId}`);
-        
-        // Récupérer le message complet depuis le serveur
-        fetch(`/api/recover_message/${messageId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.content) {
-                    // Vérifier si le contenu récupéré est différent de ce que nous avons déjà
-                    if (data.content !== streamInfo.content) {
-                        // Mettre à jour le contenu avec la réponse complète
-                        streamInfo.content = data.content;
-                        streamInfo.element.innerHTML = data.content.replace(/\n/g, '<br>');
-                        console.log(`Stalled message ${messageId} recovered successfully`);
-                        
-                        // Ajouter une classe pour indiquer que le message a été récupéré
-                        streamInfo.element.closest('.message').classList.add('recovered');
-                    }
-                }
-                
-                // Même si on n'a pas récupéré de contenu, considérer le streaming comme terminé
-                // pour éviter que le message reste en état de chargement indéfiniment
-                delete activeStreamMessages[messageId];
-            })
-            .catch(error => {
-                console.error(`Failed to recover stalled message ${messageId}:`, error);
-                
-                // En cas d'échec, quand même terminer le streaming pour ne pas bloquer l'interface
-                delete activeStreamMessages[messageId];
-                
-                // Ajouter une indication visuelle que le message est incomplet
-                streamInfo.element.closest('.message').classList.add('incomplete');
-                streamInfo.element.innerHTML += '<div class="error-notice">⚠️ Message incomplet, actualisez la page pour réessayer</div>';
-            });
-    }
 
-    // Gestionnaire d'événement amélioré pour new_conversation
+    // Gestionnaire d'événement amélioré pour new_conversation (AVEC LOGS DE DEBUG)
     socket.on('new_conversation', function(data) {
+        // --- DEBUT DEBUG ---
+        console.log('[DEBUG] Event "new_conversation" RECU. Données:', JSON.stringify(data));
+        // --- FIN DEBUG ---
+
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
 
-        console.log("Nouvelle conversation reçue:", data);
+        // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
 
         // Update the header title with the new conversation title
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
+        // --- FIN DEBUG ---
         titleElement.textContent = data.title;
 
         // Sauvegarder thread_id dans le stockage local
         if (data.id) {
+            // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.id}"`);
+            // --- FIN DEBUG ---
             localStorage.setItem('thread_id', data.id);
         }
 
         // Vérifier si cette conversation existe déjà dans l'historique
-        const existingItem = document.querySelector(`.history-item[onclick*="${data.id}"]`);
+        const selectorExistingItem = `.history-item[onclick*="${data.id}"]`;
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Recherche existingItem avec sélecteur: "${selectorExistingItem}"`);
+        // --- FIN DEBUG ---
+        const existingItem = document.querySelector(selectorExistingItem);
+
+        // --- DEBUT DEBUG ---
+        if (existingItem) {
+            console.log('[DEBUG] existingItem TROUVÉ.', existingItem);
+        } else {
+            console.warn('[DEBUG] existingItem NON TROUVÉ. Passage à la création.');
+        }
+        // --- FIN DEBUG ---
+
         if (existingItem) {
             // Mettre à jour le titre si l'élément existe déjà
-            const titleDiv = existingItem.querySelector(`#title-${data.id}`);
+            const selectorTitleDiv = `#title-${data.id}`;
+             // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Recherche titleDiv dans existingItem avec sélecteur: "${selectorTitleDiv}"`);
+            // --- FIN DEBUG ---
+            const titleDiv = existingItem.querySelector(selectorTitleDiv);
+
+            // --- DEBUT DEBUG ---
             if (titleDiv) {
-                titleDiv.textContent = data.title;
-                console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`);
+                console.log('[DEBUG] titleDiv TROUVÉ.', titleDiv);
+            } else {
+                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem ! Impossible de mettre à jour.');
             }
+            // --- FIN DEBUG ---
+
+            if (titleDiv) {
+                const currentTitle = titleDiv.textContent;
+                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
+
+                // --- DEBUT DEBUG ---
+                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
+                // --- FIN DEBUG ---
+
+                if (shouldUpdate) {
+                     // --- DEBUT DEBUG ---
+                    console.log(`[DEBUG] ===> MISE À JOUR du textContent de titleDiv avec: "${data.title}"`);
+                    // --- FIN DEBUG ---
+                    titleDiv.textContent = data.title;
+                    // console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`); // Log original
+                } else {
+                     // --- DEBUT DEBUG ---
+                    console.log('[DEBUG] Condition de MAJ non remplie, titre non modifié.');
+                     // --- FIN DEBUG ---
+                }
+            }
+            // --- DEBUT DEBUG ---
+            console.log('[DEBUG] Fin du traitement pour existingItem. Return.');
+            // --- FIN DEBUG ---
             return; // Ne pas créer de nouvel élément
         }
 
-        // Create new history item
+        // --- DEBUT DEBUG ---
+        console.log('[DEBUG] Création d\'un nouvel historyItem.');
+        // --- FIN DEBUG ---
+        // Create new history item (si existingItem n'est pas trouvé)
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
-        historyItem.setAttribute('onclick', `openConversation('${data.id}', event${data.is_telegram ? ', true' : ''}${data.is_whatsapp ? ', false, true' : ''})`);
+        const isTelegram = data.is_telegram || false;
+        const isWhatsApp = data.is_whatsapp || false;
+        historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
+
 
         historyItem.innerHTML = `
             <div class="history-content">
                 <div class="history-title" id="title-${data.id}">${data.title}</div>
                 <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
-                    <input type="text" class="title-input" value="${data.title}" 
+                    <input type="text" class="title-input" value="${data.title}"
                            onkeydown="handleTitleKeydown(event, '${data.id}')"
                            onclick="event.stopPropagation()">
                 </div>
@@ -800,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', function() {
             recentHistory.appendChild(historyItem);
         }
 
-        console.log(`Nouvelle conversation ${data.id} ajoutée à l'historique avec titre "${data.title}"`);
+        // console.log(`Nouvelle conversation ${data.id} ajoutée à l'historique avec titre "${data.title}"`); // Log original
     });
 
 
@@ -936,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', function() {
     socket.on('session_cleared', function(data) {
         if (data.success) {
             console.log('Session cleared successfully');
-            
+
             // Si le serveur a créé un nouveau thread_id, le stocker localement
             if (data.new_thread_id) {
                 console.log('New thread_id received:', data.new_thread_id);

@@ -173,5 +173,21 @@
             Temps de réponse estimé : ~30 secondes
         </div>
     </div>
+    <div class="modal-overlay" id="cropModalOverlay"></div>
+    <div class="crop-modal" id="cropModal">
+        <div class="crop-container">
+            <div class="crop-header">
+                <h3>Recadrer l'image</h3>
+                <button class="close-crop-btn" id="closeCropBtn">&times;</button>
+            </div>
+            <div class="img-container">
+                <img id="cropImage" src="">
+            </div>
+            <div class="crop-controls">
+                <button class="crop-btn" id="cropBtn">Valider</button>
+                <button class="cancel-crop-btn" id="cancelCropBtn">Annuler</button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

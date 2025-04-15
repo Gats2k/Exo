@@ -50,8 +50,7 @@ def get_app_config():
                 'CURRENT_MODEL': config_data['CURRENT_MODEL'],
                 'get_ai_client': app.get_ai_client,
                 'get_model_name': app.get_model_name,
-                'get_system_instructions': app.get_system_instructions,
-                'call_gemini_api': app.call_gemini_api
+                'get_system_instructions': app.get_system_instructions
             }
     except Exception as e:
         logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
@@ -63,7 +62,6 @@ def get_app_config():
         'get_ai_client': app.get_ai_client,
         'get_model_name': app.get_model_name,
         'get_system_instructions': app.get_system_instructions,
-        'call_gemini_api': app.call_gemini_api
     }
 
 # Set up logging
@@ -335,7 +333,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         get_ai_client = config['get_ai_client']
         get_model_name = config['get_model_name']
         get_system_instructions = config['get_system_instructions']
-        call_gemini_api = config['call_gemini_api']
 
         logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
 
@@ -379,49 +376,44 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
             assistant_message = messages.data[0].content[0].text.value
         else:
-            # For other models (Gemini, Deepseek, Qwen), use direct API calls
+            # For other models (Gemini, Deepseek, Qwen), use direct API calls compatible OpenAI
             logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
 
-            # Get previous messages for context (limit to last 10)
-            previous_messages = []
-            with db_retry_session() as sess:
-                messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
-                for msg in reversed(messages_query):
-                    previous_messages.append({
-                        "role": msg.role,
-                        "content": msg.content
-                    })
-
-            # Add system instruction
-            system_instructions = get_system_instructions()
-            if system_instructions:
-                previous_messages.insert(0, {
-                    "role": "system",
-                    "content": system_instructions
+        # Get previous messages for context (limit to last N)
+        previous_messages = []
+        with db_retry_session() as sess:
+             # La logique de récupération de l'historique reste la même
+            messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+            for msg in reversed(messages_query):
+                 # Convertir le rôle 'assistant' en 'assistant' pour l'API Chat Completion
+                role = msg.role if msg.role == 'user' else 'assistant'
+                previous_messages.append({
+                    "role": role,
+                    "content": msg.content
                 })
 
-            # Use Gemini's special call function if Gemini is selected
-            if CURRENT_MODEL == 'gemini':
-                try:
-                    assistant_message = call_gemini_api(previous_messages)
-                except Exception as e:
-                    logger.error(f"Error calling Gemini API: {str(e)}")
-                    raise
-            else:
-                # For DeepSeek and Qwen models
-                ai_client = get_ai_client()
-                model = get_model_name()
+        # Add system instruction
+        system_instructions = get_system_instructions()
+        if system_instructions:
+            previous_messages.insert(0, {
+                "role": "system",
+                "content": system_instructions
+            })
 
-                try:
-                    # Format messages for the API call
-                    response = ai_client.chat.completions.create(
-                        model=model,
-                        messages=previous_messages
-                    )
-                    assistant_message = response.choices[0].message.content
-                except Exception as e:
-                    logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
-                    raise
+        # Logique unifiée pour Gemini, DeepSeek, Qwen
+        ai_client = get_ai_client() # Obtient le client configuré (y compris gemini_openai_client)
+        model = get_model_name()    # Obtient le nom de modèle configuré (y compris gemini-2.0-flash, etc.)
+
+        try:
+            # Appel standard à chat.completions.create (non-streamé ici, comme avant pour deepseek/qwen)
+            response = ai_client.chat.completions.create(
+                model=model,
+                messages=previous_messages # Contient system, historique et dernier message user
+            )
+            assistant_message = response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
+            raise
 
         # Store the assistant's response in our database
         await add_telegram_message(conversation.id, 'assistant', assistant_message)
@@ -580,7 +572,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             get_ai_client = config['get_ai_client']
             get_model_name = config['get_model_name']
             get_system_instructions = config['get_system_instructions']
-            call_gemini_api = config['call_gemini_api']
 
             logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
@@ -628,25 +619,28 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
                 assistant_message = messages.data[0].content[0].text.value
             else:
-                # For other models (Gemini, Deepseek, Qwen), use direct API calls
+                 # For other models (Gemini, Deepseek, Qwen), use direct API calls compatible OpenAI
                 logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
 
-                # Get previous messages for context (limit to last 10)
+                # Get previous messages for context (limit to last N)
                 previous_messages = []
                 with db_retry_session() as sess:
+                    # La logique de récupération de l'historique reste la même
                     messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
                     for msg in reversed(messages_query):
+                        # Exclure le message courant qui vient d'être ajouté avec l'image/caption
                         if msg.role == 'user' and msg.content == user_store_content:
-                            # Skip this message as we're adding it below
-                            continue
+                             continue
+                        # Convertir le rôle 'assistant' en 'assistant' pour l'API Chat Completion
+                        role = msg.role if msg.role == 'user' else 'assistant'
                         previous_messages.append({
-                            "role": msg.role,
+                            "role": role,
                             "content": msg.content
                         })
 
-                # Add the current message
+                # Ajouter le message courant (avec caption + extraction mathpix)
                 previous_messages.append({
-                    "role": "user", 
+                    "role": "user",
                     "content": message_for_assistant
                 })
 
@@ -658,28 +652,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "content": system_instructions
                     })
 
-                # Use Gemini's special call function if Gemini is selected
-                if CURRENT_MODEL == 'gemini':
-                    try:
-                        assistant_message = call_gemini_api(previous_messages)
-                    except Exception as e:
-                        logger.error(f"Error calling Gemini API for image processing: {str(e)}")
-                        raise
-                else:
-                    # For DeepSeek and Qwen models
-                    ai_client = get_ai_client()
-                    model = get_model_name()
+                # Logique unifiée pour Gemini, DeepSeek, Qwen
+                ai_client = get_ai_client() # Obtient le client configuré
+                model = get_model_name()    # Obtient le nom de modèle configuré
 
-                    try:
-                        # Format messages for the API call
-                        response = ai_client.chat.completions.create(
-                            model=model,
-                            messages=previous_messages
-                        )
-                        assistant_message = response.choices[0].message.content
-                    except Exception as e:
-                        logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
-                        raise
+                try:
+                    response = ai_client.chat.completions.create(
+                        model=model,
+                        messages=previous_messages
+                    )
+                    assistant_message = response.choices[0].message.content
+                except Exception as e:
+                    logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
+                    raise
 
             # Store the assistant's response in our database
             await add_telegram_message(conversation.id, 'assistant', assistant_message)

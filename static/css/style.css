@@ -1134,7 +1134,7 @@ body.policy-page {
     left: 0;
     padding: 10px;
     width: auto;
-    max-width: 200px;
+    max-width: 175px;
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -1163,7 +1163,7 @@ body.policy-page {
     position: absolute;
     top: -8px;
     right: -8px;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 59, 59, 0.5);  /* Rouge léger avec 50% d'opacité */
     border: none;
     border-radius: 50%;
     width: 24px;
@@ -1178,7 +1178,7 @@ body.policy-page {
 }
 
 .remove-image:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 59, 59, 0.7);  /* Rouge plus foncé au survol */
 }
 
 .input-actions-container {
@@ -1534,4 +1534,151 @@ body.policy-page {
     .conversation-title {
         max-width: 300px;
     }
+}
+
+.crop-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.crop-container {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.crop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-light);
+}
+.close-crop-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.img-container {
+    height: 60vh;
+    max-height: 500px;
+    overflow: hidden;
+    background: #000;
+}
+
+.crop-controls {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.crop-btn, .cancel-crop-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.crop-btn {
+    background-color: var(--accent-color);
+    color: white;
+}
+.cancel-crop-btn {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-light);
+}
+
+.crop-btn:hover {
+    background-color: rgba(65, 105, 225, 0.8);
+}
+
+.cancel-crop-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+#cropImage {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* Styles pour les outils de Cropper.js */
+.cropper-container {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.cropper-view-box {
+    outline: 1px solid var(--accent-color);
+    outline-color: rgba(65, 105, 225, 0.75);
+}
+
+.cropper-line {
+    background-color: var(--accent-color);
+}
+
+.cropper-point {
+    background-color: var(--accent-color);
+}
+
+@media (max-width: 768px) {
+    .crop-container {
+        width: 95%;
+    }
+
+    .img-container {
+        height: 40vh;
+    }
+
+    .crop-controls {
+        padding: 10px;
+    }
+
+    .crop-btn, .cancel-crop-btn {
+        padding: 6px 12px;
+        font-size: 0.9em;
+    }
+}
+
+.history-item.updated {
+    animation: highlight-update 1.5s ease;
+    background-color: rgba(255, 215, 0, 0.2); /* Fond doré subtil pour les mises à jour */
+}
+
+.history-item.new-item {
+    animation: highlight-new 1.5s ease;
+    background-color: rgba(64, 196, 255, 0.3); /* Fond bleu clair pour les nouveaux éléments */
+}
+
+@keyframes highlight-update {
+    0% { background-color: rgba(255, 215, 0, 0.4); }
+    50% { background-color: rgba(255, 215, 0, 0.2); }
+    100% { background-color: transparent; }
+}
+
+@keyframes highlight-new {
+    0% { background-color: rgba(64, 196, 255, 0.5); }
+    50% { background-color: rgba(64, 196, 255, 0.3); }
+    100% { background-color: transparent; }
 }

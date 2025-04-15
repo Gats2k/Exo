@@ -28,4 +28,5 @@ dependencies = [
     "flask-wtf>=1.2.2",
     "typing-extensions>=4.12.2",
     "flask-migrate>=4.1.0",
+    "google-generativeai>=0.8.4",
 ]
