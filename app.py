@@ -922,14 +922,8 @@ def handle_message(data):
                 session['thread_id'] = conversation.thread_id # Mettre à jour la session avec le NOUVEAU thread_id
                 logger.info(f"Nouvelle conversation {conversation.id} créée avec thread_id {conversation.thread_id}")
                 # Note: broadcast=False pour ne l'envoyer qu'à l'utilisateur actuel
-                logger.info(f"Émission de l'événement new_conversation (nouvelle) - ID: {conversation.id} (type: {type(conversation.id).__name__}), thread_id: {conversation.thread_id}, titre: {conversation.title}")
-                
-                # Pour les nouvelles conversations, utiliser le thread_id au lieu de l'id interne
-                conversation_id_to_send = conversation.thread_id if hasattr(conversation, 'thread_id') else str(conversation.id)
-                
                 emit('new_conversation', {
-                    'id': conversation_id_to_send,
-                    'thread_id': conversation.thread_id,
+                    'id': conversation.id,
                     'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
                     'subject': 'Général',
                     'time': conversation.created_at.strftime('%H:%M')
@@ -1023,14 +1017,8 @@ def handle_message(data):
                         db.session.commit()
 
                         # Émettre l'événement pour informer tous les clients
-                        logger.info(f"Émission de l'événement new_conversation - ID: {conversation.id} (type: {type(conversation.id).__name__}), titre: {conversation.title}")
-                        
-                        # Pour les nouvelles conversations, utiliser le thread_id au lieu de l'id interne pour assurer la compatibilité
-                        conversation_id_to_send = conversation.thread_id if hasattr(conversation, 'thread_id') else str(conversation.id)
-                        
                         emit('new_conversation', {
-                            'id': conversation_id_to_send,
-                            'thread_id': conversation.thread_id,
+                            'id': conversation.id,
                             'title': conversation.title,
                             'subject': 'Général',
                             'time': conversation.created_at.strftime('%H:%M'),

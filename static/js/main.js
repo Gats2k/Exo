@@ -953,150 +953,71 @@ document.addEventListener('DOMContentLoaded', function() {
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
 
+        // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
+
         // Update the header title with the new conversation title
         // --- DEBUT DEBUG ---
         console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
         // --- FIN DEBUG ---
         titleElement.textContent = data.title;
 
-        // Récupérer ou le thread_id (nouvelle version API) ou l'ID (par compatibilité)
-        const conversationId = data.id || '';
-        const threadId = data.thread_id || data.id || '';
-        
-        // --- DEBUT DEBUG ---
-        console.log(`[DEBUG] IDs détectés: conversationId="${conversationId}", threadId="${threadId}"`);
-        // --- FIN DEBUG ---
-        
-        // Sauvegarder thread_id dans le stockage local (priorité au thread_id s'il existe)
-        const idToStore = threadId || conversationId;
-        if (idToStore) {
+        // Sauvegarder thread_id dans le stockage local
+        if (data.id) {
             // --- DEBUT DEBUG ---
-            console.log(`[DEBUG] Stockage localStorage thread_id: "${idToStore}"`);
+            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.id}"`);
             // --- FIN DEBUG ---
-            localStorage.setItem('thread_id', idToStore);
+            localStorage.setItem('thread_id', data.id);
         }
 
-        // Rechercher si un élément existant correspond à cette conversation, en utilisant plusieurs stratégies
-        let existingItem = null;
-        const items = Array.from(document.querySelectorAll('.history-item'));
-
-        // Stratégie 1: Correspondance exacte par l'ID dans l'attribut onclick
-        existingItem = items.find(item => {
-            const onclickAttr = item.getAttribute('onclick') || '';
-            return onclickAttr.includes(`openConversation('${conversationId}',`);
-        });
+        // Vérifier si cette conversation existe déjà dans l'historique
+        const selectorExistingItem = `.history-item[onclick*="${data.id}"]`;
+        // --- DEBUT DEBUG ---
+        console.log(`[DEBUG] Recherche existingItem avec sélecteur: "${selectorExistingItem}"`);
+        // --- FIN DEBUG ---
+        const existingItem = document.querySelector(selectorExistingItem);
 
         // --- DEBUT DEBUG ---
         if (existingItem) {
-            console.log(`[DEBUG] existingItem TROUVÉ avec conversationId=${conversationId}`, existingItem);
+            console.log('[DEBUG] existingItem TROUVÉ.', existingItem);
+        } else {
+            console.warn('[DEBUG] existingItem NON TROUVÉ. Passage à la création.');
         }
         // --- FIN DEBUG ---
-
-        // Stratégie 2: Si pas trouvé et qu'on a un thread_id distinct de l'id, essayer avec le thread_id
-        if (!existingItem && threadId && threadId !== conversationId) {
-            existingItem = items.find(item => {
-                const onclickAttr = item.getAttribute('onclick') || '';
-                return onclickAttr.includes(`openConversation('${threadId}',`);
-            });
-            
-            // --- DEBUT DEBUG ---
-            if (existingItem) {
-                console.log(`[DEBUG] existingItem TROUVÉ avec threadId=${threadId}`, existingItem);
-            }
-            // --- FIN DEBUG ---
-        }
-
-        // Stratégie 3: Pour les nouvelles conversations, chercher le premier élément avec titre "Nouvelle conversation"
-        if (!existingItem && data.title !== "Nouvelle conversation") {
-            existingItem = items.find(item => {
-                const titleDiv = item.querySelector('.history-title');
-                return titleDiv && (titleDiv.textContent === "Nouvelle conversation" || 
-                                   titleDiv.textContent.includes("Conversation du"));
-            });
-            
-            // --- DEBUT DEBUG ---
-            if (existingItem) {
-                console.log('[DEBUG] existingItem TROUVÉ via titre "Nouvelle conversation" ou "Conversation du"', existingItem);
-                
-                // Mettre à jour l'attribut onclick avec le nouvel ID
-                const oldOnclick = existingItem.getAttribute('onclick') || '';
-                if (!oldOnclick.includes(`openConversation('${conversationId}',`)) {
-                    console.log(`[DEBUG] Mise à jour de l'attribut onclick avec ID ${conversationId}`);
-                    existingItem.setAttribute('onclick', `openConversation('${conversationId}', event, ${data.is_telegram || false}, ${data.is_whatsapp || false})`);
-                }
-            } else {
-                console.warn('[DEBUG] existingItem NON TROUVÉ après toutes les stratégies. Passage à la création.');
-            }
-            // --- FIN DEBUG ---
-        }
 
         if (existingItem) {
             // Mettre à jour le titre si l'élément existe déjà
-            // Essayer plusieurs sélecteurs en fonction des différents ID possibles
-            let titleDiv = null;
-            
-            // Stratégie 1: Chercher avec l'ID conversationId
-            if (!titleDiv && conversationId) {
-                const selectorTitleDiv = `.history-title#title-${conversationId}`;
-                // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Recherche titleDiv avec sélecteur: "${selectorTitleDiv}"`);
-                // --- FIN DEBUG ---
-                titleDiv = existingItem.querySelector(selectorTitleDiv);
-            }
-            
-            // Stratégie 2: Chercher avec thread_id
-            if (!titleDiv && threadId && threadId !== conversationId) {
-                const selectorTitleDiv = `.history-title#title-${threadId}`;
-                // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Recherche titleDiv avec sélecteur: "${selectorTitleDiv}"`);
-                // --- FIN DEBUG ---
-                titleDiv = existingItem.querySelector(selectorTitleDiv);
-            }
-            
-            // Stratégie 3: Utiliser le sélecteur de classe générique si aucun ID spécifique n'a fonctionné
-            if (!titleDiv) {
-                // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Recherche titleDiv avec sélecteur générique: ".history-title"`);
-                // --- FIN DEBUG ---
-                titleDiv = existingItem.querySelector('.history-title');
-            }
+            const selectorTitleDiv = `#title-${data.id}`;
+             // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Recherche titleDiv dans existingItem avec sélecteur: "${selectorTitleDiv}"`);
+            // --- FIN DEBUG ---
+            const titleDiv = existingItem.querySelector(selectorTitleDiv);
 
             // --- DEBUT DEBUG ---
             if (titleDiv) {
                 console.log('[DEBUG] titleDiv TROUVÉ.', titleDiv);
             } else {
-                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem après plusieurs tentatives! Impossible de mettre à jour.');
+                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem ! Impossible de mettre à jour.');
             }
             // --- FIN DEBUG ---
 
             if (titleDiv) {
                 const currentTitle = titleDiv.textContent;
-                // Toujours mettre à jour le titre si c'est une conversation par défaut ou si le titre est différent
-                const isDefaultTitle = currentTitle.startsWith("Conversation du") || 
-                                     currentTitle === "Nouvelle conversation" ||
-                                     currentTitle.trim() === "";
-                const titlesDiffer = data.title !== currentTitle;
-                const shouldUpdate = isDefaultTitle || titlesDiffer;
+                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
 
                 // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", isDefaultTitle=${isDefaultTitle}, titlesDiffer=${titlesDiffer}, shouldUpdate=${shouldUpdate}`);
+                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
                 // --- FIN DEBUG ---
 
                 if (shouldUpdate) {
-                    // --- DEBUT DEBUG ---
+                     // --- DEBUT DEBUG ---
                     console.log(`[DEBUG] ===> MISE À JOUR du textContent de titleDiv avec: "${data.title}"`);
                     // --- FIN DEBUG ---
                     titleDiv.textContent = data.title;
-                    
-                    // Mettre à jour l'ID du div de titre si nécessaire pour assurer la cohérence
-                    if (titleDiv.id !== `title-${conversationId}` && conversationId) {
-                        titleDiv.id = `title-${conversationId}`;
-                        console.log(`[DEBUG] ===> MISE À JOUR de l'ID du titleDiv: "title-${conversationId}"`);
-                    }
+                    // console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`); // Log original
                 } else {
-                    // --- DEBUT DEBUG ---
+                     // --- DEBUT DEBUG ---
                     console.log('[DEBUG] Condition de MAJ non remplie, titre non modifié.');
-                    // --- FIN DEBUG ---
+                     // --- FIN DEBUG ---
                 }
             }
             // --- DEBUT DEBUG ---
@@ -1113,22 +1034,15 @@ document.addEventListener('DOMContentLoaded', function() {
         historyItem.className = 'history-item';
         const isTelegram = data.is_telegram || false;
         const isWhatsApp = data.is_whatsapp || false;
-        
-        // Utiliser l'ID le plus pertinent (priorité à conversationId)
-        const idToUse = conversationId || threadId || data.id;
-        
-        // --- DEBUT DEBUG ---
-        console.log(`[DEBUG] Création item avec ID: ${idToUse}`);
-        // --- FIN DEBUG ---
-        
-        historyItem.setAttribute('onclick', `openConversation('${idToUse}', event, ${isTelegram}, ${isWhatsApp})`);
+        historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
+
 
         historyItem.innerHTML = `
             <div class="history-content">
-                <div class="history-title" id="title-${idToUse}">${data.title}</div>
-                <div class="history-title-edit" id="edit-${idToUse}" style="display: none;">
+                <div class="history-title" id="title-${data.id}">${data.title}</div>
+                <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
                     <input type="text" class="title-input" value="${data.title}"
-                           onkeydown="handleTitleKeydown(event, '${idToUse}')"
+                           onkeydown="handleTitleKeydown(event, '${data.id}')"
                            onclick="event.stopPropagation()">
                 </div>
                 <div class="history-subject">${data.subject}</div>
@@ -1136,14 +1050,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="history-actions">
                 <div class="time">${data.time}</div>
                 <div class="dropdown">
-                    <button class="btn-icon" onclick="toggleDropdown('${idToUse}', event)">
+                    <button class="btn-icon" onclick="toggleDropdown('${data.id}', event)">
                         <i class="bi bi-three-dots-vertical"></i>
                     </button>
-                    <div id="dropdown-${idToUse}" class="dropdown-menu">
-                        <a href="#" onclick="startRename('${idToUse}', event)">
+                    <div id="dropdown-${data.id}" class="dropdown-menu">
+                        <a href="#" onclick="startRename('${data.id}', event)">
                             <i class="bi bi-pencil"></i> Renommer
                         </a>
-                        <a href="#" onclick="deleteConversation('${idToUse}', event)">
+                        <a href="#" onclick="deleteConversation('${data.id}', event)">
                             <i class="bi bi-trash"></i> Supprimer
                         </a>
                     </div>
