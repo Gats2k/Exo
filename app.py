@@ -340,7 +340,7 @@ def get_db_context():
     return app.app_context()
 
 
-def get_or_create_conversation(thread_id=None):
+def get_or_create_conversation(thread_id=None, message_content=None):
     with db_retry_session() as session:
         if thread_id:
             conversation = Conversation.query.filter_by(
@@ -381,7 +381,14 @@ def get_or_create_conversation(thread_id=None):
         if current_user.is_authenticated:
             user_id = current_user.id
 
-        conversation = Conversation(thread_id=thread_id, user_id=user_id)
+        # Create appropriate title based on message content if available
+        title = None
+        if message_content:
+            # Use message content for title (trimmed if needed)
+            title = message_content[:30] + "..." if len(message_content) > 30 else message_content
+            logger.info(f"Creating conversation with title from message: '{title}'")
+        
+        conversation = Conversation(thread_id=thread_id, user_id=user_id, title=title)
         session.add(conversation)
         session.commit()
 
@@ -911,14 +918,22 @@ def handle_message(data):
 
             # 3. Si AUCUNE conversation valide n'a été trouvée ou validée via la session
             if not conversation:
-                logger.info(f"Aucun thread_id valide en session ou thread inexistant. Création d'une nouvelle conversation.")
-                conversation = get_or_create_conversation(thread_id=None) # Force la création
+                # Extract message content for the conversation title
+                message_content = data.get('message', '').strip()
+                
+                logger.info(f"Aucun thread_id valide en session ou thread inexistant. Création d'une nouvelle conversation avec le titre basé sur le message: '{message_content}'")
+                conversation = get_or_create_conversation(thread_id=None, message_content=message_content) # Pass message content for title
                 session['thread_id'] = conversation.thread_id # Mettre à jour la session avec le NOUVEAU thread_id
-                logger.info(f"Nouvelle conversation {conversation.id} créée avec thread_id {conversation.thread_id}")
+                logger.info(f"Nouvelle conversation {conversation.id} créée avec thread_id {conversation.thread_id} et titre '{conversation.title}'")
+                
                 # Note: broadcast=False pour ne l'envoyer qu'à l'utilisateur actuel
+                title = conversation.title or message_content
+                if not title:
+                    title = "Nouvelle conversation"  # Fallback only if both are empty
+                
                 emit('new_conversation', {
                     'id': conversation.id,
-                    'title': conversation.title or f"Conversation du {conversation.created_at.strftime('%d/%m/%Y')}",
+                    'title': title,
                     'subject': 'Général',
                     'time': conversation.created_at.strftime('%H:%M')
                 }, broadcast=False)
