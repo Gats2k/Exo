@@ -971,20 +971,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Ensure we never show "Conversation du [date]" in the UI
         // If the title starts with "Conversation du", don't update until we have a real title
-        let displayTitle = data.title;
+        const headerDisplayTitle = data.title;
         
         // Skip default titles completely - this should never happen now with our backend changes
-        if (!displayTitle || displayTitle.startsWith('Conversation du') || displayTitle === 'Nouvelle conversation') {
+        if (!headerDisplayTitle || headerDisplayTitle.startsWith('Conversation du') || headerDisplayTitle === 'Nouvelle conversation') {
             console.log('[DEBUG] Received default title, waiting for first message content to set title');
             // We will not update the UI title until we get a real content-based title
             // The backend should provide a content-based title with the first message
         } else {
             // --- DEBUT DEBUG ---
-            console.log(`[DEBUG] Mise à jour titre header avec: "${displayTitle}"`);
+            console.log(`[DEBUG] Mise à jour titre header avec: "${headerDisplayTitle}"`);
             // --- FIN DEBUG ---
             
             // Always update the header title with the content-based conversation title
-            titleElement.textContent = displayTitle;
+            titleElement.textContent = headerDisplayTitle;
         }
 
         // Sauvegarder thread_id dans le stockage local
