@@ -969,13 +969,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const recentHistory = document.querySelector('.recent-history');
         const titleElement = document.querySelector('.conversation-title');
 
-        // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
-
-        // Always update the header title with the new conversation title
-        // --- DEBUT DEBUG ---
-        console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
-        // --- FIN DEBUG ---
-        titleElement.textContent = data.title;
+        // Ensure we never show "Conversation du [date]" in the UI
+        // If the title starts with "Conversation du", don't update until we have a real title
+        let displayTitle = data.title;
+        
+        // Skip default titles completely - this should never happen now with our backend changes
+        if (!displayTitle || displayTitle.startsWith('Conversation du') || displayTitle === 'Nouvelle conversation') {
+            console.log('[DEBUG] Received default title, waiting for first message content to set title');
+            // We will not update the UI title until we get a real content-based title
+            // The backend should provide a content-based title with the first message
+        } else {
+            // --- DEBUT DEBUG ---
+            console.log(`[DEBUG] Mise à jour titre header avec: "${displayTitle}"`);
+            // --- FIN DEBUG ---
+            
+            // Always update the header title with the content-based conversation title
+            titleElement.textContent = displayTitle;
+        }
 
         // Sauvegarder thread_id dans le stockage local
         if (data.id) {
@@ -1006,9 +1016,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleDiv = existingItem.querySelector(selectorTitleDiv);
 
             if (titleDiv) {
-                // Toujours mettre à jour le titre quand on reçoit l'événement
-                titleDiv.textContent = data.title;
-                console.log(`Mise à jour du titre: → "${data.title}"`);
+                // Check if the title is a default one we should skip
+                if (!data.title || data.title.startsWith('Conversation du') || data.title === 'Nouvelle conversation') {
+                    console.log(`[DEBUG] Skipping update of sidebar title with default title: "${data.title}"`);
+                } else {
+                    // Only update if we have a real content-based title
+                    titleDiv.textContent = data.title;
+                    console.log(`Mise à jour du titre: → "${data.title}"`);
+                }
             }
             return; // Ne pas créer de nouvel élément
         }
@@ -1024,11 +1039,19 @@ document.addEventListener('DOMContentLoaded', function() {
         historyItem.setAttribute('onclick', `openConversation('${data.id}', event, ${isTelegram}, ${isWhatsApp})`);
 
 
+        // Process the title - don't show default titles in UI
+        let displayTitle = data.title;
+        if (!displayTitle || displayTitle.startsWith('Conversation du') || displayTitle === 'Nouvelle conversation') {
+            // Use a placeholder that indicates it's waiting for the first message
+            displayTitle = "...";
+            console.log(`[DEBUG] Using placeholder title for new item instead of "${data.title}"`);
+        }
+
         historyItem.innerHTML = `
             <div class="history-content">
-                <div class="history-title" id="title-${data.id}">${data.title}</div>
+                <div class="history-title" id="title-${data.id}">${displayTitle}</div>
                 <div class="history-title-edit" id="edit-${data.id}" style="display: none;">
-                    <input type="text" class="title-input" value="${data.title}"
+                    <input type="text" class="title-input" value="${displayTitle}"
                            onkeydown="handleTitleKeydown(event, '${data.id}')"
                            onclick="event.stopPropagation()">
                 </div>
@@ -1173,9 +1196,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear messages
             chatMessages.innerHTML = '';
 
-            // Reset title
+            // Reset title - use a more user-friendly placeholder instead of "Nouvelle conversation"
             const titleElement = document.querySelector('.conversation-title');
-            titleElement.textContent = "Nouvelle conversation"; // <-- Réinitialisation du titre affiché
+            titleElement.textContent = "..."; // Use simple placeholder until a real message-based title is available
 
             // Reset UI state
             inputContainer.classList.add('centered');
