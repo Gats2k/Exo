@@ -1733,7 +1733,12 @@ def handle_rename(data):
         if conversation:
             conversation.title = data['title']
             db.session.commit()
-            emit('conversation_updated', {'success': True})
+            # Include the title and id in the emit event to allow header title update
+            emit('conversation_updated', {
+                'success': True, 
+                'title': conversation.title,
+                'id': conversation.id
+            })
     except Exception as e:
         emit('conversation_updated', {'success': False, 'error': str(e)})
 

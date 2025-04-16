@@ -830,8 +830,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listen for conversation updates
     socket.on('conversation_updated', function(data) {
         if (data.success) {
-            // UI already updated in handleTitleKeydown
+            // UI already updated in handleTitleKeydown for the sidebar item, 
+            // but we should also update the header title if this is the currently open conversation
             console.log('Conversation renamed successfully');
+            
+            // If the update includes a title and id, also update the header
+            if (data.title && data.id) {
+                // Get the current thread_id from localStorage
+                const currentThreadId = localStorage.getItem('thread_id');
+                
+                // If this is the currently open conversation, update the header title
+                if (currentThreadId === data.id.toString()) {
+                    const titleElement = document.querySelector('.conversation-title');
+                    if (titleElement) {
+                        titleElement.textContent = data.title;
+                        console.log(`Header title updated to: "${data.title}"`);
+                    }
+                }
+            }
         }
     });
 
@@ -955,7 +971,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // console.log("Nouvelle conversation reçue:", data); // Log original (peut être redondant avec celui ci-dessus)
 
-        // Update the header title with the new conversation title
+        // Always update the header title with the new conversation title
         // --- DEBUT DEBUG ---
         console.log(`[DEBUG] Mise à jour titre header avec: "${data.title}"`);
         // --- FIN DEBUG ---
