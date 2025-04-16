@@ -847,9 +847,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear current messages
             chatMessages.innerHTML = '';
 
-            // Update the conversation title in header
+            // Update the conversation title in header with the actual title
             const titleElement = document.querySelector('.conversation-title');
-            titleElement.textContent = data.title || "Nouvelle conversation";
+            titleElement.textContent = data.title;
 
             // Sauvegarder thread_id dans le stockage local
             if (data.conversation_id) {
@@ -987,42 +987,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (existingItem) {
             // Mettre à jour le titre si l'élément existe déjà
             const selectorTitleDiv = `#title-${data.id}`;
-             // --- DEBUT DEBUG ---
-            console.log(`[DEBUG] Recherche titleDiv dans existingItem avec sélecteur: "${selectorTitleDiv}"`);
-            // --- FIN DEBUG ---
             const titleDiv = existingItem.querySelector(selectorTitleDiv);
 
-            // --- DEBUT DEBUG ---
             if (titleDiv) {
-                console.log('[DEBUG] titleDiv TROUVÉ.', titleDiv);
-            } else {
-                console.error('[DEBUG] titleDiv NON TROUVÉ dans existingItem ! Impossible de mettre à jour.');
+                // Toujours mettre à jour le titre quand on reçoit l'événement
+                titleDiv.textContent = data.title;
+                console.log(`Mise à jour du titre: → "${data.title}"`);
             }
-            // --- FIN DEBUG ---
-
-            if (titleDiv) {
-                const currentTitle = titleDiv.textContent;
-                const shouldUpdate = currentTitle.startsWith("Conversation du") || data.title !== currentTitle;
-
-                // --- DEBUT DEBUG ---
-                console.log(`[DEBUG] Vérification condition MAJ: currentTitle="${currentTitle}", data.title="${data.title}", startsWithDefault=${currentTitle.startsWith("Conversation du")}, titlesDiffer=${data.title !== currentTitle}, shouldUpdate=${shouldUpdate}`);
-                // --- FIN DEBUG ---
-
-                if (shouldUpdate) {
-                     // --- DEBUT DEBUG ---
-                    console.log(`[DEBUG] ===> MISE À JOUR du textContent de titleDiv avec: "${data.title}"`);
-                    // --- FIN DEBUG ---
-                    titleDiv.textContent = data.title;
-                    // console.log(`Mise à jour du titre de la conversation existante ${data.id} à "${data.title}"`); // Log original
-                } else {
-                     // --- DEBUT DEBUG ---
-                    console.log('[DEBUG] Condition de MAJ non remplie, titre non modifié.');
-                     // --- FIN DEBUG ---
-                }
-            }
-            // --- DEBUT DEBUG ---
-            console.log('[DEBUG] Fin du traitement pour existingItem. Return.');
-            // --- FIN DEBUG ---
             return; // Ne pas créer de nouvel élément
         }
 
@@ -1188,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Reset title
             const titleElement = document.querySelector('.conversation-title');
-            titleElement.textContent = "Nouvelle conversation";
+            titleElement.textContent = "Nouvelle conversation"; // <-- Réinitialisation du titre affiché
 
             // Reset UI state
             inputContainer.classList.add('centered');

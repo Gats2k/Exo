@@ -385,13 +385,7 @@ def get_or_create_conversation(thread_id=None):
         session.add(conversation)
         session.commit()
 
-        # Émettre l'événement de nouvelle conversation Web pour le tableau de bord
-        socketio.emit(
-            'new_web_conversation', {
-                'id': conversation.id,
-                'title': conversation.title or f"Nouvelle conversation",
-                'user_id': user_id
-            })
+        logger.info(f"Conversation {conversation.id} créée/récupérée, événement non émis à ce stade")
 
         return conversation
 
@@ -1001,7 +995,7 @@ def handle_message(data):
                     emit('message_started', {'message_id': db_message.id})
 
                     # Détecter et définir un titre si c'est une nouvelle conversation
-                    if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    if conversation.title == "Nouvelle conversation" or conversation.title.startswith("Conversation du") or not conversation.title:
                         if 'image' in data and data['image']:
                             conversation.title = "Analyse d'image"
                             logger.info(
@@ -1013,8 +1007,21 @@ def handle_message(data):
                                 'message', '')[:30] + "..." if data.get(
                                     'message', '') else "Nouvelle Conversation"
 
-                        # Sauvegarder le nouveau titre
-                        db.session.commit()
+                        # Avant de mettre à jour le titre
+                        should_update = True  # Par défaut pour les nouvelles conversations
+                        if conversation.title and conversation.title != "Nouvelle conversation":
+                            # Pour les conversations existantes, suivre la même logique que le frontend
+                            current_title = conversation.title
+                            new_title = "Analyse d'image" if 'image' in data and data['image'] else (data.get('message', '')[:30] + "..." if data.get('message', '') else "Nouvelle conversation")
+                            should_update = current_title.startswith("Conversation du") or new_title != current_title
+
+                        # N'appliquer la mise à jour que si nécessaire
+                        if should_update:
+                            logger.info(f"Mise à jour du titre: '{conversation.title}' → '{conversation.title}'")
+                            # Sauvegarder le nouveau titre
+                            db.session.commit()
+                        else:
+                            logger.info(f"Conservation du titre existant: '{conversation.title}'")
 
                         # Émettre l'événement pour informer tous les clients
                         emit('new_conversation', {
@@ -1636,7 +1643,7 @@ def handle_message(data):
                         logger.error("Variable db_message non trouvée lors de la sauvegarde finale.")
 
                     # Generate and set conversation title if this is the first message
-                    if conversation.title == "Nouvelle conversation" or not conversation.title:
+                    if conversation.title == "Nouvelle conversation" or conversation.title.startswith("Conversation du") or not conversation.title:
                         logger.info(
                             f"Création du titre pour une nouvelle conversation - image présente: {'image' in data}"
                         )
@@ -1657,16 +1664,23 @@ def handle_message(data):
                                 )
                             else:
                                 # Si pas de texte, titre par défaut
-                                title = "Nouvelle Conversation"
+                                title = "Nouvelle conversation"
                                 logger.info(
                                     "Aucun contenu détecté, titre par défaut utilisé"
                                 )
 
-                        logger.info(
-                            f"Titre final défini pour la conversation {conversation.id}: '{title}'"
-                        )
-                        conversation.title = title
-                        db.session.commit()
+                        should_update = True  # Par défaut pour les nouvelles conversations
+                        if conversation.title and conversation.title != "Nouvelle conversation":
+                            # Pour les conversations existantes, suivre la même logique que le frontend
+                            should_update = conversation.title.startswith("Conversation du") or title != conversation.title
+
+                        # N'appliquer la mise à jour que si nécessaire
+                        if should_update:
+                            logger.info(f"Mise à jour du titre: '{conversation.title}' → '{title}'")
+                            conversation.title = title
+                            db.session.commit()
+                        else:
+                            logger.info(f"Conservation du titre existant: '{conversation.title}'")
 
                         # Toujours émettre l'événement pour mettre à jour l'interface utilisateur
                         # Utiliser broadcast=True pour assurer que tous les clients sont notifiés
@@ -1917,39 +1931,19 @@ def handle_open_conversation(data):
 
 @socketio.on('clear_session')
 def handle_clear_session():
-    """
-    Cette fonction est appelée lorsque l'utilisateur clique sur 'Nouvelle conversation'.
-    Elle doit effacer la session et créer explicitement un nouveau thread.
-    """
     try:
         logger.info("L'utilisateur a demandé une nouvelle conversation")
 
         # Supprimer l'ancien thread_id de la session
         session.pop('thread_id', None)
 
-        # Créer explicitement une nouvelle conversation avec un nouveau thread
-        if current_user.is_authenticated:
-            # Créer un nouveau thread avec OpenAI ou un UUID selon le modèle actuel
-            new_conversation = get_or_create_conversation(thread_id=None)
+        # Ne pas créer de conversation - simplement notifier que la session est effacée
+        emit('session_cleared', {'success': True})
 
-            # Définir le nouveau thread_id dans la session
-            session['thread_id'] = new_conversation.thread_id
-
-            logger.info(
-                f"Nouvelle conversation créée avec thread_id {new_conversation.thread_id}"
-            )
-
-            # Informer le client que la session a été effacée et une nouvelle conversation a été créée
-            emit('session_cleared', {
-                'success': True,
-                'new_thread_id': new_conversation.thread_id
-            })
-        else:
-            # Si l'utilisateur n'est pas authentifié, on se contente d'effacer la session
-            emit('session_cleared', {'success': True})
+        logger.info("Session effacée - aucune conversation créée à ce stade")
     except Exception as e:
         logger.error(
-            f"Erreur lors de la création d'une nouvelle conversation: {str(e)}"
+            f"Erreur lors de l'effacement de la session: {str(e)}"
         )
         emit('session_cleared', {'success': False, 'error': str(e)})
 
