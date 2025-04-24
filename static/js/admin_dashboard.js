@@ -1,3 +1,12 @@
+let currentUserPage = 1;
+let userPagination = {}; // Stockera les infos de pagination des users
+let currentConversationPage = 1;
+let conversationPagination = {}; // Stockera les infos de pagination des convos
+let currentUserFilter = { status: null, search: null }; // status: 'active'/'inactive' ou null
+let currentConversationFilter = { status: null, search: null }; // status: 'active'/'archived' ou null
+let searchDebounceTimeout = null; // Pour le délai de recherche (debounce)
+const ITEMS_PER_PAGE = 20; // Ou la valeur par défaut définie dans votre backend
+
 function showSection(sectionId) {
     // Hide all sections
     document.querySelectorAll('.section').forEach(section => {
@@ -13,11 +22,20 @@ function showSection(sectionId) {
     });
     document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
 
-    // Fetch appropriate data based on section
+    // Fetch appropriate data based on section (load page 1)
     if (sectionId === 'users') {
-        fetchAllUsers(currentPlatform);
+        currentUserPage = 1;
+        // S'assurer de passer les filtres vides initialement si besoin
+        fetchAllUsers(currentPlatform, currentUserPage, { status: null, search: null });
     } else if (sectionId === 'conversations') {
-        fetchAllConversations(currentPlatform);
+        currentConversationPage = 1;
+         // S'assurer de passer les filtres vides initialement si besoin
+        fetchAllConversations(currentPlatform, currentConversationPage, { status: null, search: null });
+    } else if (sectionId === 'subscriptions') { // <-- AJOUTER CE CAS
+        // On pourrait avoir une pagination/filtre pour les abos aussi à terme
+        fetchAllSubscriptions(currentPlatform, 1); // Appel de la nouvelle fonction
+    } else if (sectionId === 'dashboard') {
+        fetchPlatformData(currentPlatform);
     }
 }
 
@@ -27,96 +45,48 @@ function initializeNavigation() {
             e.preventDefault();
             const section = item.getAttribute('data-section');
             showSection(section);
-            if (section === 'users') {
-                fetchAllUsers(currentPlatform);
-            }
         });
     });
 }
 
-function filterUsers(filter) {
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+function filterUsers(statusFilter) {
+    console.log(`Filtering users by status: ${statusFilter}`);
+    // Mettre à jour l'état global des filtres utilisateur
+    currentUserFilter.status = (statusFilter === 'all') ? null : statusFilter;
+    currentUserFilter.search = null; // Réinitialiser la recherche quand on filtre par statut
 
-    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
-    let visibleCount = 0;
+    // Réinitialiser visuellement la barre de recherche
+    document.getElementById('userSearchInput').value = '';
 
-    rows.forEach(row => {
-        const status = row.querySelector('.status-badge').textContent.toLowerCase();
-
-        if (filter === 'all' || 
-            (filter === 'active' && status === 'actif') || 
-            (filter === 'inactive' && status === 'inactif')) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
+    // Mettre à jour l'état actif des boutons de filtre DANS LA SECTION USER
+    document.querySelectorAll('#users-section .filter-buttons .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === statusFilter);
     });
 
-    // Afficher/masquer le tableau et l'état vide en fonction des résultats
-    const tableElement = document.getElementById('fullUsersTable');
-    const container = document.getElementById('fullUsersTableContainer');
-    const emptyState = container.querySelector('.empty-state');
-
-    if (visibleCount === 0) {
-        tableElement.style.display = 'none';
-        emptyState.style.display = 'flex';
-
-        // Adapter le message selon le filtre
-        if (filter === 'active') {
-            emptyState.querySelector('p').textContent = "Aucun utilisateur actif pour le moment";
-        } else if (filter === 'inactive') {
-            emptyState.querySelector('p').textContent = "Aucun utilisateur inactif pour le moment";
-        } else {
-            emptyState.querySelector('p').textContent = "Aucun utilisateur disponible pour le moment";
-        }
-    } else {
-        tableElement.style.display = 'table';
-        emptyState.style.display = 'none';
-    }
-
-    // Update filter button counts
-    updateFilterCounts();
-}
-
-function updateFilterCounts() {
-    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
-    let activeCount = 0;
-    let inactiveCount = 0;
-
-    rows.forEach(row => {
-        const status = row.querySelector('.status-badge').textContent.toLowerCase();
-        if (status === 'actif') {
-            activeCount++;
-        } else {
-            inactiveCount++;
-        }
-    });
-
-    // Update the filter buttons with counts
-    document.querySelector('[data-filter="all"]').textContent = `Tous (${activeCount + inactiveCount})`;
-    document.querySelector('[data-filter="active"]').textContent = `Actifs (${activeCount})`;
-    document.querySelector('[data-filter="inactive"]').textContent = `Inactifs (${inactiveCount})`;
+    // Appeler fetchAllUsers avec le nouveau filtre, en commençant à la page 1
+    fetchAllUsers(currentPlatform, 1, currentUserFilter);
 }
 
 function searchUsers() {
-    const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
-    const rows = document.querySelectorAll('#fullUsersTable tbody tr');
+    // Utiliser un délai (debounce) pour éviter trop d'appels API pendant la frappe
+    clearTimeout(searchDebounceTimeout); // Annuler le timeout précédent
 
-    rows.forEach(row => {
-        const text = Array.from(row.cells)
-            .map(cell => cell.textContent.toLowerCase())
-            .join(' ');
+    const searchTerm = document.getElementById('userSearchInput').value;
 
-        if (text.includes(searchTerm)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
+    searchDebounceTimeout = setTimeout(() => {
+        console.log(`Searching users with term: "${searchTerm}"`);
+        // Mettre à jour l'état global
+        currentUserFilter.search = searchTerm.trim(); // Enlever espaces début/fin
+        currentUserFilter.status = null; // Réinitialiser le filtre statut quand on recherche
+
+        // Réinitialiser visuellement les filtres statut (mettre 'Tous' en actif) DANS LA SECTION USER
+        document.querySelectorAll('#users-section .filter-buttons .filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+        });
+
+        // Appeler fetchAllUsers avec la recherche, page 1
+        fetchAllUsers(currentPlatform, 1, currentUserFilter);
+    }, 500); // Délai de 500ms après la dernière frappe
 }
 
 let currentPlatform = 'web';
@@ -159,11 +129,17 @@ function selectPlatform(platform) {
 
     // Update data based on current section
     const currentSection = document.querySelector('.section[style*="block"]').id.replace('-section', '');
+    // Réinitialiser les filtres et la page lors du changement de plateforme
+    currentUserFilter = { status: null, search: null };
+    currentConversationFilter = { status: null, search: null };
+    currentUserPage = 1;
+    currentConversationPage = 1;
+
     if (currentSection === 'users') {
-        fetchAllUsers(platform);
+        fetchAllUsers(platform, 1, currentUserFilter); // Page 1, sans filtre
     } else if (currentSection === 'conversations') {
-        fetchAllConversations(platform);
-    } else {
+        fetchAllConversations(platform, 1, currentConversationFilter); // Page 1, sans filtre
+    } else { // Dashboard ou autre
         fetchPlatformData(platform);
     }
 }
@@ -475,34 +451,81 @@ function fetchPlatformData(platform) {
       });
 }
 
-function fetchAllUsers(platform) {
-    console.log('Fetching users for platform:', platform);
+// Accepte maintenant un objet filterParams { status: '...', search: '...' }
+function fetchAllUsers(platform, page = 1, filterParams = {}) {
+    console.log(`Workspaceing users for platform: ${platform}, page: ${page}, filters:`, filterParams);
 
-    fetch(`/admin/data/${platform}`)
+    const params = new URLSearchParams({
+        page: page,
+        per_page: ITEMS_PER_PAGE
+    });
+    if (filterParams.status && filterParams.status !== 'all') {
+        params.append('status', filterParams.status);
+    }
+    if (filterParams.search && filterParams.search.trim() !== '') {
+        params.append('search', filterParams.search.trim());
+    }
+    const url = `/admin/users/${platform}?${params.toString()}`;
+
+    // TODO: (Optionnel) Afficher un spinner/indicateur de chargement ici
+
+    fetch(url)
         .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
+             if (!response.ok) {
+                 // Essayer de lire l'erreur JSON du backend
+                 return response.json().catch(() => {
+                    throw new Error(`Erreur HTTP ${response.status} (${response.statusText}) pour ${url}`);
+                 }).then(errData => {
+                    throw new Error(errData.error || `Erreur HTTP ${response.status}`);
+                 });
+             }
+             // Si la réponse est OK, mettre à jour l'état global du filtre *avant* de traiter
+             currentUserFilter = { ...filterParams }; // Mémorise le filtre utilisé pour cet appel réussi
+             return response.json();
         })
         .then(data => {
-            console.log(`Data received for ${platform} users:`, data);
+            // console.log(`Data received for ${platform} users page ${page} with filters:`, data);
+            if (data.users && data.pagination) { // Vérifier que les clés nécessaires existent
+                 updateFullUsersTable(data.users, platform); // Met à jour le tableau
+                 userPagination = data.pagination; // Stocke les infos de pagination
+                 currentUserPage = data.pagination.current_page; // Met à jour la page actuelle
 
-            if (data.users && data.users.length > 0) {
-                const usersWithStatus = data.users.map(user => ({
-                    ...user,
-                    // Check last_active timestamp to determine if user is active
-                    active: user.last_active ? 
-                        (new Date(user.last_active) > new Date(Date.now() - 15 * 60 * 1000)) : false
-                }));
-                updateFullUsersTable(usersWithStatus, platform);
+                console.log('--- Pagination Users Reçue (fetchAllUsers) ---');
+                console.log(userPagination); // Affiche l'objet reçu
+                
+                 renderUserPaginationControls(userPagination); // Affiche/Met à jour les boutons
+
+                 // Gérer l'état vide si la liste d'utilisateurs est vide
+                 if(data.users.length === 0) {
+                    showEmptyState('fullUsersTableContainer', platform, 'users'); // Affiche l'état vide
+                    // Personnaliser le message si un filtre ou une recherche est actif
+                    const emptyStateP = document.querySelector('#fullUsersTableContainer .empty-state p');
+                    if(emptyStateP) { // Vérifier si l'élément p existe
+                        if (currentUserFilter.status || (currentUserFilter.search && currentUserFilter.search.trim() !== '')) {
+                             emptyStateP.textContent = "Aucun utilisateur ne correspond à vos critères.";
+                        } else {
+                             const platformName = platform === 'web' ? 'Web' : platform.charAt(0).toUpperCase() + platform.slice(1);
+                             emptyStateP.textContent = `Aucun utilisateur ${platformName} disponible pour le moment`;
+                        }
+                    }
+                 }
             } else {
-                showEmptyState('fullUsersTableContainer', platform);
+                // Si la structure de données n'est pas celle attendue
+                 console.error("Données reçues invalides du serveur:", data);
+                 showEmptyState('fullUsersTableContainer', platform, 'users');
+                 renderUserPaginationControls({}); // Cacher pagination
             }
+             // TODO: (Optionnel) Cacher le spinner/indicateur de chargement ici
         })
         .catch(error => {
-            console.error(`Error fetching ${platform} users:`, error);
-            showEmptyState('fullUsersTableContainer', platform);
+            console.error(`Error fetching ${platform} users page ${page} with filters:`, error);
+            showEmptyState('fullUsersTableContainer', platform, 'users'); // Afficher état vide en cas d'erreur
+             userPagination = {}; // Réinitialiser
+             renderUserPaginationControls(userPagination); // Cacher pagination
+             // Afficher un message d'erreur plus visible à l'utilisateur si besoin
+             const emptyStateP = document.querySelector('#fullUsersTableContainer .empty-state p');
+             if(emptyStateP) emptyStateP.textContent = `Erreur lors du chargement: ${error.message}`;
+             // TODO: (Optionnel) Cacher le spinner/indicateur de chargement ici
         });
 }
 
@@ -511,6 +534,9 @@ function updateFullUsersTable(users, platform) {
     const tableElement = document.getElementById('fullUsersTable');
     const container = document.getElementById('fullUsersTableContainer');
     const emptyState = container.querySelector('.empty-state');
+
+    // Vider le contenu précédent du tableau !
+    tableBody.innerHTML = '';
 
     // Mise à jour des en-têtes du tableau en fonction de la plateforme
     const tableHeader = document.getElementById('fullUsersTable').getElementsByTagName('thead')[0];
@@ -635,8 +661,6 @@ function updateFullUsersTable(users, platform) {
         }
     });
 
-    // Update filter counts after populating the table
-    updateFilterCounts();
 }
 
 function showEmptyState(containerId, platform, type = 'users') {
@@ -649,12 +673,25 @@ function showEmptyState(containerId, platform, type = 'users') {
     emptyState.style.display = 'flex';
 
     // Personnaliser le message selon la plateforme et le type
-    if (containerId === 'fullUsersTableContainer') {
-        const platformName = platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1);
-        emptyState.querySelector('p').textContent = `Aucun utilisateur ${platformName} disponible pour le moment`;
-    } else if (containerId === 'fullConversationsTableContainer') {
-        const platformName = platform === 'web' ? '' : platform.charAt(0).toUpperCase() + platform.slice(1);
-        emptyState.querySelector('p').textContent = `Aucune conversation ${platformName} disponible pour le moment`;
+    const pElement = emptyState.querySelector('p');
+    if (pElement) {
+         // Utiliser le paramètre 'type' passé à la fonction
+         const platformName = platform === 'web' ? 'Web' : platform.charAt(0).toUpperCase() + platform.slice(1);
+         if (type === 'users') {
+             pElement.textContent = `Aucun utilisateur ${platformName} disponible pour le moment`;
+         } else if (type === 'conversations') {
+              pElement.textContent = `Aucune conversation ${platformName} disponible pour le moment`;
+         } else if (type === 'subscriptions') { // <-- AJOUTER CE CAS
+              pElement.textContent = `Aucun abonnement ${platformName} disponible pour le moment`;
+         } else {
+             pElement.textContent = `Aucune donnée disponible pour le moment`; // Message par défaut
+         }
+         // Adapter le message si un filtre/recherche est actif (logique copiée/adaptée de fetchAllUsers/fetchAllConversations)
+          if ((type === 'users' && (currentUserFilter.status || currentUserFilter.search)) ||
+              (type === 'conversations' && (currentConversationFilter.status || currentConversationFilter.search)) ||
+              (type === 'subscriptions' && (/* prévoir variables filtre abo ici */ false)) ) { // Adapter pour les filtres abonnements plus tard
+                 pElement.textContent = `Aucun ${type} ne correspond à vos critères.`;
+             }
     }
 }
 
@@ -703,8 +740,8 @@ function confirmDeleteUser() {
         // Suppression réussie, fermer le modal
         closeDeleteModal();
 
-        // Rafraîchir la liste des utilisateurs
-        fetchAllUsers(currentPlatform);
+        // Rafraîchir la page ACTUELLE des utilisateurs
+        fetchAllUsers(currentPlatform, currentUserPage); // <-- MODIFIÉE : Ajout de currentUserPage
     })
     .catch(error => {
         console.error('Erreur:', error);
@@ -724,56 +761,72 @@ document.addEventListener('click', function(event) {
 });
 
 
-function viewConversation(numericId) {
-    if (!numericId) {
-        console.error('No conversation ID provided');
-        alert('Error: Unable to view conversation details');
+function viewConversation(identifier, platformType) { // <<< Signature modifiée
+    if (identifier === undefined || identifier === null || identifier === '') { // Vérification plus robuste
+        console.error('No conversation identifier provided for platform:', platformType);
+        alert('Erreur: Impossible d\'afficher les détails de la conversation (ID manquant ou invalide)');
         return;
     }
 
-    // Obtenir le titre original correspondant à cet ID numérique
-    const originalTitle = getTitleFromNumericId(numericId);
+    console.log(`Viewing conversation for platform [${platformType}] with identifier:`, identifier); // Log adapté
 
-    console.log('Viewing conversation:', numericId, 'Original title:', originalTitle);
+    let fetchUrl;
 
-    // Si le titre commence par "Conversation thread_", c'est une conversation WhatsApp
-    if (originalTitle && originalTitle.startsWith('Conversation thread_')) {
-        // Extraire l'ID du thread directement
-        const threadId = originalTitle.replace('Conversation ', '');
-        console.log('WhatsApp thread detected:', threadId);
-
-        // Pour les conversations WhatsApp, utiliser directement l'ID du thread
-        fetch(`/admin/whatsapp/thread/${encodeURIComponent(threadId)}/messages`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                displayConversationMessages(data);
-            })
-            .catch(error => {
-                console.error('Error fetching WhatsApp messages:', error);
-                alert('Une erreur est survenue lors du chargement de la conversation WhatsApp');
-            });
+    // --- NOUVEAU : Sélection de l'URL backend basée sur platformType ---
+    if (platformType === 'whatsapp') {
+        // WhatsApp utilise toujours l'URL basée sur le thread_id
+        fetchUrl = `/admin/whatsapp/thread/${encodeURIComponent(identifier)}/messages`;
+        console.log("Using WhatsApp specific URL:", fetchUrl);
+    } else if (platformType === 'web' || platformType === 'telegram') {
+        // Web et Telegram utilisent la NOUVELLE URL basée sur l'ID numérique
+        fetchUrl = `/admin/conversations/${identifier}/messages`; // <<< NOUVELLE URL par ID
+        console.log("Using Web/Telegram URL by ID:", fetchUrl);
+    } else {
+        // Cas d'erreur si la plateforme n'est pas supportée
+        console.error(`Unsupported platform type for viewing: ${platformType}`);
+        alert(`Erreur: Le type de plateforme '${platformType}' n'est pas supporté pour la visualisation.`);
         return;
     }
 
-    // Pour les autres types de conversations, utiliser la route par titre
-    fetch(`/admin/conversations/by-title/${encodeURIComponent(originalTitle)}/messages`)
+    // --- MODIFIÉ : Fetch unique avec gestion d'erreur améliorée ---
+    fetch(fetchUrl)
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Essayer de lire le corps de l'erreur s'il existe (souvent en JSON)
+                return response.json().catch(() => {
+                    // Si le corps n'est pas JSON ou est vide, créer une erreur standard
+                    throw new Error(`Erreur HTTP ${response.status} (${response.statusText})`);
+                }).then(errorData => {
+                    // Si on a pu lire le JSON d'erreur, l'utiliser
+                    throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+                });
             }
             return response.json();
         })
         .then(data => {
+             // Vérifier si le backend a renvoyé une erreur dans le JSON même avec un status 200 OK
+             if (data.error) {
+                  throw new Error(data.error);
+             }
+             // Si tout va bien, afficher les messages
             displayConversationMessages(data);
         })
         .catch(error => {
-            console.error('Error fetching conversation messages:', error);
-            alert('Une erreur est survenue lors du chargement de la conversation');
+            // Gérer toutes les erreurs (réseau, HTTP, JSON, erreurs applicatives)
+            console.error('Error fetching or processing conversation messages:', error);
+            alert(`Une erreur est survenue lors du chargement de la conversation: ${error.message}`);
+
+            // Afficher un message d'erreur dans le modal
+            const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = `<div class="message system error">Erreur: Impossible de charger les messages.<br>(${error.message})</div>`;
+            }
+             // Optionnel : ouvrir quand même le modal pour montrer l'erreur
+             const modal = document.getElementById('viewConversationModal');
+             if (modal) {
+                 modal.style.display = 'block';
+                 document.body.style.overflow = 'hidden'; // Empêcher le défilement de l'arrière-plan
+             }
         });
 }
 
@@ -825,27 +878,194 @@ function closeViewConversationModal() {
     document.body.style.overflow = 'auto';
 }
 
-let conversationIdToDelete = null;
-let conversationTitleToDelete = null;
+let conversationIdentifierToDelete = null;
+let conversationPlatformToDelete = null;
 
-function fetchAllConversations(platform) {
-    console.log('Fetching conversations for platform:', platform);
+// Accepte maintenant un objet filterParams { filter: '...', search: '...' } (notez 'filter' au lieu de 'status')
+function fetchAllConversations(platform, page = 1, filterParams = {}) {
+    console.log(`Workspaceing conversations for platform: ${platform}, page: ${page}, filters:`, filterParams);
 
-    fetch(`/admin/data/${platform}`)
+    const params = new URLSearchParams({
+        page: page,
+        per_page: ITEMS_PER_PAGE
+    });
+    if (filterParams.status && filterParams.status !== 'all') {
+        params.append('filter', filterParams.status); // Utilise 'filter' pour le backend
+    }
+    if (filterParams.search && filterParams.search.trim() !== '') {
+        params.append('search', filterParams.search.trim());
+    }
+    const url = `/admin/conversations/${platform}?${params.toString()}`;
+
+     // TODO: (Optionnel) Afficher indicateur chargement
+
+    fetch(url)
         .then(response => {
+             if (!response.ok) {
+                  return response.json().catch(() => {
+                    throw new Error(`Erreur HTTP ${response.status} (${response.statusText}) pour ${url}`);
+                 }).then(errData => {
+                    throw new Error(errData.error || `Erreur HTTP ${response.status}`);
+                 });
+             }
+             currentConversationFilter = { ...filterParams }; // Mémorise filtre si succès
+             return response.json();
+        })
+        .then(data => {
+            // console.log(`Data received for ${platform} conversations page ${page} with filters:`, data);
+             if (data.conversations && data.pagination) {
+                 updateFullConversationsTable(data.conversations, platform);
+                 conversationPagination = data.pagination;
+                 currentConversationPage = data.pagination.current_page;
+                 console.log('--- Pagination Conversations Reçue (fetchAllConversations) ---');
+                 console.log(conversationPagination);
+                 renderConversationPaginationControls(conversationPagination);
+
+                 if(data.conversations.length === 0) {
+                    showEmptyState('fullConversationsTableContainer', platform, 'conversations');
+                    const emptyStateP = document.querySelector('#fullConversationsTableContainer .empty-state p');
+                    if(emptyStateP) {
+                        if (currentConversationFilter.status || (currentConversationFilter.search && currentConversationFilter.search.trim() !== '')) {
+                            emptyStateP.textContent = "Aucune conversation ne correspond à vos critères.";
+                        } else {
+                            const platformName = platform === 'web' ? 'Web' : platform.charAt(0).toUpperCase() + platform.slice(1);
+                            emptyStateP.textContent = `Aucune conversation ${platformName} disponible pour le moment`;
+                        }
+                    }
+                 }
+            } else {
+                 console.error("Données reçues invalides du serveur:", data);
+                 showEmptyState('fullConversationsTableContainer', platform, 'conversations');
+                 renderConversationPaginationControls({});
+            }
+            // TODO: (Optionnel) Cacher indicateur chargement
+        })
+        .catch(error => {
+            console.error(`Error fetching ${platform} conversations page ${page} with filters:`, error);
+            showEmptyState('fullConversationsTableContainer', platform, 'conversations');
+            conversationPagination = {};
+            renderConversationPaginationControls(conversationPagination);
+            const emptyStateP = document.querySelector('#fullConversationsTableContainer .empty-state p');
+             if(emptyStateP) emptyStateP.textContent = `Erreur lors du chargement: ${error.message}`;
+            // TODO: (Optionnel) Cacher indicateur chargement
+        });
+}
+
+function renderUserPaginationControls(pagination) {
+    const controlsContainer = document.getElementById('userPaginationControls');
+    const prevButton = document.getElementById('userPrevPage');
+    const nextButton = document.getElementById('userNextPage');
+    const pageInfo = document.getElementById('userPageInfo');
+
+    if (!pagination || !pagination.total_items || pagination.total_items === 0) {
+        controlsContainer.style.display = 'none'; // Cacher si pas d'items
+        return;
+    }
+
+    controlsContainer.style.display = 'block'; // Afficher les contrôles
+
+    // Mettre à jour les infos de page
+    pageInfo.textContent = `Page ${pagination.current_page} / ${pagination.total_pages}`;
+
+    // Activer/désactiver bouton Précédent
+    prevButton.disabled = !pagination.has_prev;
+    // Activer/désactiver bouton Suivant
+    nextButton.disabled = !pagination.has_next;
+}
+
+// Code à AJOUTER dans admin_dashboard.js
+
+// Variables globales pour la pagination des abonnements (si nécessaire plus tard)
+let currentSubscriptionPage = 1;
+let subscriptionPagination = {};
+
+// Fonction pour récupérer les abonnements (version basique pour état vide)
+function fetchAllSubscriptions(platform, page = 1, filterParams = {}) {
+    console.log(`Workspaceing subscriptions for platform: ${platform}, page: ${page}, filters:`, filterParams);
+
+    // Construire l'URL (même si le backend n'est pas prêt, on prépare)
+    const params = new URLSearchParams({
+        page: page,
+        per_page: ITEMS_PER_PAGE // Utiliser la même constante
+    });
+    // Ajouter potentiels filtres/recherche plus tard si besoin
+    // if (filterParams.status && filterParams.status !== 'all') { params.append('status', filterParams.status); }
+    // if (filterParams.search && filterParams.search.trim() !== '') { params.append('search', filterParams.search.trim()); }
+    const url = `/admin/subscriptions/${platform}?${params.toString()}`; // <-- Nouvelle route backend (à créer !)
+
+    // Optionnel : Afficher indicateur chargement
+
+    fetch(url)
+        .then(response => {
+            // Si la route backend n'existe pas encore, ça va probablement échouer ici
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                 // Si erreur serveur (ex: 404 Not Found), on considère qu'il n'y a pas de données
+                console.warn(`Backend route ${url} might be missing or returned error ${response.status}`);
+                // On force l'affichage de l'état vide
+                return { subscriptions: [], pagination: {} }; // Renvoyer structure vide
             }
             return response.json();
         })
         .then(data => {
-            console.log(`Data received for ${platform} conversations:`, data);
-            updateFullConversationsTable(data.conversations || [], platform);
+            console.log(`Data received for ${platform} subscriptions page ${page}:`, data);
+
+            // Vérifier si la liste est vide
+            if (data.subscriptions && data.subscriptions.length > 0) {
+                // --- LOGIQUE D'AFFICHAGE DU TABLEAU (à implémenter plus tard) ---
+                // Exemple: updateSubscriptionsTable(data.subscriptions, platform);
+                // Exemple: subscriptionPagination = data.pagination;
+                // Exemple: currentSubscriptionPage = data.pagination.current_page;
+                // Exemple: renderSubscriptionPaginationControls(subscriptionPagination);
+
+                // Pour l'instant, on affiche juste l'état vide si on arrive ici par erreur
+                 console.log("Received subscriptions, but display logic not implemented yet. Showing empty state for now.");
+                 showEmptyState('subscriptionsTableContainer', platform, 'subscriptions');
+                 renderSubscriptionPaginationControls({}); // Cacher les contrôles pagination
+
+            } else {
+                // La requête a réussi mais pas d'abonnement (ou la route n'existe pas et on a renvoyé [])
+                showEmptyState('subscriptionsTableContainer', platform, 'subscriptions');
+                subscriptionPagination = {}; // Réinitialiser pagination
+                renderSubscriptionPaginationControls(subscriptionPagination); // Cacher/désactiver contrôles
+            }
+            // Optionnel : Cacher indicateur chargement
         })
         .catch(error => {
-            console.error(`Error fetching ${platform} conversations:`, error);
-            showEmptyState('fullConversationsTableContainer', platform, 'conversations');
+            // En cas d'erreur réseau ou autre
+            console.error(`Error fetching ${platform} subscriptions page ${page}:`, error);
+            showEmptyState('subscriptionsTableContainer', platform, 'subscriptions');
+            subscriptionPagination = {}; // Réinitialiser pagination
+            renderSubscriptionPaginationControls(subscriptionPagination); // Cacher/désactiver contrôles
+             // Optionnel : Cacher indicateur chargement
         });
+}
+
+// Fonction pour afficher les contrôles de pagination des abonnements (à créer)
+function renderSubscriptionPaginationControls(pagination) {
+     // À implémenter si vous ajoutez la pagination pour les abonnements
+     console.log("renderSubscriptionPaginationControls called with:", pagination);
+}
+
+function renderConversationPaginationControls(pagination) {
+    const controlsContainer = document.getElementById('conversationPaginationControls');
+    const prevButton = document.getElementById('convPrevPage');
+    const nextButton = document.getElementById('convNextPage');
+    const pageInfo = document.getElementById('convPageInfo');
+
+     if (!pagination || !pagination.total_items || pagination.total_items === 0) {
+        controlsContainer.style.display = 'none'; // Cacher si pas d'items
+        return;
+    }
+
+    controlsContainer.style.display = 'block'; // Afficher les contrôles
+
+    // Mettre à jour les infos de page
+    pageInfo.textContent = `Page ${pagination.current_page} / ${pagination.total_pages}`;
+
+    // Activer/désactiver bouton Précédent
+    prevButton.disabled = !pagination.has_prev;
+    // Activer/désactiver bouton Suivant
+    nextButton.disabled = !pagination.has_next;
 }
 
 function updateFullConversationsTable(conversations, platform) {
@@ -853,6 +1073,9 @@ function updateFullConversationsTable(conversations, platform) {
     const tableElement = document.getElementById('fullConversationsTable');
     const container = document.getElementById('fullConversationsTableContainer');
     const emptyState = container.querySelector('.empty-state');
+
+    // Vider le contenu précédent du tableau !
+    tableBody.innerHTML = '';
 
     if (!conversations || conversations.length === 0) {
         tableElement.style.display = 'none';
@@ -867,13 +1090,29 @@ function updateFullConversationsTable(conversations, platform) {
     conversations.forEach(conversation => {
         const row = tableBody.insertRow();
         const isActive = conversation.status === 'active';
-        const truncatedMessage = conversation.last_message ? 
-            (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) : 
+        const truncatedMessage = conversation.last_message ?
+            (conversation.last_message.length > 50 ? conversation.last_message.substring(0, 50) + '...' : conversation.last_message) :
             'Pas de message';
 
-        // Utiliser l'ID existant ou créer un ID numérique basé sur le titre
         const conversationTitle = conversation.title || 'Sans titre';
-        const numericId = conversation.id || getNumericIdForConversation(conversationTitle);
+
+        // --- NOUVEAU : Déterminer l'identifiant et le type pour le bouton "Voir" ---
+        let viewIdentifier;
+        let platformType = platform; // Garde la plateforme actuelle ('web', 'telegram', 'whatsapp')
+        let viewIdentifierForDisplay; // Pour le onclick
+
+        if (platform === 'whatsapp') {
+            // Pour WhatsApp, l'ID est le thread_id (chaîne), passé tel quel.
+            viewIdentifier = conversation.id; // L'API renvoie le thread_id dans le champ 'id' pour WA
+            viewIdentifierForDisplay = `'${viewIdentifier}'`; // Doit être une chaîne dans l'appel onclick
+        } else {
+            // Pour Web/Telegram, utiliser l'ID numérique de la base de données.
+            viewIdentifier = conversation.id;
+            viewIdentifierForDisplay = viewIdentifier; // Est déjà un nombre
+        }
+
+        // Vérifier si l'identifiant est valide avant de créer le bouton
+        const isIdentifierValid = viewIdentifier !== undefined && viewIdentifier !== null;
 
         row.innerHTML = `
             <td>${conversationTitle}</td>
@@ -882,113 +1121,77 @@ function updateFullConversationsTable(conversations, platform) {
             <td>${truncatedMessage}</td>
             <td><span class="status-badge ${isActive ? 'active' : 'archived'}">${isActive ? 'Active' : 'Archivée'}</span></td>
             <td class="action-buttons">
-                <button class="action-btn view" onclick="viewConversation(${numericId})">
+                ${isIdentifierValid ? `
+                <button class="action-btn view" onclick="viewConversation(${viewIdentifierForDisplay}, '${platformType}')">
                     <i class="bi bi-eye"></i>
                 </button>
-                <button class="action-btn delete" onclick="deleteConversation(${numericId})">
+                ` : `
+                <button class="action-btn view" disabled title="ID de conversation invalide">
+                    <i class="bi bi-eye-slash"></i>
+                </button>
+                `}
+                <button class="action-btn delete" onclick="deleteConversation(${viewIdentifierForDisplay}, '${platformType}')">
                     <i class="bi bi-trash"></i>
                 </button>
             </td>
         `;
     });
 
-    updateConversationFilterCounts();
 }
 
-function filterConversations(filter) {
-    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`.conversations-filters [data-filter="${filter}"]`).classList.add('active');
+function filterConversations(statusFilter) { // 'statusFilter' ici correspond à data-filter="active" ou "archived"
+    console.log(`Filtering conversations by status: ${statusFilter}`);
+    // Mettre à jour l'état global des filtres conversation
+    currentConversationFilter.status = (statusFilter === 'all') ? null : statusFilter;
+    currentConversationFilter.search = null; // Réinitialiser la recherche
 
-    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
-    let visibleCount = 0;
+    // Réinitialiser visuellement la barre de recherche
+    document.getElementById('conversationSearchInput').value = '';
 
-    rows.forEach(row => {
-        const status = row.querySelector('.status-badge').textContent.toLowerCase();
-
-        if (filter === 'all' || 
-            (filter === 'active' && status === 'active') || 
-            (filter === 'archived' && status === 'archivée')) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
+     // Mettre à jour l'état actif des boutons de filtre DANS LA SECTION CONVO
+     document.querySelectorAll('#conversations-section .filter-buttons .filter-btn').forEach(btn => {
+         btn.classList.toggle('active', btn.getAttribute('data-filter') === statusFilter);
     });
 
-    const tableElement = document.getElementById('fullConversationsTable');
-    const container = document.getElementById('fullConversationsTableContainer');
-    const emptyState = container.querySelector('.empty-state');
-
-    if (visibleCount === 0) {
-        tableElement.style.display = 'none';
-        emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = `Aucune conversation ${filter ==='active' ? 'active' : filter === 'archived' ? 'archivée' : ''} disponible`;
-    } else {
-        tableElement.style.display = 'table';
-        emptyState.style.display = 'none';
-    }
-}
-
-function updateConversationFilterCounts() {
-    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
-    let activeCount = 0;
-    let archivedCount = 0;
-
-    rows.forEach(row => {
-        const status = row.querySelector('.status-badge').textContent.toLowerCase();
-        if (status === 'active') {
-            activeCount++;
-        } else {
-            archivedCount++;
-        }
-    });
-
-    document.querySelector('.conversations-filters [data-filter="all"]').textContent = `Toutes (${activeCount + archivedCount})`;
-    document.querySelector('.conversations-filters [data-filter="active"]').textContent = `Actives (${activeCount})`;
-    document.querySelector('.conversations-filters [data-filter="archived"]').textContent = `Archivées (${archivedCount})`;
+    // Appeler fetchAllConversations avec le nouveau filtre, page 1
+    fetchAllConversations(currentPlatform, 1, currentConversationFilter);
 }
 
 function searchConversations() {
-    const searchTerm = document.getElementById('conversationSearchInput').value.toLowerCase();
-    const rows = document.querySelectorAll('#fullConversationsTable tbody tr');
-    let visibleCount = 0;
+    clearTimeout(searchDebounceTimeout);
+    const searchTerm = document.getElementById('conversationSearchInput').value;
 
-    rows.forEach(row => {
-        const text = Array.from(row.cells)
-            .map(cell => cell.textContent.toLowerCase())
-            .join(' ');
+    searchDebounceTimeout = setTimeout(() => {
+         console.log(`Searching conversations with term: "${searchTerm}"`);
+        // Mettre à jour l'état global
+        currentConversationFilter.search = searchTerm.trim();
+        currentConversationFilter.status = null; // Réinitialiser le filtre statut
 
-        if (text.includes(searchTerm)) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
+         // Réinitialiser visuellement les filtres statut (mettre 'Toutes' en actif) DANS LA SECTION CONVO
+         document.querySelectorAll('#conversations-section .filter-buttons .filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-filter') === 'all');
+        });
 
-    const tableElement = document.getElementById('fullConversationsTable');
-    const container = document.getElementById('fullConversationsTableContainer');
-    const emptyState = container.querySelector('.empty-state');
-
-    if (visibleCount === 0) {
-        tableElement.style.display = 'none';
-        emptyState.style.display = 'flex';
-        emptyState.querySelector('p').textContent = "Aucune conversation ne correspond à votre recherche";
-    } else {
-        tableElement.style.display = 'table';
-        emptyState.style.display = 'none';
-    }
+        // Appeler fetchAllConversations avec la recherche, page 1
+        fetchAllConversations(currentPlatform, 1, currentConversationFilter);
+    }, 500);
 }
 
-function deleteConversation(numericId) {
-    conversationIdToDelete = numericId;
-    // Stocke également le titre original pour la suppression
-    conversationTitleToDelete = getTitleFromNumericId(numericId);
+function deleteConversation(identifier, platformType) { // <<< Signature modifiée
+    // Stocker l'identifiant réel et le type de plateforme
+    conversationIdentifierToDelete = identifier; // <<< Utilise la nouvelle variable
+    conversationPlatformToDelete = platformType;  // <<< Utilise la nouvelle variable
+
+    console.log(`Preparing to delete conversation for platform [${platformType}] with identifier:`, identifier); // Log utile
+
+    // Afficher le modal de confirmation
     const modal = document.getElementById('deleteConversationModal');
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
+    if (modal) { // Vérifier si le modal existe
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    } else {
+        console.error("Delete confirmation modal not found!");
+    }
 }
 
 function closeDeleteConversationModal() {
@@ -999,61 +1202,68 @@ function closeDeleteConversationModal() {
 }
 
 function confirmDeleteConversation() {
-    if (conversationIdToDelete === null || !conversationTitleToDelete) return;
+    // Utiliser les nouvelles variables globales
+    if (conversationIdentifierToDelete === null || conversationPlatformToDelete === null) {
+        console.error("Missing identifier or platform type for deletion.");
+        closeDeleteConversationModal(); // Fermer le modal en cas d'erreur interne
+        return;
+    }
 
-    fetch(`/admin/conversations/by-title/${encodeURIComponent(conversationTitleToDelete)}`, {
+    let deleteUrl;
+
+    // --- NOUVEAU : Construire l'URL de suppression basée sur la plateforme ---
+    if (conversationPlatformToDelete === 'whatsapp') {
+        // WhatsApp : Utiliser une route spécifique qui prend le thread_id (chaîne)
+        // Supposons une route comme /admin/whatsapp/thread/<thread_id> (à créer/vérifier côté backend)
+        deleteUrl = `/admin/whatsapp/thread/${encodeURIComponent(conversationIdentifierToDelete)}`;
+        console.log("Using WhatsApp DELETE URL:", deleteUrl);
+    } else if (conversationPlatformToDelete === 'web' || conversationPlatformToDelete === 'telegram') {
+        // Web/Telegram : Utiliser une NOUVELLE route qui prend l'ID numérique
+        deleteUrl = `/admin/conversations/${conversationIdentifierToDelete}`; // <<< NOUVELLE ROUTE DELETE par ID
+        console.log("Using Web/Telegram DELETE URL by ID:", deleteUrl);
+    } else {
+        console.error(`Unsupported platform type for deletion: ${conversationPlatformToDelete}`);
+        alert(`Erreur: Le type de plateforme '${conversationPlatformToDelete}' n'est pas supporté pour la suppression.`);
+        closeDeleteConversationModal();
+        return;
+    }
+
+    // --- MODIFIÉ : Appel fetch avec la nouvelle URL ---
+    fetch(deleteUrl, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
+            // Ajouter d'autres headers si nécessaire (ex: CSRF token)
         }
     })
     .then(response => {
-        if (!response.ok) {
-            throw new Error('Erreur lors de la suppression');
-        }
-        return response.json();
+         // Gérer les réponses non-OK de manière plus détaillée
+         if (!response.ok) {
+             return response.json().catch(() => {
+                 // Si le corps d'erreur n'est pas JSON
+                 throw new Error(`Erreur HTTP ${response.status} (${response.statusText})`);
+             }).then(errorData => {
+                 // Si on a un JSON d'erreur
+                 throw new Error(errorData.message || errorData.error || `Erreur HTTP ${response.status}`);
+             });
+         }
+         return response.json(); // La réponse devrait contenir { success: true, message: "..." }
     })
     .then(data => {
+         if (!data.success) {
+             // Gérer les cas où le backend renvoie success: false
+             throw new Error(data.message || "La suppression a échoué côté serveur.");
+         }
+        console.log(data.message); // Log succès
         closeDeleteConversationModal();
-        fetchAllConversations(currentPlatform);
+        // Rafraîchir la page ACTUELLE des conversations, en gardant les filtres
+        fetchAllConversations(currentPlatform, currentConversationPage, currentConversationFilter);
     })
     .catch(error => {
-        console.error('Erreur:', error);
+        console.error('Erreur lors de la suppression:', error);
+        alert(`Erreur lors de la suppression : ${error.message}`);
         closeDeleteConversationModal();
     });
-}
-
-// À AJOUTER 
-// Map global pour stocker les correspondances entre titres et IDs numériques
-let conversationTitleToIdMap = {};
-let nextConversationId = 1;
-
-// Fonction utilitaire pour obtenir un ID numérique à partir d'un titre
-function getNumericIdForConversation(title) {
-    if (!title) return null;
-
-    // Ajouter des logs pour comprendre ce qui se passe
-    console.log('Getting numeric ID for title:', title);
-
-    // Si nous n'avons pas encore d'ID pour ce titre, en créer un
-    if (!conversationTitleToIdMap[title]) {
-        conversationTitleToIdMap[title] = nextConversationId++;
-        console.log('Created new ID:', conversationTitleToIdMap[title], 'for title:', title);
-    } else {
-        console.log('Using existing ID:', conversationTitleToIdMap[title], 'for title:', title);
-    }
-
-    return conversationTitleToIdMap[title];
-}
-
-// Fonction pour récupérer le titre original à partir de l'ID mappé
-function getTitleFromNumericId(numericId) {
-    for (const [title, id] of Object.entries(conversationTitleToIdMap)) {
-        if (id === parseInt(numericId)) {
-            return title;
-        }
-    }
-    return null;
 }
 
 // Update the initialization code to include conversation handlers
@@ -1062,8 +1272,8 @@ document.addEventListener('DOMContentLoaded', function() {
     showSection('dashboard');
     fetchPlatformData('web');
 
-    // Add event listeners for user filtering and search
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    // Filtres Utilisateur
+    document.querySelectorAll('#users-section .filter-buttons .filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterUsers(btn.getAttribute('data-filter')));
     });
 
@@ -1080,13 +1290,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Recherche Utilisateur (sur 'input' pour chercher pendant la frappe avec debounce)
     document.getElementById('userSearchInput').addEventListener('input', searchUsers);
 
-    // Add conversation-specific event listeners
-    document.querySelectorAll('.conversations-filters .filter-btn').forEach(btn => {
+    // Filtres Conversation
+    document.querySelectorAll('#conversations-section .filter-buttons .filter-btn').forEach(btn => {
         btn.addEventListener('click', () => filterConversations(btn.getAttribute('data-filter')));
     });
 
+    // Recherche Conversation
     document.getElementById('conversationSearchInput').addEventListener('input', searchConversations);
 
     // Conversation deletion modal handlers
@@ -1109,6 +1321,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('viewConversationModal');
         if (event.target === modal) {
             closeViewConversationModal();
+        }
+    });
+
+    // Utilisateurs
+    document.getElementById('userPrevPage').addEventListener('click', () => {
+        if (userPagination.has_prev) {
+            // Passer les filtres actuels lors du changement de page
+            fetchAllUsers(currentPlatform, userPagination.prev_page_num, currentUserFilter);
+        }
+    });
+    document.getElementById('userNextPage').addEventListener('click', () => {
+        if (userPagination.has_next) {
+             // Passer les filtres actuels lors du changement de page
+            fetchAllUsers(currentPlatform, userPagination.next_page_num, currentUserFilter);
+        }
+    });
+
+    // Conversations
+    document.getElementById('convPrevPage').addEventListener('click', () => {
+        if (conversationPagination.has_prev) {
+             // Passer les filtres actuels lors du changement de page
+            fetchAllConversations(currentPlatform, conversationPagination.prev_page_num, currentConversationFilter);
+        }
+    });
+    document.getElementById('convNextPage').addEventListener('click', () => {
+        if (conversationPagination.has_next) {
+             // Passer les filtres actuels lors du changement de page
+            fetchAllConversations(currentPlatform, conversationPagination.next_page_num, currentConversationFilter);
         }
     });
 });

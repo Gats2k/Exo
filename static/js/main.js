@@ -221,6 +221,7 @@ function setupHeartbeat() {
                 console.log('Reconnecté, tentative de restauration du thread...');
                 const storedThreadId = localStorage.getItem('thread_id');
                 if (storedThreadId) {
+                    console.log('[DEBUG JS] Attempting session restore via heartbeat reconnect logic. Sending thread_id:', storedThreadId);
                     socket.emit('restore_session', { thread_id: storedThreadId });
                 }
             });
@@ -242,6 +243,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make socket available globally for our conversation functions
     window.socket = socket;
 
+    let restoreTimeoutId = null; // Variable pour gérer le timeout de restauration
+
+    socket.on('connect', () => {
+        console.log('[DEBUG JS] Socket connecté. Tentative de restauration...');
+        clearTimeout(restoreTimeoutId);
+
+        const storedThreadId = localStorage.getItem('thread_id');
+        if (storedThreadId) {
+            // ID Trouvé : Demander restauration, le conteneur reste masqué pour l'instant
+            console.log('[DEBUG JS] Trouvé thread_id stocké:', storedThreadId, '. Émission de restore_session.');
+            socket.emit('restore_session', { thread_id: storedThreadId });
+
+            // Démarrer timeout : si rien après 3s, afficher l'accueil
+            restoreTimeoutId = setTimeout(() => {
+                 console.warn('[DEBUG JS] Timeout de restauration atteint (3s). Affichage de l\'accueil.');
+                 if(chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
+                 showWelcomeScreen(); // Afficher l'état d'accueil
+            }, 3000);
+
+        } else {
+            // Aucun ID : Afficher l'accueil immédiatement
+            console.log('[DEBUG JS] Aucun thread_id trouvé. Affichage de l\'accueil.');
+            if(chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
+            showWelcomeScreen();
+        }
+    });
+
     // Ajouter après le login réussi dans le code existant
     socket.on('login_success', function(data) {
         // Stocker l'ID utilisateur dans le localStorage
@@ -259,29 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const storedUserId = localStorage.getItem('user_id');
 
         if (storedThreadId) {
-            // Essayer de restaurer la session avec des informations supplémentaires
-            socket.emit('restore_session', { 
-                thread_id: storedThreadId,
-                user_id: storedUserId
-            });
-
-            // Vérifier si la session a été restaurée correctement
-            setTimeout(function() {
-                // Si après 2 secondes nous n'avons pas reçu de confirmation de restauration,
-                // mais que nous avons des messages en cache, essayer d'afficher ces messages
-                if (document.querySelector('.chat-messages').children.length === 0) {
-                    const cachedMessages = localStorage.getItem('cached_messages');
-                    if (cachedMessages) {
-                        try {
-                            const messages = JSON.parse(cachedMessages);
-                            // Afficher les messages en cache pendant que nous attendons la reconnexion
-                            displayCachedMessages(messages);
-                        } catch (e) {
-                            console.error('Erreur lors de la récupération des messages en cache', e);
-                        }
-                    }
-                }
-            }, 2000);
+            console.log('[DEBUG JS] Attempting session restore via reconnect event. Sending thread_id:', storedThreadId, 'User ID:', storedUserId);
         }
     });
 
@@ -298,7 +304,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function displayCachedMessages(messages) {
         // Afficher les messages en cache dans l'interface
         const chatMessages = document.querySelector('.chat-messages');
-        // ... code pour afficher les messages ...
     }
 
     // Ajouter un écouteur pour la confirmation de restauration de session
@@ -330,6 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cameraInput = document.getElementById('camera-input');
     const imageInput = document.getElementById('image-input');
     const imagePreviewContainer = document.querySelector('.image-preview-container');
+    const chatContainer = document.querySelector('.chat-container'); // Sélectionne le conteneur principal du chat
     let isFirstMessage = true;
     let sidebarTimeout;
     let currentImage = null;
@@ -354,6 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Tenter de restaurer la session active
                 const storedThreadId = localStorage.getItem('thread_id');
                 if (storedThreadId) {
+                    console.log('[DEBUG JS] Attempting session restore via visibilitychange. Sending thread_id:', storedThreadId);
                     socket.emit('restore_session', { thread_id: storedThreadId });
                 }
             }
@@ -393,22 +400,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!inputContainer || !responseTime || !chatMessages || !welcomeContainer || !suggestionsContainer) {
         console.log('Éléments requis non disponibles, sortie du script');
         return;
-    }
-
-    // Check if there are any existing messages
-    if (chatMessages.children.length === 0) {
-        // No messages yet, center the input and show welcome elements
-        inputContainer.classList.add('centered');
-        responseTime.classList.add('centered');
-        welcomeContainer.classList.add('visible');
-        suggestionsContainer.classList.add('visible');
-    } else {
-        // Messages exist, position at bottom
-        inputContainer.classList.remove('centered');
-        responseTime.classList.remove('centered');
-        welcomeContainer.classList.remove('visible');
-        suggestionsContainer.classList.remove('visible');
-        isFirstMessage = false;
     }
 
     const updateIcon = (isVisible) => {
@@ -457,6 +448,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const input = document.querySelector('.input-container textarea');
     const sendBtn = document.querySelector('.send-btn');
+
+    // 1. Définir les phrases pour chaque suggestion
+    const suggestionPhrases = {
+        "Aide aux devoirs": "Peux-tu m'aider avec cet exercice : ",
+        "Etudier un cours": "Explique-moi ce cours sur : ",
+        "Révisions examens": "Aide-moi à réviser pour mon examen sur : "
+    };
+
+    // 2. Sélectionner tous les blocs de suggestion
+    const suggestionBlocks = document.querySelectorAll('.suggestion-block');
+
+    // 3. Ajouter un écouteur de clic à chaque bloc
+    suggestionBlocks.forEach(block => {
+        block.addEventListener('click', () => {
+            // Récupérer le texte du span pour identifier le bloc
+            const suggestionText = block.querySelector('span')?.textContent.trim();
+
+            if (suggestionText && suggestionPhrases[suggestionText]) {
+                const phrase = suggestionPhrases[suggestionText];
+                console.log(`[DEBUG JS] Suggestion cliquée: "${suggestionText}". Phrase insérée: "${phrase}"`);
+
+                // Mettre la phrase dans le textarea
+                input.value = phrase;
+
+                // Mettre le focus sur le textarea
+                input.focus();
+
+                // Ajuster la hauteur du textarea (si nécessaire)
+                adjustTextareaHeight(input);
+            } else {
+                console.warn("[DEBUG JS] Suggestion cliquée non reconnue:", suggestionText);
+            }
+        });
+    });
 
     function addLoadingIndicator() {
         const loadingDiv = document.createElement('div');
@@ -634,6 +659,40 @@ document.addEventListener('DOMContentLoaded', function() {
         this.value = '';
     });
 
+    function showWelcomeScreen() {
+        console.log('[DEBUG JS] Exécution de showWelcomeScreen pour afficher l\'état initial.');
+
+        // Assure-toi que les variables sont accessibles (déclarées dans DOMContentLoaded)
+        if (!chatMessages || !inputContainer || !responseTime || !welcomeContainer || !suggestionsContainer || !input) {
+            console.error("Erreur dans showWelcomeScreen: Un ou plusieurs éléments du DOM sont manquants.");
+            return;
+        }
+
+        // 1. Vider la zone de messages
+        chatMessages.innerHTML = '';
+
+        // 2. Afficher les éléments d'accueil
+        welcomeContainer.classList.add('visible');
+        suggestionsContainer.classList.add('visible');
+
+        // 3. Centrer la zone de saisie et le temps de réponse
+        inputContainer.classList.add('centered');
+        responseTime.classList.add('centered');
+
+        // 4. Réinitialiser le titre du header
+        const titleElement = document.querySelector('.conversation-title');
+        if (titleElement) titleElement.textContent = "Nouvelle conversation"; // Ou un autre titre par défaut
+
+        // 5. Réinitialiser le flag pour le layout
+        isFirstMessage = true;
+
+        // 6. Mettre le focus sur l'input
+        input.focus();
+
+        if (chatContainer) chatContainer.classList.remove('initially-hidden'); // Utilise la variable externe
+        else console.error("Erreur dans showWelcomeScreen: chatContainer (externe) n'est pas défini !");
+    }
+
     function sendMessage() {
         const message = input.value.trim();
         if (message || currentImage) {
@@ -658,10 +717,13 @@ document.addEventListener('DOMContentLoaded', function() {
             moveInputToBottom();
             addLoadingIndicator();
 
+            const storedThreadId = localStorage.getItem('thread_id'); // Récupérer l'ID local
+
             // Send both message and image to the server
             socket.emit('send_message', {
                 message: message,
-                image: currentImage
+                image: currentImage,
+                thread_id_from_localstorage: storedThreadId
             });
 
             // Clear input and image
@@ -860,6 +922,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.on('conversation_opened', function(data) {
         if (data.success) {
+
+            clearTimeout(restoreTimeoutId);
+            console.log('[DEBUG JS conversation_opened] Timeout de restauration annulé.');
+
+            const elementCible = document.querySelector('.chat-container'); // Ou '.chat-messages'
+            if (elementCible) {
+                elementCible.classList.remove('initially-hidden');
+                console.log('[DEBUG JS conversation_opened] Classe initially-hidden retirée.');
+            } else {
+                 console.error('[DEBUG JS conversation_opened] Element cible pour remove(initially-hidden) non trouvé!');
+            }
+
             // Clear current messages
             chatMessages.innerHTML = '';
 
@@ -867,10 +941,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleElement = document.querySelector('.conversation-title');
             titleElement.textContent = data.title;
 
-            // Sauvegarder thread_id dans le stockage local
-            if (data.conversation_id) {
-                localStorage.setItem('thread_id', data.conversation_id);
-            }
+            // Sauvegarder le VRAI thread_id dans le stockage local
+           if (data.thread_id) { // <-- Vérifier data.thread_id (la chaîne alphanumérique)
+               console.log(`[DEBUG JS conversation_opened] Stockage localStorage thread_id: "${data.thread_id}"`);
+               localStorage.setItem('thread_id', data.thread_id); // <-- Stocker le VRAI thread_id
+           } else {
+                // Log d'erreur si le thread_id attendu n'est pas reçu
+                console.warn('[DEBUG JS conversation_opened] Pas de thread_id reçu dans les données, localStorage non mis à jour. Vérifiez l\'émission backend !', data);
+                // Ne PAS stocker data.conversation_id ici, car ce serait incorrect.
+           }
 
             // Add each message from the conversation history
             data.messages.forEach(msg => {
@@ -987,11 +1066,13 @@ document.addEventListener('DOMContentLoaded', function() {
             titleElement.textContent = headerDisplayTitle;
         }
 
-        // Sauvegarder thread_id dans le stockage local
-        if (data.id) {
-            // --- DEBUT DEBUG ---
-            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.id}"`);
-            // --- FIN DEBUG ---
+        // Sauvegarder le VRAI thread_id dans le stockage local
+        if (data.thread_id) { // <-- UTILISER data.thread_id (reçu du backend)
+            console.log(`[DEBUG] Stockage localStorage thread_id: "${data.thread_id}"`); // Affiche le vrai thread_id
+            localStorage.setItem('thread_id', data.thread_id); // <-- Stocke le vrai thread_id (Correct)
+        } else if (data.id) {
+            // Fallback (au cas où, mais ne devrait plus être nécessaire) - Log d'avertissement
+            console.warn(`[DEBUG WARNING] new_conversation event received without thread_id, attempting to use data.id (${data.id}) for localStorage. Check backend emit.`);
             localStorage.setItem('thread_id', data.id);
         }
 
@@ -1189,23 +1270,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add handler for new conversation button
-    // Add handler for new conversation button
     const newConversationBtn = document.querySelector('.new-conversation-btn');
     if (newConversationBtn) {
         newConversationBtn.addEventListener('click', function() {
-            // Clear messages
-            chatMessages.innerHTML = '';
 
-            // Reset title - use a more user-friendly placeholder instead of "Nouvelle conversation"
-            const titleElement = document.querySelector('.conversation-title');
-            titleElement.textContent = "..."; // Use simple placeholder until a real message-based title is available
-
-            // Reset UI state
-            inputContainer.classList.add('centered');
-            responseTime.classList.add('centered');
-            welcomeContainer.classList.add('visible');
-            suggestionsContainer.classList.add('visible');
-            isFirstMessage = true;
+            showWelcomeScreen(); // Appel unique pour réinitialiser l'UI
 
             // Supprimer le thread_id du stockage local
             localStorage.removeItem('thread_id');

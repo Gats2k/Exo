@@ -9,6 +9,7 @@ from datetime import datetime
 from database import db
 from openai import OpenAI
 from mathpix_utils import process_image_with_mathpix
+from sqlalchemy import Index, desc, BigInteger, Text
 import sys
 
 # Configure logging
@@ -22,18 +23,27 @@ ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 # Create Blueprint for WhatsApp routes
 whatsapp = Blueprint('whatsapp', __name__)
 
+# --- Modèle WhatsAppMessage ---
 class WhatsAppMessage(db.Model):
-    __tablename__ = 'whatsapp_messages'
+     __tablename__ = 'whatsapp_messages'
 
-    id = db.Column(db.Integer, primary_key=True)
-    message_id = db.Column(db.String(128), unique=True)
-    from_number = db.Column(db.String(20))
-    to_number = db.Column(db.String(20))
-    content = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default='received')
-    direction = db.Column(db.String(10))  # 'inbound' or 'outbound'
-    thread_id = db.Column(db.String(128))  # Store OpenAI thread ID for conversation continuity
+     # Définition des colonnes EXACTEMENT comme dans la base de données
+     id = db.Column(db.Integer, primary_key=True)
+     message_id = db.Column(db.String(128), unique=True, nullable=True) # unique=True crée déjà un index
+     from_number = db.Column(db.String(20), nullable=True)
+     to_number = db.Column(db.String(20), nullable=True)
+     content = db.Column(db.Text, nullable=True)
+     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
+     status = db.Column(db.String(20), nullable=True) # Statut du message (sent, delivered, etc?)
+     direction = db.Column(db.String(10), nullable=True) # 'inbound' ou 'outbound'?
+     thread_id = db.Column(db.String(128), nullable=True) # Important pour grouper les conversations
+
+     # Définir les index explicitement avec les noms exacts de \d
+     __table_args__ = (
+         db.Index('ix_whatsapp_message_from_number_timestamp', 'from_number', 'timestamp'),
+         db.Index('ix_whatsapp_message_thread_id_timestamp', 'thread_id', desc('timestamp')), # Ajout de desc()
+         # Ajoute d'autres contraintes ou index si nécessaire ici
+     )
 
 def get_or_create_thread(phone_number, force_new=False):
     """Get existing thread or create new one for a phone number"""
@@ -198,81 +208,21 @@ def generate_ai_response(message_body, thread_id, sender=None):
     try:
         # Récupérer la configuration actuelle
         config = get_app_config()
-        current_model = config.get('CURRENT_MODEL', 'deepseek')  # Modèle par défaut sécurisé
+        current_model = config.get('CURRENT_MODEL', 'deepseek') # Modèle par défaut sécurisé
 
         logger.info(f"Generating response using model: {current_model} for thread {thread_id}")
 
-        # Pour OpenAI, tester directement si le thread est utilisable
+        # --- Début de la logique OpenAI Assistant ---
+        # Uniquement si OpenAI est explicitement configuré ET que le thread est valide
         if current_model == 'openai':
-            try:
-                # Tester si le thread est utilisable avec OpenAI
-                test_response = client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-                # Si on arrive jusqu'ici, le thread est valide
-                logger.info(f"Thread OpenAI existant {thread_id} utilisable")
-            except Exception as e:
-                # Le thread n'est pas utilisable avec OpenAI, créer un nouveau thread
-                logger.info(f"Thread {thread_id} non utilisable avec OpenAI ({str(e)}), création d'un nouveau thread")
-                try:
-                    thread = client.beta.threads.create()
-                    new_thread_id = thread.id
-                    logger.info(f"Nouveau thread OpenAI créé: {new_thread_id} en remplacement de {thread_id}")
-
-                    # On utilisera ce nouveau thread pour cette requête
-                    thread_id = new_thread_id
-                except Exception as thread_error:
-                    logger.error(f"Erreur lors de la création d'un nouveau thread OpenAI: {str(thread_error)}")
-                    # En cas d'erreur, on bascule sur un autre modèle
-                    current_model = 'deepseek'
-                    logger.info(f"Basculement vers le modèle {current_model} suite à l'erreur")
-
-        # Obtenir les fonctions appropriées pour le modèle actuel
-        get_ai_client = config['get_ai_client']
-        get_model_name = config['get_model_name']
-        get_system_instructions = config['get_system_instructions']
-        call_gemini_api = config['call_gemini_api']
-
-        # Récupérer les messages précédents
-        previous_messages = []
-        # Utiliser une valeur par défaut de 50 si CONTEXT_MESSAGE_LIMIT n'est pas défini
-        message_limit = getattr(sys.modules.get('app', None), 'CONTEXT_MESSAGE_LIMIT', 50)
-        messages_query = WhatsAppMessage.query.filter_by(
-            thread_id=thread_id
-        ).order_by(WhatsAppMessage.timestamp.desc()).limit(message_limit).all()
-
-        for msg in reversed(messages_query):
-            role = 'user' if msg.direction == 'inbound' else 'assistant'
-            previous_messages.append({
-                "role": role,
-                "content": msg.content
-            })
-
-        # Ajouter les instructions système
-        system_instructions = get_system_instructions()
-        if system_instructions:
-            previous_messages.insert(0, {
-                "role": "system",
-                "content": system_instructions
-            })
-
-        # S'assurer que le dernier message est celui de l'utilisateur actuel
-        if not previous_messages or previous_messages[-1]["role"] != "user":
-            previous_messages.append({
-                "role": "user", 
-                "content": message_body
-            })
-        elif previous_messages[-1]["role"] == "user" and previous_messages[-1]["content"] != message_body:
-            previous_messages.append({
-                "role": "user", 
-                "content": message_body
-            })
-
-        # Traitement différent selon le modèle configuré
-        if current_model == 'openai':
-            # Uniquement si OpenAI est explicitement configuré et que le thread est valide
             try:
                 # Vérifier que le thread n'est pas au format local
-                if thread_id.startswith("thread_") and "_" in thread_id[7:]:  # Format thread_NUMERO_TIMESTAMP
+                if thread_id.startswith("thread_") and "_" in thread_id[7:]: # Format thread_NUMERO_TIMESTAMP
                     raise ValueError(f"Thread {thread_id} au format local, non compatible avec OpenAI")
+
+                # Tester si le thread est utilisable avec OpenAI avant de continuer
+                client.beta.threads.messages.list(thread_id=thread_id, limit=1)
+                logger.info(f"Thread OpenAI existant {thread_id} utilisable pour la réponse")
 
                 # Ajouter le message au thread OpenAI existant
                 client.beta.threads.messages.create(
@@ -315,54 +265,90 @@ def generate_ai_response(message_body, thread_id, sender=None):
                 return response
 
             except Exception as openai_error:
-                # En cas d'erreur avec OpenAI, essayer de passer à un autre modèle silencieusement
+                # En cas d'erreur avec OpenAI (thread invalide ou autre), essayer de passer à un autre modèle silencieusement
                 logger.error(f"OpenAI error: {str(openai_error)}, switching to fallback model")
-                current_model = 'deepseek'  # Passer à un modèle de secours
+                current_model = 'deepseek' # Passer à un modèle de secours
                 logger.info(f"Basculé vers modèle de secours: {current_model}")
+                # La suite du code gérera le fallback
 
-        # Pour les modèles non-OpenAI (dont le fallback en cas d'échec OpenAI)        
-        if current_model == 'gemini':
-            # Utiliser Gemini API
-            try:
-                response = call_gemini_api(previous_messages)
-                return response
-            except Exception as gemini_error:
-                logger.error(f"Gemini API error: {str(gemini_error)}")
-                raise
-        else:
-            # Pour DeepSeek et Qwen
-            ai_client = get_ai_client()
-            model = get_model_name()
+        # --- Fin de la logique OpenAI Assistant ---
 
-            # CORRECTION DU BUG - Assurer que model n'est jamais None
-            if model is None:
-                if current_model == 'deepseek':
-                    model = "deepseek-chat"
-                elif current_model == 'deepseek-reasoner':
-                    model = "deepseek-reasoner"
-                elif current_model == 'qwen':
-                    model = "qwen-max-latest"
-                else:
-                    model = "deepseek-chat"  # Fallback par défaut
-                logger.warning(f"Model name was None, using fallback value: {model}")
 
-            try:
-                logger.info(f"Appel API avec modèle: {model} et {len(previous_messages)} messages")
-                completion = ai_client.chat.completions.create(
-                    model=model,  # Ce paramètre ne sera plus jamais None
-                    messages=previous_messages,
-                    stream=False
-                )
-                response = completion.choices[0].message.content
-                return response
-            except Exception as alt_error:
-                logger.error(f"Error with model {current_model}: {str(alt_error)}")
-                raise
+        # --- Logique unifiée pour les modèles compatibles Chat Completion (Gemini, Deepseek, Qwen, et fallback OpenAI) ---
+        # Cette partie s'exécute si current_model n'est PAS 'openai' OU si le bloc OpenAI a échoué et basculé
 
+        # Obtenir les fonctions appropriées pour le modèle actuel (qui peut être le fallback)
+        get_ai_client = config['get_ai_client']
+        get_model_name = config['get_model_name']
+        get_system_instructions = config['get_system_instructions']
+        # La ligne 'call_gemini_api = config['call_gemini_api']' est supprimée ici aussi
+
+        # Récupérer les messages précédents (la logique reste la même)
+        previous_messages = []
+        message_limit = getattr(sys.modules.get('app', None), 'CONTEXT_MESSAGE_LIMIT', 50)
+        messages_query = WhatsAppMessage.query.filter_by(
+            thread_id=thread_id
+        ).order_by(WhatsAppMessage.timestamp.desc()).limit(message_limit).all()
+
+        for msg in reversed(messages_query):
+            # S'assurer que le rôle est 'user' ou 'assistant' pour l'API Chat Completion
+            role = 'user' if msg.direction == 'inbound' else 'assistant'
+            previous_messages.append({
+                "role": role,
+                "content": msg.content
+            })
+
+        # Ajouter les instructions système
+        system_instructions = get_system_instructions()
+        if system_instructions:
+            previous_messages.insert(0, {
+                "role": "system",
+                "content": system_instructions
+            })
+
+        # S'assurer que le dernier message est celui de l'utilisateur actuel s'il n'est pas déjà dans l'historique récupéré
+        if not previous_messages or previous_messages[-1].get("content") != message_body or previous_messages[-1].get("role") != "user":
+             # Vérifier si le message n'est pas déjà le dernier (cas où limit=1 ou conversation très courte)
+             already_present = any(p.get("content") == message_body and p.get("role") == "user" for p in previous_messages)
+             if not already_present:
+                  logger.debug("Ajout explicite du message utilisateur courant à l'historique pour l'API.")
+                  previous_messages.append({
+                      "role": "user",
+                      "content": message_body
+                  })
+
+        # Appel API unifié
+        ai_client = get_ai_client() # Obtient le client correct (Gemini, Deepseek, Qwen)
+        model = get_model_name()    # Obtient le nom de modèle correct
+
+        # Sécurité: Vérifier si le modèle est None et assigner un fallback si nécessaire
+        # (basé sur la logique de fallback précédente)
+        if model is None:
+            if current_model == 'deepseek': model = "deepseek-chat"
+            elif current_model == 'deepseek-reasoner': model = "deepseek-reasoner"
+            elif current_model == 'qwen': model = "qwen-max-latest"
+            elif current_model == 'gemini': model = "gemini-pro" # Ou autre modèle compatible
+            else: model = "deepseek-chat" # Fallback ultime
+            logger.warning(f"Model name was None for {current_model}, using fallback value: {model}")
+
+        try:
+            logger.info(f"Appel API Chat Completion avec modèle: {model} pour {current_model} ({len(previous_messages)} messages)")
+            completion = ai_client.chat.completions.create(
+                model=model,
+                messages=previous_messages,
+                stream=False # Le bot WhatsApp n'est pas configuré pour streamer la réponse
+            )
+            response = completion.choices[0].message.content
+            return response
+        except Exception as alt_error:
+            logger.error(f"Error with model {current_model}: {str(alt_error)}")
+            raise # Remonter l'erreur pour qu'elle soit gérée par le bloc externe
+
+    # Gestion globale des erreurs de la fonction
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
         # Retourner un message par défaut en cas d'échec complet
-        return "Une erreur s'est produite, veuillez réessayer."
+        return "Une erreur s'est produite lors de la génération de la réponse, veuillez réessayer."
 
 def send_whatsapp_message(to_number, message):
     """Send a WhatsApp message using the API"""
@@ -728,7 +714,7 @@ def get_app_config():
     """
     import json
     import os
-    from app import CURRENT_MODEL, get_ai_client, get_model_name, get_system_instructions, call_gemini_api
+    from app import CURRENT_MODEL, get_ai_client, get_model_name, get_system_instructions
 
     # Utiliser un chemin absolu pour le fichier de configuration
     config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
@@ -748,7 +734,6 @@ def get_app_config():
                 'get_ai_client': get_ai_client,
                 'get_model_name': get_model_name,
                 'get_system_instructions': get_system_instructions,
-                'call_gemini_api': call_gemini_api
             }
     except Exception as e:
         logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
@@ -760,7 +745,6 @@ def get_app_config():
         'get_ai_client': get_ai_client,
         'get_model_name': get_model_name,
         'get_system_instructions': get_system_instructions,
-        'call_gemini_api': call_gemini_api
     }
 
 def calculate_test_signature(payload):

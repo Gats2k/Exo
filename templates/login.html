@@ -591,5 +591,12 @@
             }
         });
     </script>
+    <script>
+       // Ce script s'exécute dès que le navigateur le lit, à la fin du chargement du HTML.
+       console.log('[DEBUG JS login.html] Nettoyage localStorage pour la connexion...');
+       localStorage.removeItem('thread_id');
+       // Optionnel : si tu stockes aussi l'ID utilisateur, efface-le aussi
+       // localStorage.removeItem('user_id');
+   </script>
 </body>
 </html>

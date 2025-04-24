@@ -1,4 +1,3 @@
-# Move eventlet monkey patch to top
 import eventlet
 eventlet.monkey_patch()
 
@@ -269,57 +268,118 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages and respond using selected AI model."""
-    if not update.message or not update.message.text:
+    if not update.message or (not update.message.text and not update.message.photo): # Accepter aussi les messages sans texte si photo
+        logger.warning("Received message without text or photo. Ignoring.")
         return
 
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
-    last_name = update.effective_user.last_name or ""  # Handle None values
-    logger.info(f"Processing message from user {user_id} ({first_name} {last_name})")
+    last_name = update.effective_user.last_name or ""
+    message_text = update.message.text or "" # Utiliser "" si pas de texte (cas photo seule)
+    logger.info(f"Processing message (text: {bool(message_text)}) from user {user_id} ({first_name} {last_name})")
+
+    # --- Début de la gestion photo (si présente) ---
+    if update.message.photo:
+        logger.info("Message contains photo, delegating to handle_photo.")
+        await handle_photo(update, context)
+        return
+    # --- Fin de la gestion photo ---
+
+    # Si on arrive ici, c'est un message TEXTE uniquement.
+    if not message_text.strip():
+         logger.warning("Received empty text message after checking for photo. Ignoring.")
+         return
+
+    # conversation = None # On n'a plus besoin de l'objet conversation en dehors du bloc session initial
+    thread_id = None
+    assistant_message = None
+    conversation_id_value = None # <<< NOUVEAU: Variable pour stocker l'ID de la conversation
+    conversation_title_to_update = None # Variable temporaire pour savoir si le titre doit être MAJ
 
     try:
         # Get or create user first
         user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
+        # Update last_active timestamp
+        if user:
+            user.last_active = datetime.utcnow()
+            try:
+                with db_retry_session() as session_for_update:
+                    merged_user = session_for_update.merge(user)
+                    merged_user.last_active = datetime.utcnow()
+                    session_for_update.commit()
+                    logger.debug(f"TelegramUser {user.telegram_id} last_active updated.")
+            except Exception as e:
+                logger.error(f"Erreur MAJ last_active pour telegram_user {user.telegram_id}: {e}", exc_info=True)
+
+        # Find or create conversation and thread_id, AND get conversation_id_value
         with db_retry_session() as session:
-            # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
             existing_conversation = TelegramConversation.query.filter_by(
                 telegram_user_id=user_id
             ).order_by(TelegramConversation.updated_at.desc()).first()
 
-            # Get the current model configuration dynamically
             config = get_app_config()
             CURRENT_MODEL = config['CURRENT_MODEL']
 
             if existing_conversation:
-                # Utiliser la conversation existante
                 thread_id = existing_conversation.thread_id
-                conversation = existing_conversation
-                logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
-
-                # Mettre à jour user_threads pour référence en mémoire
+                conversation_id_value = existing_conversation.id # <<< Récupère l'ID ici
+                logger.info(f"Using existing conversation {conversation_id_value} / thread {thread_id} for user {user_id}")
                 user_threads[user_id] = thread_id
+                existing_conversation.updated_at = datetime.utcnow()
+                session.commit() # Commit update_at ici
             else:
-                # Aucune conversation existante trouvée, créer une nouvelle
+                # No existing conversation, create a new one
                 if CURRENT_MODEL == 'openai':
                     thread = openai_client.beta.threads.create()
                     thread_id = thread.id
                 else:
-                    # Pour les autres modèles, créer un ID de thread unique
                     thread_id = f"thread_{user_id}_{int(time.time())}"
 
                 user_threads[user_id] = thread_id
                 logger.info(f"Created new thread {thread_id} for user {user_id}")
-                # Créer une nouvelle conversation dans la base de données
-                conversation = await create_telegram_conversation(user_id, thread_id)
+                # create_telegram_conversation retourne l'objet conversation
+                new_conversation = await create_telegram_conversation(user_id, thread_id)
+                conversation_id_value = new_conversation.id # <<< Récupère l'ID de la nouvelle conv
+                conversation_title_to_update = new_conversation.title # Marque le titre pour MAJ potentielle
 
-        # Add the user's message to the thread
-        message_text = update.message.text
-        logger.info(f"Received message from user {user_id}: {message_text}")
+        # --- Opérations après la fermeture de la première session ---
 
-        # Store the user's message in our database
-        await add_telegram_message(conversation.id, 'user', message_text)
+        # Vérification de sécurité : on doit avoir un ID de conversation
+        if conversation_id_value is None:
+             logger.error("Critical error: conversation_id_value is None after fetching/creating conversation.")
+             raise Exception("Failed to obtain a valid conversation ID.")
+
+        # Ajouter le message utilisateur en utilisant l'ID sauvegardé
+        await add_telegram_message(conversation_id_value, 'user', message_text) # <<< Utilise conversation_id_value
+
+        # Mettre à jour le titre si c'était une nouvelle conversation
+        # On doit re-requêter la conversation dans une nouvelle session pour la modifier
+        if conversation_title_to_update == "Nouvelle conversation":
+             first_msg_content = message_text.strip()
+             if first_msg_content:
+                 new_title = first_msg_content[:30] + "..." if len(first_msg_content) > 30 else first_msg_content
+                 try:
+                     with db_retry_session() as update_session:
+                         # Re-fetch the conversation using the ID
+                         conv_to_update = update_session.get(TelegramConversation, conversation_id_value)
+                         if conv_to_update:
+                             conv_to_update.title = new_title
+                             update_session.commit()
+                             logger.info(f"Updated conversation {conversation_id_value} title to: '{new_title}'")
+                             # Émettre l'événement SocketIO pour MAJ UI Admin
+                             from app import socketio # Assure-toi que socketio est accessible
+                             socketio.emit('telegram_conversation_updated', {
+                                 'id': conversation_id_value,
+                                 'title': new_title,
+                                 'last_message': message_text[:50] + "..."
+                             })
+                         else:
+                             logger.warning(f"Could not re-fetch conversation {conversation_id_value} to update title.")
+                 except Exception as title_update_e:
+                     logger.error(f"Error updating conversation title for {conversation_id_value}: {title_update_e}", exc_info=True)
+                     # On ne bloque pas le reste du traitement pour une erreur de titre
 
         # Start typing indication
         await context.bot.send_chat_action(
@@ -327,110 +387,165 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action=constants.ChatAction.TYPING
         )
 
-        # Get the current model configuration dynamically
+        # --- AI Processing Logic ---
         config = get_app_config()
         CURRENT_MODEL = config['CURRENT_MODEL']
         get_ai_client = config['get_ai_client']
         get_model_name = config['get_model_name']
         get_system_instructions = config['get_system_instructions']
 
-        logger.info(f"Using AI model: {CURRENT_MODEL} with instructions: {get_system_instructions()}")
-
-        # Different handling based on selected model
-        assistant_message = None
+        logger.info(f"Using AI model: {CURRENT_MODEL}")
 
         if CURRENT_MODEL == 'openai':
-            # Use OpenAI's assistant API
-            openai_client.beta.threads.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=message_text
-            )
-
-            # Run the assistant
-            run = openai_client.beta.threads.runs.create(
-                thread_id=thread_id,
-                assistant_id=ASSISTANT_ID
-            )
-
-            # Wait for the run to complete while maintaining typing indication
-            while True:
-                await context.bot.send_chat_action(
-                    chat_id=update.effective_chat.id,
-                    action=constants.ChatAction.TYPING
-                )
-
-                run_status = openai_client.beta.threads.runs.retrieve(
+            # --- OpenAI Assistants API Logic ---
+            logger.info(f"Processing with OpenAI Assistant API (Thread: {thread_id})")
+            # ... (La logique interne de l'API Assistant reste la même, elle utilise thread_id)
+            # ... (Elle doit assigner la réponse ou une erreur à assistant_message)
+            try:
+                # Add user message to the OpenAI thread
+                openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
-                    run_id=run.id
+                    role="user",
+                    content=message_text
                 )
-                if run_status.status == 'completed':
-                    break
-                elif run_status.status in ['failed', 'cancelled', 'expired']:
-                    error_msg = f"Assistant run failed with status: {run_status.status}"
-                    logger.error(error_msg)
-                    raise Exception(error_msg)
-                await asyncio.sleep(1)
+                # Create and run the assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=ASSISTANT_ID
+                )
+                # Wait for run completion
+                while True:
+                    await context.bot.send_chat_action(
+                        chat_id=update.effective_chat.id,
+                        action=constants.ChatAction.TYPING
+                    )
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run_status.status == 'completed':
+                        logger.info(f"OpenAI Assistant run {run.id} completed.")
+                        break
+                    elif run_status.status in ['failed', 'cancelled', 'expired']:
+                        error_msg = f"Assistant run {run.id} failed with status: {run_status.status}"
+                        logger.error(error_msg)
+                        raise OpenAIError(error_msg)
+                    await asyncio.sleep(1)
 
-            # Get the assistant's response
-            messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
-            assistant_message = messages.data[0].content[0].text.value
-        else:
-            # For other models (Gemini, Deepseek, Qwen), use direct API calls compatible OpenAI
-            logger.info(f"Using alternative model: {CURRENT_MODEL} with model name: {get_model_name()}")
+                # Retrieve the latest message from the assistant
+                messages = openai_client.beta.threads.messages.list(thread_id=thread_id, order='desc', limit=1)
+                if messages.data and messages.data[0].role == 'assistant' and messages.data[0].content[0].type == 'text':
+                    assistant_message = messages.data[0].content[0].text.value
+                else:
+                    logger.error(f"Could not retrieve valid assistant message from thread {thread_id}.")
+                    assistant_message = "Sorry, I couldn't retrieve a valid response from the assistant."
 
-        # Get previous messages for context (limit to last N)
-        previous_messages = []
-        with db_retry_session() as sess:
-             # La logique de récupération de l'historique reste la même
-            messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
-            for msg in reversed(messages_query):
-                 # Convertir le rôle 'assistant' en 'assistant' pour l'API Chat Completion
-                role = msg.role if msg.role == 'user' else 'assistant'
+            except OpenAIError as e:
+                 logger.error(f"OpenAI API error during Assistant processing: {str(e)}", exc_info=True)
+                 assistant_message = "I'm having trouble connecting to my AI brain (Assistant API). Please try again."
+            except Exception as e:
+                 logger.error(f"Unexpected error during OpenAI Assistant processing: {str(e)}", exc_info=True)
+                 assistant_message = "An unexpected error occurred while communicating with the AI assistant."
+
+
+        elif CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            # --- Chat Completions API Logic ---
+            logger.info(f"Processing with Chat Completions API ({CURRENT_MODEL})")
+            try:
+                # Get previous messages for context using conversation_id_value
+                previous_messages = []
+                with db_retry_session() as sess:
+                    # Utilise conversation_id_value dans le filtre
+                    messages_query = TelegramMessage.query.filter(
+                         TelegramMessage.conversation_id == conversation_id_value # <<< Utilise ID
+                    ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+
+                    processed_ids = set() # Pour éviter doublons si la query ramène le msg user actuel
+                    for msg in reversed(messages_query):
+                        # Exclure le message utilisateur actuel si la query le ramène (par sécurité)
+                        if msg.role == 'user' and msg.content == message_text and msg.id not in processed_ids:
+                             # On veut l'historique SANS le message actuel, qui sera ajouté après
+                             continue
+                        role = msg.role if msg.role == 'user' else 'assistant'
+                        previous_messages.append({
+                            "role": role,
+                            "content": msg.content
+                        })
+                        processed_ids.add(msg.id)
+
+
+                # Add system instruction
+                system_instructions = get_system_instructions()
+                if system_instructions:
+                    previous_messages.insert(0, {
+                        "role": "system",
+                        "content": system_instructions
+                    })
+
+                # Add the current user message (celui en cours de traitement)
                 previous_messages.append({
-                    "role": role,
-                    "content": msg.content
+                    "role": "user",
+                    "content": message_text
                 })
 
-        # Add system instruction
-        system_instructions = get_system_instructions()
-        if system_instructions:
-            previous_messages.insert(0, {
-                "role": "system",
-                "content": system_instructions
-            })
+                ai_client = get_ai_client()
+                model = get_model_name()
 
-        # Logique unifiée pour Gemini, DeepSeek, Qwen
-        ai_client = get_ai_client() # Obtient le client configuré (y compris gemini_openai_client)
-        model = get_model_name()    # Obtient le nom de modèle configuré (y compris gemini-2.0-flash, etc.)
+                if not model:
+                    logger.error(f"Could not determine model name for CURRENT_MODEL='{CURRENT_MODEL}'")
+                    assistant_message = "Internal configuration error: Could not determine AI model name."
+                else:
+                    # Make the API call
+                    response = ai_client.chat.completions.create(
+                        model=model,
+                        messages=previous_messages
+                    )
+                    assistant_message = response.choices[0].message.content
 
-        try:
-            # Appel standard à chat.completions.create (non-streamé ici, comme avant pour deepseek/qwen)
-            response = ai_client.chat.completions.create(
-                model=model,
-                messages=previous_messages # Contient system, historique et dernier message user
-            )
-            assistant_message = response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error calling AI API ({CURRENT_MODEL}): {str(e)}")
-            raise
+            # ... (Blocs except pour cette branche restent similaires, assignent à assistant_message) ...
+            except OpenAIError as e:
+                logger.error(f"Error calling Chat Completions API ({CURRENT_MODEL}): {str(e)}", exc_info=True)
+                if isinstance(e, openai.BadRequestError) and 'provide a model parameter' in str(e):
+                     assistant_message = "Internal configuration error: AI model parameter missing."
+                else:
+                     assistant_message = f"I'm having trouble connecting to my AI brain ({CURRENT_MODEL}). Please try again."
+            except Exception as e:
+                logger.error(f"Unexpected error during {CURRENT_MODEL} processing: {str(e)}", exc_info=True)
+                assistant_message = f"An unexpected error occurred while communicating with the {CURRENT_MODEL} AI."
 
-        # Store the assistant's response in our database
-        await add_telegram_message(conversation.id, 'assistant', assistant_message)
 
-        logger.info(f"Sending response to user {user_id}: {assistant_message[:100]}...")
-        await update.message.reply_text(assistant_message)
+        else:
+            # --- Handle Unknown Model ---
+            logger.error(f"Unsupported CURRENT_MODEL configured: {CURRENT_MODEL}")
+            assistant_message = "Sorry, the configured AI model is not supported."
 
-    except OpenAIError as openai_error:
-        logger.error(f"OpenAI API error: {str(openai_error)}", exc_info=True)
-        await update.message.reply_text(
-            "I'm having trouble connecting to my AI brain. Please try again in a moment."
-        )
+    # --- Catch errors from user/conversation lookup or initial DB operations ---
     except Exception as e:
-        logger.error(f"Error handling message: {str(e)}", exc_info=True)
-        await update.message.reply_text(
-            "I apologize, but I encountered an error processing your message. Please try again."
-        )
+        logger.error(f"Error before AI processing (user/conversation handling): {str(e)}", exc_info=True)
+        # Assign error message here as well
+        assistant_message = "I apologize, but I encountered an error processing your request before contacting the AI. Please try again."
+
+    # --- Final Sending and Storage ---
+    if assistant_message is None:
+        logger.error("Assistant message is None after all processing attempts. Assigning generic error.")
+        assistant_message = "Sorry, an unknown error occurred while generating the response."
+
+    # Store the final assistant's response (or error message)
+    try:
+        if conversation_id_value: # Vérifie qu'on a bien un ID
+            await add_telegram_message(conversation_id_value, 'assistant', assistant_message) # <<< Utilise conversation_id_value
+        else:
+             logger.error("Cannot save assistant message because conversation_id_value is None.")
+    except Exception as db_error:
+        logger.error(f"Failed to save assistant message to DB for conversation {conversation_id_value}: {db_error}", exc_info=True)
+        # On continue pour envoyer le message à l'utilisateur même si la sauvegarde échoue
+
+    # Send the final response (or error message) to the user
+    try:
+        logger.info(f"Sending final response/error to user {user_id}: {assistant_message[:100]}...")
+        await update.message.reply_text(assistant_message)
+    except Exception as send_error:
+        logger.error(f"Failed to send final message to user {user_id}: {send_error}", exc_info=True)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""

@@ -98,7 +98,7 @@
                     <i class="bi bi-three-dots-vertical"></i>
                 </button>
                 <div class="user-menu-dropdown" id="userMenuDropdown">
-                    <a href="{{ url_for('logout') }}" class="user-menu-item">
+                    <a href="{{ url_for('logout') }}" class="user-menu-item" id="logout-link">
                         <i class="bi bi-box-arrow-right"></i> Déconnexion
                     </a>
                     <a href="#" class="user-menu-item">
@@ -107,7 +107,9 @@
                 </div>
             </div>
         </div>
-        <div class="chat-container">
+
+        
+        <div class="chat-container initially-hidden">
             <div class="welcome-container">
                 <h1 class="welcome-title">Bienvenue sur Exô</h1>
                 <p class="welcome-text">Votre assistant personnel pour réussir vos études</p>

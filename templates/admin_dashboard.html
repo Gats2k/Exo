@@ -202,6 +202,11 @@
                     <tbody></tbody>
                 </table>
             </div>
+            <div class="pagination-controls" id="userPaginationControls" style="display: none; text-align: center; margin-top: 15px;">
+                <button id="userPrevPage" class="pagination-btn" disabled>&lt; Précédent</button>
+                <span id="userPageInfo" style="margin: 0 10px;">Page 1 / 1</span>
+                <button id="userNextPage" class="pagination-btn" disabled>Suivant &gt;</button>
+            </div>
         </div>
 
         <!-- Conversations Section -->
@@ -236,6 +241,11 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+            <div class="pagination-controls" id="conversationPaginationControls" style="display: none; text-align: center; margin-top: 15px;">
+                <button id="convPrevPage" class="pagination-btn" disabled>&lt; Précédent</button>
+                <span id="convPageInfo" style="margin: 0 10px;">Page 1 / 1</span>
+                <button id="convNextPage" class="pagination-btn" disabled>Suivant &gt;</button>
             </div>
         </div>
 
@@ -379,7 +389,7 @@
                             <option value="deepseek" {% if current_model == 'deepseek' %}selected{% endif %}>DeepSeek Chat</option>
                             <option value="deepseek-reasoner" {% if current_model == 'deepseek-reasoner' %}selected{% endif %}>DeepSeek Reasoner</option>
                             <option value="qwen" {% if current_model == 'qwen' %}selected{% endif %}>Qwen Max</option>
-                            <option value="gemini" {% if current_model == 'gemini' %}selected{% endif %}>Google Gemini 2.5 Pro</option>
+                            <option value="gemini" {% if current_model == 'gemini' %}selected{% endif %}>Google Gemini 2.5 Flash</option>
                             <option value="other" disabled>Autres modèles (Bientôt disponible)</option>
                         </select>
                     </div>
@@ -478,7 +488,7 @@
                     <div id="gemini-settings" class="model-settings" {% if current_model != 'gemini' %}style="display: none;"{% endif %}>
                         <div class="ai-config-group">
                             <label>Modèle</label>
-                            <input type="text" class="ai-config-input" value="gemini-2.0-flash" readonly>
+                            <input type="text" class="ai-config-input" value="gemini-2.5-flash-preview-04-17" readonly>
                             <p class="ai-config-help">Le modèle Gemini 2.0 Flash de Google, rapide et efficace.</p>
                         </div>
 
@@ -520,7 +530,7 @@
 <script src="{{ url_for('static', filename='js/admin_dashboard.js') }}"></script>
 <script>
     // Notification d'événements en temps réel
-    const notifications = {
+    const notificationEventMessages = {
         feedback_stats_updated: "Les statistiques de satisfaction ont été mises à jour"
     };
 </script>
