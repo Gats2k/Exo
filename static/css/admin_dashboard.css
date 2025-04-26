@@ -1111,6 +1111,71 @@ body {
     background: rgba(255, 255, 255, 0.3);
 }
 
+/* Admin message input styles */
+.admin-message-input-container {
+    display: flex;
+    margin-top: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px;
+}
+
+#adminMessageInput {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 14px;
+    padding: 8px;
+    min-height: 60px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+#adminMessageInput::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+#adminMessageInput:focus {
+    outline: none;
+}
+
+.admin-send-btn {
+    background: #4c1d95;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    align-self: flex-end;
+    margin-left: 8px;
+    transition: background-color 0.2s;
+}
+
+.admin-send-btn:hover {
+    background: #6d28d9;
+}
+
+.admin-send-btn:active {
+    background: #5b21b6;
+}
+
+.conversation-modal .message.admin {
+    margin-right: auto;
+    padding: 0 0 0 20px;
+    width: fit-content;
+    align-self: flex-start;
+}
+
+.conversation-modal .message.admin .message-content {
+    background: rgba(76, 29, 149, 0.3);
+    border-color: rgba(109, 40, 217, 0.4);
+}
 
 /* Add subscription management styles */
 .subscriptions-filters {

@@ -3427,6 +3427,78 @@ def get_conversation_messages(conversation_id):
         logger.exception(f"Error fetching Web/Telegram conversation messages by ID {conversation_id}: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# --- NOUVELLE ROUTE POUR ENVOYER DES MESSAGES ADMIN ---
+@app.route('/admin/conversations/<int:conversation_id>/send', methods=['POST'])
+def send_admin_message(conversation_id):
+    """Send an admin message to a specific conversation"""
+    try:
+        if not session.get('is_admin'):
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Get message content from the request
+        data = request.json
+        message_content = data.get('message')
+        
+        if not message_content or message_content.strip() == '':
+            return jsonify({'error': 'Message content is required'}), 400
+
+        # Check Web conversations first
+        web_conv = Conversation.query.get(conversation_id)
+        if web_conv:
+            # Create a new message in the web conversation with admin role
+            new_message = Message(
+                conversation_id=web_conv.id,
+                role='admin',
+                content=message_content,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_message)
+            db.session.commit()
+            
+            logger.info(f"Admin message sent to Web conversation ID: {conversation_id}")
+            return jsonify({
+                'success': True, 
+                'message': 'Admin message sent successfully',
+                'message_data': {
+                    'role': 'admin',
+                    'content': message_content,
+                    'created_at': new_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        # If not found in Web, check Telegram conversations
+        tg_conv = TelegramConversation.query.get(conversation_id)
+        if tg_conv:
+            # Create a new message in the telegram conversation with admin role
+            new_message = TelegramMessage(
+                conversation_id=tg_conv.id,
+                role='admin',
+                content=message_content,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_message)
+            db.session.commit()
+            
+            logger.info(f"Admin message sent to Telegram conversation ID: {conversation_id}")
+            return jsonify({
+                'success': True, 
+                'message': 'Admin message sent successfully to Telegram conversation',
+                'message_data': {
+                    'role': 'admin',
+                    'content': message_content,
+                    'created_at': new_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                }
+            })
+
+        # Return 404 if conversation not found
+        logger.warning(f"Conversation (Web ou Telegram) avec ID {conversation_id} non trouvée pour l'envoi du message admin.")
+        return jsonify({'error': 'Conversation not found by ID'}), 404
+
+    except Exception as e:
+        logger.exception(f"Error sending admin message to conversation ID {conversation_id}: {e}")
+        db.session.rollback()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
 # --- NOUVELLE ROUTE POUR SUPPRIMER PAR ID (WEB/TELEGRAM) ---
 @app.route('/admin/conversations/<int:conversation_id>', methods=['DELETE'])
 def delete_conversation_by_id(conversation_id):
