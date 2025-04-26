@@ -29,6 +29,11 @@ import json
 from typing_extensions import override
 from openai import AssistantEventHandler
 from flask_migrate import Migrate
+from telegram import Update
+from telegram_bot import application as telegram_app
+from flask import request as flask_request
+from flask import Response
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -89,6 +94,57 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Get the current AI model from environment or default to OpenAI
 CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+
+# Assurer qu'un event loop existe pour le contexte async (important dans certains déploiements)
+try:
+    loop = asyncio.get_event_loop()
+    logger.info(f"Event loop obtained: {loop}")
+except RuntimeError:
+    logger.info("No current event loop, creating a new one.")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+if telegram_app: # Vérifier si l'import a réussi
+    logger.info("Initialisation de l'application Telegram (await application.initialize())...")
+    try:
+        # Exécuter l'initialisation async dans la boucle d'événements existante
+        # C'est important de le faire une fois au démarrage
+        loop.run_until_complete(telegram_app.initialize())
+        logger.info("Application Telegram initialisée avec succès.")
+    except Exception as init_error:
+        logger.error(f"Échec de l'initialisation de l'application Telegram: {init_error}", exc_info=True)
+        # Gérer l'erreur critique si nécessaire
+else:
+     logger.error("Impossible d'initialiser l'application Telegram car elle n'a pas été importée/créée.")
+
+@app.route('/telegram_webhook', methods=['POST'])
+async def telegram_webhook_handler(): # Mettre 'async def' car process_update est async
+    logger.debug("Webhook Telegram reçu !")
+    if flask_request.content_type == 'application/json':
+        json_data = flask_request.get_json(force=True)
+        logger.debug(f"Payload JSON: {json_data}")
+        try:
+            if telegram_app: # Vérifier que l'objet application a été initialisé
+                 update = Update.de_json(json_data, telegram_app.bot)
+                 logger.debug(f"Update deserialized: {update.update_id}")
+                 # Laisser python-telegram-bot gérer le dispatching vers les bons handlers (handle_message, etc.)
+                 await telegram_app.process_update(update)
+                 logger.debug(f"Update {update.update_id} processed.")
+            else:
+                 logger.error("Objet application Telegram non initialisé, impossible de traiter le webhook.")
+                 # Répondre OK à Telegram même en cas d'erreur interne pour éviter re-essais constants
+                 return Response(status=500) # Ou 200, voir note ci-dessous
+
+            # Répondre 200 OK à Telegram pour indiquer qu'on a bien reçu l'update
+            return Response(status=200)
+
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement du webhook Telegram: {e}", exc_info=True)
+            # Répondre 200 OK à Telegram même en cas d'erreur pour éviter que Telegram ne réessaie sans fin
+            return Response(status=200)
+    else:
+        logger.warning(f"Requête Webhook reçue avec Content-Type incorrect: {flask_request.content_type}")
+        return Response(status=400) # Bad Request
 
 
 def load_instructions_from_file(file_path, default_value):
@@ -2579,8 +2635,8 @@ def admin_platform_data(platform):
             })
 
         elif platform == 'telegram':
-            active_users_count = db.session.query(func.count(TelegramUser.id)).scalar() or 0
-            today_users_count = db.session.query(func.count(TelegramUser.id))\
+            active_users_count = db.session.query(func.count(TelegramUser.telegram_id)).scalar() or 0
+            today_users_count = db.session.query(func.count(TelegramUser.telegram_id))\
                 .filter(TelegramUser.created_at >= today_date, TelegramUser.created_at < tomorrow_date).scalar() or 0
             today_conversations_count = db.session.query(func.count(TelegramConversation.id))\
                 .filter(TelegramConversation.created_at >= today_date, TelegramConversation.created_at < tomorrow_date).scalar() or 0
@@ -2746,33 +2802,31 @@ def admin_platform_users(platform):
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
-        status_filter = request.args.get('status', None, type=str) # On le lit toujours, mais on ne l'utilise que pour WA
+        status_filter = request.args.get('status', None, type=str) # 'active', 'inactive' ou None
         search_term = request.args.get('search', None, type=str)
 
         users_data = []
         pagination_data = {}
         base_query = None
+        user_model = None
+        last_active_column = None
 
-        # 1. Construire la requête de base
+        # Définir le seuil d'activité (ex: 15 minutes)
+        activity_threshold = datetime.utcnow() - timedelta(seconds=900) # 15 minutes
+
+        # 1. Construire la requête de base et identifier le modèle/colonne
         if platform == 'web':
+            user_model = User
             base_query = User.query
+            last_active_column = User.last_active # <-- Identifier la colonne
             search_fields = [User.first_name, User.last_name, User.phone_number]
-            # PAS de filtre statut basé sur last_active car la colonne n'existe pas
-            if search_term:
-                 search_conditions = [field.ilike(f'%{search_term}%') for field in search_fields]
-                 base_query = base_query.filter(or_(*search_conditions))
-            base_query = base_query.order_by(desc(User.created_at))
-
         elif platform == 'telegram':
+            user_model = TelegramUser
             base_query = TelegramUser.query
+            last_active_column = TelegramUser.last_active # <-- Identifier la colonne
             search_fields = [TelegramUser.first_name, TelegramUser.last_name, TelegramUser.phone_number, TelegramUser.telegram_id.cast(db.String)]
-            # PAS de filtre statut basé sur last_active car la colonne n'existe pas
-            if search_term:
-                 search_conditions = [field.ilike(f'%{search_term}%') for field in search_fields]
-                 base_query = base_query.filter(or_(*search_conditions))
-            base_query = base_query.order_by(desc(TelegramUser.created_at))
-
         elif platform == 'whatsapp':
+             # Logique WhatsApp (inchangée pour la récupération de base)
              base_query = db.session.query(WhatsAppMessage.from_number).distinct()
              if search_term:
                  base_query = base_query.filter(WhatsAppMessage.from_number.ilike(f'%{search_term}%'))
@@ -2780,38 +2834,72 @@ def admin_platform_users(platform):
         else:
             return jsonify({"error": "Platform not supported"}), 404
 
-        # 2. Appliquer la pagination
+        # 2. Appliquer les filtres (Web/Telegram) - AVANT la pagination
+        if platform in ['web', 'telegram']:
+            # Filtre de statut
+            if status_filter == 'active':
+                # Doit avoir une date last_active non nulle ET supérieure au seuil
+                # S'assurer que last_active_column n'est pas None avant de filtrer
+                if last_active_column is not None:
+                    base_query = base_query.filter(last_active_column != None, last_active_column >= activity_threshold)
+                else:
+                     app.logger.warning(f"Impossible d'appliquer le filtre 'active' car la colonne last_active n'est pas définie pour {platform}")
+            elif status_filter == 'inactive':
+                # Doit avoir une date last_active nulle OU inférieure au seuil
+                if last_active_column is not None:
+                    base_query = base_query.filter(or_(last_active_column == None, last_active_column < activity_threshold))
+                else:
+                    app.logger.warning(f"Impossible d'appliquer le filtre 'inactive' car la colonne last_active n'est pas définie pour {platform}")
+
+            # Filtre de recherche
+            if search_term:
+                search_conditions = [field.ilike(f'%{search_term}%') for field in search_fields]
+                base_query = base_query.filter(or_(*search_conditions))
+
+            # Trier (important pour la pagination)
+            base_query = base_query.order_by(desc(user_model.created_at))
+
+        # 3. Appliquer la pagination (après les filtres)
         pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
 
-        # 3. Traiter les résultats de la page actuelle
+        # 4. Traiter les résultats de la page actuelle
         if platform == 'web':
             users_on_page = pagination.items
-            users_data = [{
-                'id': user.id, # OK: User a 'id'
-                'first_name': user.first_name, 'last_name': user.last_name,
-                'phone_number': user.phone_number, 'age': user.age,
-                'study_level': user.study_level,
-                'created_at': user.created_at.strftime('%d/%m/%Y'),
-                'active': None # Pas de colonne last_active
-            } for user in users_on_page]
+            users_data = []
+            for user in users_on_page:
+                # Calculer l'état 'active' basé sur last_active et le seuil
+                is_active = user.last_active is not None and user.last_active >= activity_threshold
+                users_data.append({
+                    'id': user.id,
+                    'first_name': user.first_name, 'last_name': user.last_name,
+                    'phone_number': user.phone_number, 'age': user.age,
+                    'study_level': user.study_level,
+                    'created_at': user.created_at.strftime('%d/%m/%Y'),
+                    'active': is_active # <-- POINT CLÉ : VRAI booléen calculé
+                })
 
         elif platform == 'telegram':
-             users_on_page = pagination.items
-             users_data = [{
-                 'id': user.telegram_id, # CORRIGÉ: Utilise telegram_id
-                 'telegram_id': user.telegram_id,
-                 'first_name': user.first_name or "---", 'last_name': user.last_name or "---",
-                 'phone': user.phone_number, 'study_level': user.study_level,
-                 'created_at': user.created_at.strftime('%d/%m/%Y'),
-                 'active': None # Pas de colonne last_active
-             } for user in users_on_page]
+            users_on_page = pagination.items
+            users_data = []
+            for user in users_on_page:
+                # Calculer l'état 'active' basé sur last_active et le seuil
+                is_active = user.last_active is not None and user.last_active >= activity_threshold
+                users_data.append({
+                    'id': user.telegram_id, # Utilise toujours telegram_id comme ID principal pour TG
+                    'telegram_id': user.telegram_id,
+                    'first_name': user.first_name or "---", 'last_name': user.last_name or "---",
+                    'phone': user.phone_number, 'study_level': user.study_level,
+                    'created_at': user.created_at.strftime('%d/%m/%Y'),
+                    'active': is_active # <-- POINT CLÉ : VRAI booléen calculé
+                })
 
         elif platform == 'whatsapp':
-            # Logique WA (qui fonctionnait déjà pour récupérer les données)
+            # Logique WhatsApp (presque inchangée, juste le seuil d'activité)
             numbers_on_page = [item[0] for item in pagination.items]
             first_message_times = {}
             last_message_times = {}
             if numbers_on_page:
+                # ... (récupération first_ts/last_ts inchangée) ...
                 first_msg_subq = db.session.query(
                     WhatsAppMessage.from_number, func.min(WhatsAppMessage.timestamp).label('first_ts')
                 ).filter(WhatsAppMessage.from_number.in_(numbers_on_page)).group_by(WhatsAppMessage.from_number).subquery()
@@ -2824,20 +2912,20 @@ def admin_platform_users(platform):
 
             users_data = []
             for num in numbers_on_page:
-                 first_ts = first_message_times.get(num)
-                 last_ts = last_message_times.get(num)
-                 # Calculer is_active basé sur le timestamp du dernier message WA
-                 is_active = last_ts and (datetime.utcnow() - last_ts).total_seconds() < 900
-                 # Appliquer le filtre status *ici* pour WA
-                 if status_filter is None or (status_filter == 'active' and is_active) or (status_filter == 'inactive' and not is_active):
+                first_ts = first_message_times.get(num)
+                last_ts = last_message_times.get(num)
+                # Calculer is_active basé sur le timestamp du dernier message WA et le seuil commun
+                is_active = last_ts is not None and last_ts >= activity_threshold
+                # Appliquer le filtre status *ici* pour WA
+                if status_filter is None or (status_filter == 'active' and is_active) or (status_filter == 'inactive' and not is_active):
                     users_data.append({
                         'id': num, 'name': f'WhatsApp User {num}', 'phone': num,
                         'study_level': 'N/A',
                         'created_at': first_ts.strftime('%d/%m/%Y') if first_ts else 'N/A',
-                        'active': is_active
+                        'active': is_active # Utilise le booléen calculé
                     })
 
-        # 4. Construire les données de pagination
+        # 5. Construire les données de pagination (inchangé)
         pagination_data = {
             'total_items': pagination.total, 'total_pages': pagination.pages,
             'current_page': pagination.page, 'per_page': pagination.per_page,
@@ -2848,8 +2936,7 @@ def admin_platform_users(platform):
         return jsonify({'users': users_data, 'pagination': pagination_data})
 
     except Exception as e:
-        # Log plus détaillé de l'erreur
-        app.logger.exception(f"Error fetching users for platform {platform}: {e}") # Utiliser logger.exception pour tracerback
+        app.logger.exception(f"Error fetching users for platform {platform}: {e}")
         return jsonify({"error": "Failed to retrieve users"}), 500
 
 @app.route('/admin/conversations/<platform>')
@@ -2858,137 +2945,177 @@ def admin_platform_conversations(platform):
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
-        # Récupérer les paramètres
         status_filter = request.args.get('filter', None, type=str) # 'active' ou 'archived'
         search_term = request.args.get('search', None, type=str)
 
-        conversations_data = []
+        conversations_on_page_data = [] # Renommé pour clarté
         pagination_data = {}
         base_query = None
+        conv_model = None
+        message_model = None
+        conv_id_col = None
+        msg_conv_fk_col = None
+        msg_created_at_col = None
+        search_fields = []
 
-        # 1. Construire la requête de base
+        # Définir le seuil d'activité (ex: 15 minutes)
+        activity_threshold = datetime.utcnow() - timedelta(seconds=900)
+
+        # 1. Identifier les modèles et colonnes pertinents
         if platform == 'web':
-            base_query = Conversation.query
-            search_fields = [Conversation.title] # Chercher sur le titre
+            conv_model = Conversation
+            message_model = Message
+            conv_id_col = Conversation.id
+            msg_conv_fk_col = Message.conversation_id
+            msg_created_at_col = Message.created_at
+            search_fields = [Conversation.title]
+            # Requête initiale sur le modèle Conversation
+            base_query = db.session.query(conv_model)
         elif platform == 'telegram':
-            base_query = TelegramConversation.query
-            search_fields = [TelegramConversation.title] # Chercher sur le titre
+            conv_model = TelegramConversation
+            message_model = TelegramMessage
+            conv_id_col = TelegramConversation.id
+            msg_conv_fk_col = TelegramMessage.conversation_id
+            msg_created_at_col = TelegramMessage.created_at
+            search_fields = [TelegramConversation.title]
+             # Requête initiale sur le modèle TelegramConversation
+            base_query = db.session.query(conv_model)
         elif platform == 'whatsapp':
-            # Pour WA, on pagine les threads ordonnés par date du dernier message
+             # Logique WA reste basée sur les threads et leurs derniers messages directs
              last_msg_subq = db.session.query(
                  WhatsAppMessage.thread_id,
                  func.max(WhatsAppMessage.timestamp).label('last_msg_time')
              ).group_by(WhatsAppMessage.thread_id).subquery()
-             # On fera la jointure et le filtrage après
+             # La requête de base sélectionne thread_id et last_msg_time
              base_query = db.session.query(
-                last_msg_subq.c.thread_id, last_msg_subq.c.last_msg_time
+                 last_msg_subq.c.thread_id, last_msg_subq.c.last_msg_time
              )
-             # Le filtrage status ('active'/'archived') n'est pas directement applicable ici
-             # La recherche peut se faire sur thread_id
+             # Recherche sur thread_id pour WA
              if search_term:
-                 # Essayer de chercher sur thread_id (si l'utilisateur cherche un ID)
-                 # Ou joindre avec messages pour chercher le contenu (complexe/lent sans index full-text)
-                 # Simplification: chercher sur thread_id
                  base_query = base_query.filter(last_msg_subq.c.thread_id.ilike(f'%{search_term}%'))
-
-             base_query = base_query.order_by(desc(last_msg_subq.c.last_msg_time))
-
+             conv_model = None # Pas de modèle direct pour WA conversation
         else:
             return jsonify({"error": "Platform not supported"}), 404
 
-        # 2. Appliquer les filtres (Web/Telegram)
+        # 2. Appliquer le filtre de recherche (Web/Telegram seulement sur titre)
         if platform in ['web', 'telegram']:
-            conv_model = Conversation if platform == 'web' else TelegramConversation
-            # Filtre de statut
-            if status_filter in ['active', 'archived']:
-                 # Assurez-vous que votre modèle Conversation/TelegramConversation a une colonne 'status'
-                 if hasattr(conv_model, 'status'):
-                     base_query = base_query.filter(conv_model.status == status_filter)
-                 else:
-                     app.logger.warning(f"Model {conv_model.__name__} does not have 'status' attribute for filtering.")
-                     # Peut-être renvoyer une erreur ou ignorer le filtre ?
+            if search_term and search_fields: # S'assurer qu'il y a des champs où chercher
+                search_conditions = [field.ilike(f'%{search_term}%') for field in search_fields]
+                if search_conditions:
+                    base_query = base_query.filter(or_(*search_conditions))
 
-            # Filtre de recherche
-            if search_term:
-                 search_conditions = []
-                 for field in search_fields:
-                     search_conditions.append(field.ilike(f'%{search_term}%'))
-                 if search_conditions:
-                     base_query = base_query.filter(or_(*search_conditions))
+        # 3. Appliquer le filtre de statut basé sur le temps (TOUTES plateformes)
+        if platform in ['web', 'telegram']:
+            # Sous-requête pour trouver le timestamp du dernier message
+            last_message_subquery = db.session.query(
+                msg_conv_fk_col,
+                func.max(msg_created_at_col).label('last_message_time')
+            ).group_by(msg_conv_fk_col).subquery()
 
-            # Trier les résultats (Web/Telegram)
-            base_query = base_query.order_by(desc(conv_model.created_at))
+            # Joindre la requête de base avec la sous-requête
+            # S'assurer de ne joindre que sur les conversations qui ont au moins un message
+            base_query = base_query.join(
+                last_message_subquery, conv_id_col == last_message_subquery.c.conversation_id
+            )
 
+            # Filtrer basé sur le temps du dernier message
+            if status_filter == 'active':
+                base_query = base_query.filter(last_message_subquery.c.last_message_time >= activity_threshold)
+            elif status_filter == 'archived': # Traiter 'archived' comme 'inactive'
+                base_query = base_query.filter(last_message_subquery.c.last_message_time < activity_threshold)
 
-        # 3. Appliquer la pagination
+            # Ajouter la colonne last_message_time à la sélection et trier par elle
+            base_query = base_query.add_columns(last_message_subquery.c.last_message_time)\
+                                 .order_by(desc(last_message_subquery.c.last_message_time))
+
+        elif platform == 'whatsapp':
+             # Filtrer basé sur last_msg_time déjà calculé
+             if status_filter == 'active':
+                 base_query = base_query.filter(last_msg_subq.c.last_msg_time >= activity_threshold)
+             elif status_filter == 'archived': # Traiter 'archived' comme 'inactive'
+                 base_query = base_query.filter(last_msg_subq.c.last_msg_time < activity_threshold)
+
+             # Trier par le timestamp du dernier message
+             base_query = base_query.order_by(desc(last_msg_subq.c.last_msg_time))
+
+        # 4. Appliquer la pagination (Après TOUS les filtres et tris)
         pagination = base_query.paginate(page=page, per_page=per_page, error_out=False)
 
-
-        # 4. Traiter les résultats et résoudre N+1 pour last_message
+        # 5. Traiter les résultats de la page actuelle et récupérer le dernier message
         latest_msgs_dict = {}
-        if platform == 'web':
-            conversations_on_page = pagination.items
-            conv_ids_on_page = [c.id for c in conversations_on_page]
+        conversations_on_page_data = [] # Réinitialisé pour clarté
+
+        if platform in ['web', 'telegram']:
+            conversations_processed = [] # Pour stocker les objets Conversation
+            last_message_times_dict = {} # Pour stocker les timestamps
+            conv_ids_on_page = []
+
+            # Les items sont maintenant des tuples (ObjetConversation, last_message_time)
+            for item in pagination.items:
+                conv_object = item[0]
+                last_message_time = item[1]
+                conversations_processed.append(conv_object)
+                conv_id = conv_object.id
+                conv_ids_on_page.append(conv_id)
+                last_message_times_dict[conv_id] = last_message_time
+
+            # Récupérer le contenu du dernier message pour ces conversations (optimisé)
             if conv_ids_on_page:
-                subq = db.session.query(
-                    Message.conversation_id, Message.content,
-                    func.row_number().over(partition_by=Message.conversation_id, order_by=desc(Message.created_at)).label('rn')
-                ).filter(Message.conversation_id.in_(conv_ids_on_page)).subquery()
-                latest_msgs_q = db.session.query(subq.c.conversation_id, subq.c.content).filter(subq.c.rn == 1)
+                subq_msg_content = db.session.query(
+                    msg_conv_fk_col, message_model.content,
+                    func.row_number().over(partition_by=msg_conv_fk_col, order_by=desc(msg_created_at_col)).label('rn')
+                ).filter(msg_conv_fk_col.in_(conv_ids_on_page)).subquery()
+                latest_msgs_q = db.session.query(subq_msg_content.c.conversation_id, subq_msg_content.c.content).filter(subq_msg_content.c.rn == 1)
                 latest_msgs_dict = dict(latest_msgs_q.all())
 
-            conversations_data = [{
-                'id': conv.id, 'title': conv.title or "Sans titre",
-                'date': conv.created_at.strftime('%d/%m/%Y'), 'time': conv.created_at.strftime('%H:%M'),
-                'last_message': latest_msgs_dict.get(conv.id, "No messages"),
-                'status': getattr(conv, 'status', 'active') # Utiliser getattr pour éviter erreur si status n'existe pas
-            } for conv in conversations_on_page]
+            # Formater les données pour la réponse JSON
+            for conv in conversations_processed:
+                last_msg_ts = last_message_times_dict.get(conv.id)
+                # Déterminer le statut DYNAMIQUEMENT
+                is_active = last_msg_ts is not None and last_msg_ts >= activity_threshold
+                current_status = 'active' if is_active else 'archived' # Utiliser 'archived' si le frontend s'y attend
+                conv_title = getattr(conv, 'title', None) or (f"Conversation {conv.id}" if platform == 'telegram' else "Sans titre")
+                conv_created_at = getattr(conv, 'created_at', datetime.min)
 
-        elif platform == 'telegram':
-            conversations_on_page = pagination.items
-            conv_ids_on_page = [c.id for c in conversations_on_page]
-            if conv_ids_on_page:
-                 subq = db.session.query(
-                     TelegramMessage.conversation_id, TelegramMessage.content,
-                     func.row_number().over(partition_by=TelegramMessage.conversation_id, order_by=desc(TelegramMessage.created_at)).label('rn')
-                 ).filter(TelegramMessage.conversation_id.in_(conv_ids_on_page)).subquery()
-                 latest_msgs_q = db.session.query(subq.c.conversation_id, subq.c.content).filter(subq.c.rn == 1)
-                 latest_msgs_dict = dict(latest_msgs_q.all())
-
-            conversations_data = [{
-                 'id': conv.id, 'title': conv.title,
-                 'date': conv.created_at.strftime('%d/%m/%Y'), 'time': conv.created_at.strftime('%H:%M'),
-                 'last_message': latest_msgs_dict.get(conv.id, "No messages"),
-                 'status': getattr(conv, 'status', 'active')
-             } for conv in conversations_on_page]
+                conversations_on_page_data.append({
+                    'id': conv.id,
+                    'title': conv_title,
+                    'date': conv_created_at.strftime('%d/%m/%Y'),
+                    'time': conv_created_at.strftime('%H:%M'), # Utilisation de created_at pour date/time de la conv
+                    'last_message': latest_msgs_dict.get(conv.id, "No messages"),
+                    'status': current_status # <-- Statut dynamique basé sur le temps
+                })
 
         elif platform == 'whatsapp':
             threads_on_page = pagination.items # [(thread_id, last_msg_time), ...]
             thread_ids_on_page = [item[0] for item in threads_on_page]
+            last_message_times_dict = dict(threads_on_page) # Stocker les timestamps
+
             if thread_ids_on_page:
-                 subq_msg = db.session.query(
-                     WhatsAppMessage.thread_id, WhatsAppMessage.content,
-                     func.row_number().over(partition_by=WhatsAppMessage.thread_id, order_by=desc(WhatsAppMessage.timestamp)).label('rn')
-                 ).filter(WhatsAppMessage.thread_id.in_(thread_ids_on_page)).subquery()
-                 latest_msgs_q = db.session.query(subq_msg.c.thread_id, subq_msg.c.content).filter(subq_msg.c.rn == 1)
-                 latest_msgs_dict = dict(latest_msgs_q.all())
+                # Récupérer le contenu du dernier message (comme avant)
+                subq_msg = db.session.query(
+                    WhatsAppMessage.thread_id, WhatsAppMessage.content,
+                    func.row_number().over(partition_by=WhatsAppMessage.thread_id, order_by=desc(WhatsAppMessage.timestamp)).label('rn')
+                ).filter(WhatsAppMessage.thread_id.in_(thread_ids_on_page)).subquery()
+                latest_msgs_q = db.session.query(subq_msg.c.thread_id, subq_msg.c.content).filter(subq_msg.c.rn == 1)
+                latest_msgs_dict = dict(latest_msgs_q.all())
 
-            conversations_data = []
+            # Formater les données pour la réponse JSON
             for thread_id, last_time in threads_on_page:
-                 # Le filtre status 'active'/'archived' n'est pas appliqué pour WA ici
-                 # car nous n'avons pas cette info facilement. Toutes sont considérées 'active'.
-                 # Vous pourriez ajouter une logique si vous stockez un statut pour les threads WA.
-                 if status_filter is None or status_filter == 'active': # Ignorer 'archived' pour WA pour l'instant
-                    conversations_data.append({
-                         'id': thread_id, 'title': f"Conversation {thread_id}",
-                         'date': last_time.strftime('%d/%m/%Y'), 'time': last_time.strftime('%H:%M'),
-                         'last_message': latest_msgs_dict.get(thread_id, "No messages"),
-                         'status': 'active'
-                     })
-            # Note: La pagination WA est basée sur les threads pré-filtrage (recherche sur ID seulement).
-            # Le nombre d'éléments peut être < per_page si le filtre 'status' était appliqué ici.
+                 # Déterminer le statut DYNAMIQUEMENT basé sur le temps
+                is_active = last_time is not None and last_time >= activity_threshold
+                current_status = 'active' if is_active else 'archived'
 
-        # 5. Construire les données de pagination
+                conversations_on_page_data.append({
+                    'id': thread_id,
+                    'title': f"Conversation {thread_id}",
+                    'date': last_time.strftime('%d/%m/%Y') if last_time else 'N/A', # Utiliser last_time pour la date/heure WA
+                    'time': last_time.strftime('%H:%M') if last_time else 'N/A',
+                    'last_message': latest_msgs_dict.get(thread_id, "No messages"),
+                    'status': current_status # <-- Statut dynamique basé sur le temps
+                })
+
+        # 6. Construire les données de pagination (inchangé)
         pagination_data = {
             'total_items': pagination.total, 'total_pages': pagination.pages,
             'current_page': pagination.page, 'per_page': pagination.per_page,
@@ -2996,11 +3123,19 @@ def admin_platform_conversations(platform):
             'next_page_num': pagination.next_num, 'prev_page_num': pagination.prev_num
         }
 
-        return jsonify({'conversations': conversations_data, 'pagination': pagination_data})
+        # Renvoyer les données formatées
+        return jsonify({'conversations': conversations_on_page_data, 'pagination': pagination_data})
 
     except Exception as e:
-        app.logger.error(f"Error fetching conversations for platform {platform}: {e}")
+        app.logger.exception(f"Error fetching conversations for platform {platform}: {e}") # Utiliser logger.exception pour tracerback
         return jsonify({"error": "Failed to retrieve conversations"}), 500
+
+# --- NOTE IMPORTANTE ---
+# La route PUT /admin/conversations/<platform>/<int:conv_id>/status
+# devient moins pertinente pour gérer l'état "actif/inactif" basé sur le temps.
+# Elle pourrait être conservée pour une fonctionnalité d'archivage manuel explicite
+# qui serait distincte de l'activité récente, ou être supprimée/modifiée.
+# --- FIN NOTE ---
 
 
 @app.route('/admin/data/<platform>/stats')
@@ -3031,8 +3166,8 @@ def admin_platform_stats(platform):
             }
 
         elif platform == 'telegram':
-            active_users_count = db.session.query(func.count(TelegramUser.id)).scalar() or 0
-            today_users_count = db.session.query(func.count(TelegramUser.id))\
+            active_users_count = db.session.query(func.count(TelegramUser.telegram_id)).scalar() or 0
+            today_users_count = db.session.query(func.count(TelegramUser.telegram_id))\
                 .filter(TelegramUser.created_at >= today_date, TelegramUser.created_at < tomorrow_date).scalar() or 0
             today_conversations_count = db.session.query(func.count(TelegramConversation.id))\
                 .filter(TelegramConversation.created_at >= today_date, TelegramConversation.created_at < tomorrow_date).scalar() or 0

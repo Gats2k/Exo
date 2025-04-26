@@ -1,0 +1,50 @@
+# --- Python ---
+# Bytecode compilé et caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*egg-info/
+
+# Dossiers d'environnements virtuels locaux
+env/
+venv/
+.venv/
+.pythonlibs/ # Spécifique à Replit
+
+# --- Données locales / Sessions ---
+instance/
+flask_session/
+
+# --- Uploads / Assets locaux ---
+static/uploads/
+attached_assets/
+generated-icon.png
+
+# --- Secrets / Configuration locale ---
+# (Les secrets doivent être gérés via variables d'environnement)
+.env*
+
+# --- Gestion de version ---
+.git/
+.gitignore
+
+# --- Fichiers Replit spécifiques ---
+.replit
+replit.nix
+
+# --- Fichiers de lock (non nécessaires avec requirements.txt) ---
+uv.lock
+poetry.lock
+
+# --- Fichiers Système / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Fichiers spécifiques listés ---
+migration_add_last_name.py
+
+# --- Autres ---
+# Ajoutez ici d'autres fichiers/dossiers si nécessaire

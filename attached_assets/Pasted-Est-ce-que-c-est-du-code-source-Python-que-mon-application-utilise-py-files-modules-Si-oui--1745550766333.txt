@@ -1,0 +1,37 @@
+Est-ce que c'est du code source Python que mon application utilise ? (.py files, modules)
+
+Si oui : Garde-le (ne l'ajoute pas à .dockerignore).
+Exemple dans ton projet : app.py, main.py, models.py, database.py, telegram_bot.py, whatsapp_bot.py, le contenu de utils/.
+Est-ce que ce sont des templates (HTML) ou des fichiers statiques (CSS, JS, images de base) servis par Flask ?
+
+Si oui : Garde-le.
+Exemple : Les dossiers templates/, static/css/, static/js/. Peut-être certaines images de base dans static/ si elles font partie du design du site.
+Est-ce un fichier de configuration nécessaire au fonctionnement de l'application dans le conteneur ?
+
+Si oui et ne contient PAS de secrets (clés API, mots de passe) : Garde-le.
+Exemple : ai_config.json semble être un fichier de configuration que tu devrais probablement garder.
+Si oui et contient des secrets : Exclus-le et prévois de passer ces secrets via des variables d'environnement (on verra ça pour Cloud Run).
+Est-ce un fichier nécessaire UNIQUEMENT pour construire l'image ? (Comme requirements.txt ou pyproject.toml)
+
+Si oui : Garde-le (car on en a besoin PENDANT le docker build).
+Est-ce que ce sont des fichiers spécifiques à ton environnement local ou à Replit ? (Environnements virtuels, fichiers de configuration Replit, caches)
+
+Si oui : Exclus-le.
+Exemple : venv/, .pythonlibs/ (important de l'ajouter !), .replit, replit.nix, __pycache__/, *.pyc, uv.lock (on peut l'exclure car on utilise requirements.txt), poetry.lock (si tu l'avais).
+Est-ce que ce sont des fichiers de gestion de version ? (.git, .gitignore)
+
+Si oui : Exclus-le.
+Est-ce que ce sont des secrets, des clés API, des mots de passe stockés en clair ? (fichier .env, secrets.txt, etc.)
+
+Si oui : Exclus-le ABSOLUMENT. Utilise plutôt des variables d'environnement.
+Est-ce que ce sont des données temporaires, des logs locaux, des bases de données locales (comme SQLite), ou des fichiers de session ?
+
+Si oui : Exclus-le. L'application dans le conteneur doit être sans état ou utiliser des services externes (comme ta base PostgreSQL).
+Exemple : instance/, flask_session/.
+Est-ce que ce sont des fichiers très volumineux qui ne sont pas essentiels au fonctionnement de base ? (Uploads utilisateurs, gros datasets, vidéos, backups...)
+
+Si oui : Exclus-le. Pour les uploads utilisateurs, il vaut mieux utiliser un service externe comme Google Cloud Storage.
+Exemple : Le dossier static/uploads/ contient probablement des images uploadées par les utilisateurs. Il est préférable de l'exclure et de configurer ton application pour utiliser un stockage externe. Le dossier attached_assets/ pourrait aussi contenir des choses à exclure si elles sont très grosses ou pas indispensables.
+Est-ce que ce sont des fichiers de test, de documentation, ou des outils de développement ?
+
+Si oui : Exclus-le (pour l'image de production finale).

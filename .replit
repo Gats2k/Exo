@@ -1,7 +1,7 @@
 modules = ["python-3.11", "postgresql-16"]
 [nix]
 channel = "stable-24_05"
-packages = ["glibcLocales", "iana-etc"]
+packages = ["c-ares", "cacert", "cargo", "glibcLocales", "grpc", "iana-etc", "libiconv", "libxcrypt", "openssl", "pkg-config", "rustc", "xcodebuild", "zlib"]
 [deployment]
 deploymentTarget = "autoscale"
 run = ["sh", "-c", "python main.py"]

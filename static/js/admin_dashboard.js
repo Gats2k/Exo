@@ -320,6 +320,9 @@ function updateTableWithPlatformData(data) {
         displayConversations.forEach(conv => {
             // Ensure we have a numeric ID for the conversation
             const conversationId = conv.id ? conv.id : null;
+            const truncatedMessage = conv.last_message ?
+                (conv.last_message.length > 50 ? conv.last_message.substring(0, 50) + '...' : conv.last_message) :
+                '';
             const row = conversationsTable.insertRow();
             row.innerHTML = `
                 <td>${conv.title || 'Sans titre'}</td>

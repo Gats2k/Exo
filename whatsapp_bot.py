@@ -7,10 +7,15 @@ import time
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
-from openai import OpenAI
+from openai import OpenAI, BadRequestError, APIError
 from mathpix_utils import process_image_with_mathpix
 from sqlalchemy import Index, desc, BigInteger, Text
 import sys
+from threading import Lock
+from collections import defaultdict
+
+_thread_locks = defaultdict(Lock)
+_dict_lock = Lock()
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -204,151 +209,217 @@ def download_whatsapp_image(image_id):
         return None, None
 
 def generate_ai_response(message_body, thread_id, sender=None):
-    """Generate response using the configured AI model"""
-    try:
-        # Récupérer la configuration actuelle
-        config = get_app_config()
-        current_model = config.get('CURRENT_MODEL', 'deepseek') # Modèle par défaut sécurisé
+    """Generate response using the configured AI model with non-blocking lock check and robust fallback"""
+    response = None
+    thread_lock = None # Initialiser
+    acquired = False # Pour savoir si on doit release
 
-        logger.info(f"Generating response using model: {current_model} for thread {thread_id}")
+    # --- Obtenir le verrou spécifique à ce thread_id ---
+    with _dict_lock:
+        thread_lock = _thread_locks[thread_id] # Récupère ou crée le Lock pour ce thread
 
-        # --- Début de la logique OpenAI Assistant ---
-        # Uniquement si OpenAI est explicitement configuré ET que le thread est valide
-        if current_model == 'openai':
-            try:
-                # Vérifier que le thread n'est pas au format local
-                if thread_id.startswith("thread_") and "_" in thread_id[7:]: # Format thread_NUMERO_TIMESTAMP
-                    raise ValueError(f"Thread {thread_id} au format local, non compatible avec OpenAI")
+    logger.debug(f"Thread {thread_id}: Tentative d'acquisition NON-BLOQUANTE du verrou...")
+    # --- Tenter d'acquérir le verrou SANS attendre ---
+    acquired = thread_lock.acquire(blocking=False)
 
-                # Tester si le thread est utilisable avec OpenAI avant de continuer
-                client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-                logger.info(f"Thread OpenAI existant {thread_id} utilisable pour la réponse")
-
-                # Ajouter le message au thread OpenAI existant
-                client.beta.threads.messages.create(
-                    thread_id=thread_id,
-                    role="user",
-                    content=message_body
-                )
-
-                # Exécuter l'assistant
-                run = client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=ASSISTANT_ID
-                )
-
-                # Attendre la réponse avec timeout
-                timeout = 60
-                start_time = time.time()
-
-                while True:
-                    if time.time() - start_time > timeout:
-                        logger.error("OpenAI response generation timed out")
-                        raise TimeoutError("Response generation timed out")
-
-                    run_status = client.beta.threads.runs.retrieve(
-                        thread_id=thread_id,
-                        run_id=run.id
-                    )
-
-                    if run_status.status == 'completed':
-                        break
-                    elif run_status.status in ['failed', 'cancelled', 'expired']:
-                        logger.error(f"OpenAI run failed with status: {run_status.status}")
-                        raise Exception(f"Run failed: {run_status.status}")
-
-                    time.sleep(1)
-
-                # Récupérer la réponse OpenAI
-                messages = client.beta.threads.messages.list(thread_id=thread_id)
-                response = messages.data[0].content[0].text.value
-                return response
-
-            except Exception as openai_error:
-                # En cas d'erreur avec OpenAI (thread invalide ou autre), essayer de passer à un autre modèle silencieusement
-                logger.error(f"OpenAI error: {str(openai_error)}, switching to fallback model")
-                current_model = 'deepseek' # Passer à un modèle de secours
-                logger.info(f"Basculé vers modèle de secours: {current_model}")
-                # La suite du code gérera le fallback
-
-        # --- Fin de la logique OpenAI Assistant ---
-
-
-        # --- Logique unifiée pour les modèles compatibles Chat Completion (Gemini, Deepseek, Qwen, et fallback OpenAI) ---
-        # Cette partie s'exécute si current_model n'est PAS 'openai' OU si le bloc OpenAI a échoué et basculé
-
-        # Obtenir les fonctions appropriées pour le modèle actuel (qui peut être le fallback)
-        get_ai_client = config['get_ai_client']
-        get_model_name = config['get_model_name']
-        get_system_instructions = config['get_system_instructions']
-        # La ligne 'call_gemini_api = config['call_gemini_api']' est supprimée ici aussi
-
-        # Récupérer les messages précédents (la logique reste la même)
-        previous_messages = []
-        message_limit = getattr(sys.modules.get('app', None), 'CONTEXT_MESSAGE_LIMIT', 50)
-        messages_query = WhatsAppMessage.query.filter_by(
-            thread_id=thread_id
-        ).order_by(WhatsAppMessage.timestamp.desc()).limit(message_limit).all()
-
-        for msg in reversed(messages_query):
-            # S'assurer que le rôle est 'user' ou 'assistant' pour l'API Chat Completion
-            role = 'user' if msg.direction == 'inbound' else 'assistant'
-            previous_messages.append({
-                "role": role,
-                "content": msg.content
-            })
-
-        # Ajouter les instructions système
-        system_instructions = get_system_instructions()
-        if system_instructions:
-            previous_messages.insert(0, {
-                "role": "system",
-                "content": system_instructions
-            })
-
-        # S'assurer que le dernier message est celui de l'utilisateur actuel s'il n'est pas déjà dans l'historique récupéré
-        if not previous_messages or previous_messages[-1].get("content") != message_body or previous_messages[-1].get("role") != "user":
-             # Vérifier si le message n'est pas déjà le dernier (cas où limit=1 ou conversation très courte)
-             already_present = any(p.get("content") == message_body and p.get("role") == "user" for p in previous_messages)
-             if not already_present:
-                  logger.debug("Ajout explicite du message utilisateur courant à l'historique pour l'API.")
-                  previous_messages.append({
-                      "role": "user",
-                      "content": message_body
-                  })
-
-        # Appel API unifié
-        ai_client = get_ai_client() # Obtient le client correct (Gemini, Deepseek, Qwen)
-        model = get_model_name()    # Obtient le nom de modèle correct
-
-        # Sécurité: Vérifier si le modèle est None et assigner un fallback si nécessaire
-        # (basé sur la logique de fallback précédente)
-        if model is None:
-            if current_model == 'deepseek': model = "deepseek-chat"
-            elif current_model == 'deepseek-reasoner': model = "deepseek-reasoner"
-            elif current_model == 'qwen': model = "qwen-max-latest"
-            elif current_model == 'gemini': model = "gemini-pro" # Ou autre modèle compatible
-            else: model = "deepseek-chat" # Fallback ultime
-            logger.warning(f"Model name was None for {current_model}, using fallback value: {model}")
-
+    if acquired:
+        logger.debug(f"Thread {thread_id}: Verrou acquis (non-bloquant). Début du traitement.")
         try:
-            logger.info(f"Appel API Chat Completion avec modèle: {model} pour {current_model} ({len(previous_messages)} messages)")
-            completion = ai_client.chat.completions.create(
-                model=model,
-                messages=previous_messages,
-                stream=False # Le bot WhatsApp n'est pas configuré pour streamer la réponse
-            )
-            response = completion.choices[0].message.content
-            return response
-        except Exception as alt_error:
-            logger.error(f"Error with model {current_model}: {str(alt_error)}")
-            raise # Remonter l'erreur pour qu'elle soit gérée par le bloc externe
+            # Récupérer la configuration actuelle
+            config = get_app_config()
+            current_model_key = config.get('CURRENT_MODEL', 'deepseek') # Le modèle configuré
+            effective_model_key = current_model_key # Le modèle qu'on va réellement utiliser
+            logger.info(f"Thread {thread_id}: Modèle configuré: {current_model_key}")
 
-    # Gestion globale des erreurs de la fonction
-    except Exception as e:
-        logger.error(f"Error generating response: {str(e)}")
-        # Retourner un message par défaut en cas d'échec complet
-        return "Une erreur s'est produite lors de la génération de la réponse, veuillez réessayer."
+            # --- Logique OpenAI Assistant ---
+            if current_model_key == 'openai':
+                try:
+                    logger.info(f"Thread {thread_id}: Tentative avec OpenAI.")
+                    client.beta.threads.messages.list(thread_id=thread_id, limit=1) # Test validité
+                    logger.info(f"Thread {thread_id}: Thread OpenAI valide.")
+
+                    # 1. AJOUTER LE MESSAGE
+                    logger.debug(f"Thread {thread_id}: Ajout du message...")
+                    client.beta.threads.messages.create(
+                        thread_id=thread_id, role="user", content=message_body
+                    )
+                    logger.debug(f"Thread {thread_id}: Message ajouté.")
+
+                    # 2. CRÉER ET EXÉCUTER LA RUN
+                    logger.debug(f"Thread {thread_id}: Création de la run...")
+                    run = client.beta.threads.runs.create(
+                        thread_id=thread_id, assistant_id=ASSISTANT_ID
+                    )
+                    logger.debug(f"Thread {thread_id}: Run {run.id} créée.")
+
+                    # 3. ATTENDRE LA FIN DE LA RUN
+                    timeout = 60; start_time = time.time()
+                    logger.debug(f"Thread {thread_id}: Attente de la fin de la run {run.id}...")
+                    while True:
+                        if time.time() - start_time > timeout:
+                            logger.error(f"Thread {thread_id}: Timeout attente run {run.id}")
+                            raise TimeoutError("OpenAI response generation timed out") # L'erreur sera catchée plus bas
+
+                        run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+                        if run_status.status == 'completed':
+                            logger.info(f"Thread {thread_id}: Run {run.id} terminée.")
+                            break
+                        elif run_status.status in ['failed', 'cancelled', 'expired']:
+                            logger.error(f"Thread {thread_id}: Run {run.id} échouée: {run_status.status}")
+                            raise Exception(f"OpenAI Run failed: {run_status.status}") # L'erreur sera catchée plus bas
+                        time.sleep(1)
+
+                    # 4. RÉCUPÉRER LA RÉPONSE
+                    logger.debug(f"Thread {thread_id}: Récupération des messages...")
+                    messages = client.beta.threads.messages.list(thread_id=thread_id, order='desc', limit=1)
+                    if messages.data and messages.data[0].role == 'assistant':
+                        # Succès OpenAI ! On définit la réponse.
+                        response = messages.data[0].content[0].text.value
+                        logger.info(f"Thread {thread_id}: Réponse OpenAI reçue.")
+                    else:
+                        logger.error(f"Thread {thread_id}: Impossible de récupérer message assistant valide après run complétée.")
+                        # Pas de réponse valide, on laisse response = None pour déclencher fallback
+
+                # --- Gestion unifiée des erreurs OpenAI ---
+                except Exception as openai_error:
+                    # On logue l'erreur mais on ne définit PAS response ici.
+                    # On laisse response = None pour que le fallback s'exécute.
+                    logger.error(f"Thread {thread_id}: Erreur OpenAI: {str(openai_error)}. Basculement vers fallback.")
+
+            # --- Logique Fallback / Autres modèles (s'exécute si response est encore None) ---
+            if response is None:
+                # Si on est ici, soit current_model n'était pas 'openai', soit la tentative OpenAI a échoué.
+                logger.info(f"Thread {thread_id}: Utilisation modèle Chat Completion: {effective_model_key}")
+                try:
+                    # Récupérer les fonctions/clients pour le modèle *effectif*
+                    # Note: adapter get_ai_client etc. si vous avez forcé effective_model_key
+                    ai_client = config['get_ai_client']() # Ou config['get_ai_client'](effective_model_key) ?
+                    model = config['get_model_name']()   # Ou config['get_model_name'](effective_model_key) ?
+                    if model is None: # Assigner un fallback si le nom du modèle est None
+                        # (Votre logique de fallback pour le nom de modèle ici...)
+                         if effective_model_key == 'deepseek': model = "deepseek-chat"
+                         elif effective_model_key == 'deepseek-reasoner': model = "deepseek-reasoner"
+                         elif effective_model_key == 'qwen': model = "qwen-max-latest"
+                         elif effective_model_key == 'gemini': model = "gemini-pro"
+                         else: model = "deepseek-chat" # Fallback ultime
+                         logger.warning(f"Thread {thread_id}: Model name was None for {effective_model_key}, using fallback: {model}")
+
+
+                    # --- Récupération de l'historique (identique à Code 1) ---
+                    get_system_instructions = config['get_system_instructions']() # Idem, potentiellement passer effective_model_key
+                    previous_messages = []
+                    message_limit = getattr(sys.modules.get('app', None), 'CONTEXT_MESSAGE_LIMIT', 50)
+                    messages_query = WhatsAppMessage.query.filter_by(
+                        thread_id=thread_id
+                    ).order_by(WhatsAppMessage.timestamp.desc()).limit(message_limit).all()
+
+                    for msg in reversed(messages_query):
+                        role = 'user' if msg.direction == 'inbound' else 'assistant'
+                        previous_messages.append({"role": role, "content": msg.content})
+
+                    system_instructions = get_system_instructions
+                    if system_instructions:
+                        previous_messages.insert(0, {"role": "system", "content": system_instructions})
+
+                    if not previous_messages or previous_messages[-1].get("content") != message_body or previous_messages[-1].get("role") != "user":
+                        already_present = any(p.get("content") == message_body and p.get("role") == "user" for p in previous_messages)
+                        if not already_present:
+                            logger.debug("Ajout explicite du message utilisateur courant à l'historique pour l'API.")
+                            previous_messages.append({"role": "user", "content": message_body})
+
+                    messages_history = previous_messages
+
+                    # --- Ajout : Vérification et correction pour deepseek-reasoner
+                    if model == 'deepseek-reasoner' and len(messages_history) > 1:
+                        first_message_index = 0
+                        if messages_history[0]['role'] == 'system':
+                            first_message_index = 1
+
+                        if len(messages_history) > first_message_index and messages_history[first_message_index]['role'] == 'assistant':
+                            logger.warning(f"Thread {thread_id}: Premier message après system pour deepseek-reasoner est 'assistant'. Tentative de correction.")
+
+                            # Trouver l'index du premier message 'user' après le message système
+                            first_user_msg_index = -1
+                            for i in range(first_message_index, len(messages_history)):
+                                if messages_history[i]['role'] == 'user':
+                                    first_user_msg_index = i
+                                    break
+
+                            if first_user_msg_index != -1 and first_user_msg_index > first_message_index:
+                                # Supprimer les messages 'assistant' initiaux (entre system et premier user)
+                                messages_to_remove = first_user_msg_index - first_message_index
+                                del messages_history[first_message_index:first_user_msg_index]
+                                logger.info(f"Thread {thread_id}: Supprimé {messages_to_remove} message(s) 'assistant' initiaux. Nouvelle longueur historique: {len(messages_history)}")
+                            elif first_user_msg_index == -1:
+                                logger.error(f"Thread {thread_id}: Aucun message 'user' trouvé après le message 'assistant' initial pour deepseek-reasoner. L'historique pourrait être invalide.")
+
+                    # --- Ajout Correction 2: Fusionner les messages consécutifs (UNIQUEMENT pour deepseek-reasoner) ---
+                    if model == 'deepseek-reasoner' and len(messages_history) > 1:
+                        logger.info(f"Thread {thread_id}: Vérification/Fusion des messages consécutifs pour deepseek-reasoner.")
+                        merged_messages_list = []
+                        if messages_history:
+                            # Commencer avec le premier message (system ou le premier valide)
+                            merged_messages_list.append(messages_history[0])
+
+                            # Itérer à partir du deuxième message
+                            for i in range(1, len(messages_history)):
+                                current_message = messages_history[i]
+                                last_merged_message = merged_messages_list[-1]
+
+                                # Vérifier si les rôles sont identiques ET ne sont pas 'system'
+                                if current_message['role'] == last_merged_message['role'] and current_message['role'] != 'system':
+                                    # Fusionner le contenu avec deux sauts de ligne entre les messages
+                                    merged_content = f"{last_merged_message['content']}\n\n{current_message['content']}"
+                                    # Mettre à jour le contenu du dernier message dans la liste fusionnée
+                                    merged_messages_list[-1]['content'] = merged_content
+                                    logger.debug(f"Thread {thread_id}: Fusionné message {i} (role: {current_message['role']}) avec le précédent.")
+                                else:
+                                    # Rôles différents ou message système, ajouter simplement le message courant
+                                    merged_messages_list.append(current_message)
+
+                        # Utiliser la liste potentiellement fusionnée pour l'appel API
+                        final_messages_for_api = merged_messages_list
+                        logger.info(f"Thread {thread_id}: Historique après fusion pour reasoner: {len(final_messages_for_api)} messages.")
+
+                    # Appel API Chat Completion
+                    logger.info(f"Thread {thread_id}: Appel API Chat Completion avec modèle: {model} pour {effective_model_key} ({len(messages_history)} messages)")
+                    completion = ai_client.chat.completions.create(
+                        model=model,
+                        messages=final_messages_for_api, # Envoi de l'historique potentiellement corrigé
+                        stream=False
+                    )
+                    response = completion.choices[0].message.content # Définir la réponse ici
+                    logger.info(f"Thread {thread_id}: Réponse Chat Completion/Fallback reçue.")
+
+                except Exception as alt_error:
+                    logger.error(f"Thread {thread_id}: Erreur modèle fallback {effective_model_key} -> {str(alt_error)}")
+                    # L'erreur s'est produite PENDANT le fallback, définir une réponse d'erreur générique
+                    response = "Désolé, une erreur technique est survenue lors de la génération de la réponse."
+
+        # --- Gestion d'erreur globale PENDANT que le verrou est détenu ---
+        except Exception as e:
+            logger.error(f"Thread {thread_id}: Erreur GLOABLE dans generate_ai_response (sous verrou) -> {str(e)}")
+            if response is None: # Si aucune réponse n'a été définie même après fallback
+                response = "Une erreur interne majeure est survenue. Veuillez réessayer."
+
+        # --- LIBÉRER LE VERROU IMPÉRATIVEMENT ---
+        finally:
+            if acquired:
+                thread_lock.release()
+                logger.debug(f"Thread {thread_id}: Verrou libéré.")
+
+    else:
+        # --- LE VERROU N'A PAS ÉTÉ ACQUIS (déjà pris) ---
+        logger.info(f"Thread {thread_id}: Verrou déjà détenu. Envoi du message 'Molo molo'.")
+        response = "⛔⛔⛔Molo molo 😅 je ne peux recevoir qu'un message à la fois. Attends que je réponde à ton premier message avant d'envoyer un autre.⛔⛔⛔"
+
+    # --- Retour de la fonction ---
+    if response is None:
+        # Sécurité finale si aucune réponse n'a été assignée
+        logger.error(f"Thread {thread_id}: La réponse finale est None après toutes les tentatives.")
+        return "Je rencontre des difficultés techniques pour répondre. Veuillez réessayer plus tard."
+
+    return response
 
 def send_whatsapp_message(to_number, message):
     """Send a WhatsApp message using the API"""

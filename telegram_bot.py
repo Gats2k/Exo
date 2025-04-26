@@ -5,6 +5,7 @@ import os
 import logging
 import asyncio
 import time
+import openai
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
@@ -21,7 +22,6 @@ from mathpix_utils import process_image_with_mathpix
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
 from database import db
-from app import get_db_context
 
 def get_app_config():
     """
@@ -87,6 +87,7 @@ user_threads = defaultdict(lambda: None)
 @contextmanager
 def db_retry_session(max_retries=3, retry_delay=0.5):
     """Context manager for database operations with retry logic"""
+    from app import get_db_context
     for attempt in range(max_retries):
         try:
             with get_db_context():
@@ -153,6 +154,66 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
     except Exception as e:
         logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
         raise
+
+def prepare_messages_for_model(messages_query, current_message=None, current_content=None, current_model=None):
+    """
+    Prépare les messages pour l'API en évitant les messages consécutifs du même rôle
+    pour les modèles qui ne les supportent pas (comme deepseek-reasoner)
+
+    Args:
+        messages_query: Liste de TelegramMessage triés par date (plus ancien au plus récent)
+        current_message: Message actuel à exclure (optionnel)
+        current_content: Contenu du message actuel à exclure (optionnel)
+        current_model: Modèle AI actuel (optionnel)
+
+    Returns:
+        Liste des messages formatés pour l'API
+    """
+    previous_messages = []
+    processed_ids = set()
+    last_role = None
+    first_message_role = None  # Pour suivre le rôle du premier message
+
+    for msg in messages_query:
+        # Exclure le message actuel s'il est déjà dans la base
+        if (current_message and msg.role == 'user' and 
+            msg.content == current_message and msg.id not in processed_ids):
+            continue
+
+        # Exclure le message avec contenu spécifique (pour handle_photo)
+        if current_content and msg.role == 'user' and msg.content == current_content:
+            continue
+
+        role = msg.role if msg.role == 'user' else 'assistant'
+
+        # Si c'est le premier message, enregistrer son rôle
+        if first_message_role is None:
+            first_message_role = role
+
+        # Vérifier si ce message a le même rôle que le précédent
+        if role == last_role and current_model == 'deepseek-reasoner':
+            # Fusionner avec le message précédent si même rôle
+            logger.debug(f"Fusion de deux messages consécutifs avec rôle '{role}'")
+            previous_messages[-1]["content"] += "\n\n" + msg.content
+        else:
+            # Sinon, ajouter normalement
+            previous_messages.append({
+                "role": role,
+                "content": msg.content
+            })
+            last_role = role
+
+        processed_ids.add(msg.id)
+
+    # S'assurer que le premier message est toujours un message utilisateur pour deepseek-reasoner
+    if current_model == 'deepseek-reasoner' and previous_messages and previous_messages[0]["role"] == "assistant":
+        logger.debug("Le premier message est de type 'assistant', ajout d'un message utilisateur fictif en première position")
+        previous_messages.insert(0, {
+            "role": "user",
+            "content": "Bonjour"  # Message utilisateur fictif minimaliste
+        })
+
+    return previous_messages
 
 async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
     """Create a new TelegramConversation record."""
@@ -453,27 +514,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info(f"Processing with Chat Completions API ({CURRENT_MODEL})")
             try:
                 # Get previous messages for context using conversation_id_value
-                previous_messages = []
                 with db_retry_session() as sess:
                     # Utilise conversation_id_value dans le filtre
                     messages_query = TelegramMessage.query.filter(
                          TelegramMessage.conversation_id == conversation_id_value # <<< Utilise ID
                     ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
 
-                    processed_ids = set() # Pour éviter doublons si la query ramène le msg user actuel
-                    for msg in reversed(messages_query):
-                        # Exclure le message utilisateur actuel si la query le ramène (par sécurité)
-                        if msg.role == 'user' and msg.content == message_text and msg.id not in processed_ids:
-                             # On veut l'historique SANS le message actuel, qui sera ajouté après
-                             continue
-                        role = msg.role if msg.role == 'user' else 'assistant'
-                        previous_messages.append({
-                            "role": role,
-                            "content": msg.content
-                        })
-                        processed_ids.add(msg.id)
-
-
+                    # Utilise la fonction utilitaire pour préparer les messages
+                    previous_messages = prepare_messages_for_model(
+                        reversed(messages_query),
+                        current_message=message_text,
+                        current_model=CURRENT_MODEL
+                    )
+                
                 # Add system instruction
                 system_instructions = get_system_instructions()
                 if system_instructions:
@@ -496,6 +549,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     assistant_message = "Internal configuration error: Could not determine AI model name."
                 else:
                     # Make the API call
+                    logger.debug(f"Messages sent to AI ({CURRENT_MODEL}): {previous_messages}")
                     response = ai_client.chat.completions.create(
                         model=model,
                         messages=previous_messages
@@ -738,20 +792,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
 
                 # Get previous messages for context (limit to last N)
-                previous_messages = []
                 with db_retry_session() as sess:
                     # La logique de récupération de l'historique reste la même
                     messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
-                    for msg in reversed(messages_query):
-                        # Exclure le message courant qui vient d'être ajouté avec l'image/caption
-                        if msg.role == 'user' and msg.content == user_store_content:
-                             continue
-                        # Convertir le rôle 'assistant' en 'assistant' pour l'API Chat Completion
-                        role = msg.role if msg.role == 'user' else 'assistant'
-                        previous_messages.append({
-                            "role": role,
-                            "content": msg.content
-                        })
+
+                    # Utilise la fonction utilitaire pour préparer les messages
+                    previous_messages = prepare_messages_for_model(
+                        reversed(messages_query),
+                        current_content=user_store_content,
+                        current_model=CURRENT_MODEL
+                    )
 
                 # Ajouter le message courant (avec caption + extraction mathpix)
                 previous_messages.append({
@@ -839,47 +889,11 @@ def setup_telegram_bot():
         logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
         raise
 
-def run_telegram_bot():
-    """Run the Telegram bot."""
-    try:
-        # Vérification explicite du token Telegram
-        if not os.environ.get('TELEGRAM_BOT_TOKEN'):
-            logger.error("TELEGRAM_BOT_TOKEN is not set. Telegram bot cannot start.")
-            return
-
-        # Only run if explicitly enabled
-        if not os.environ.get('RUN_TELEGRAM_BOT'):
-            logger.info("Telegram bot is disabled. Set RUN_TELEGRAM_BOT=true to enable.")
-            return
-
-        # Logs détaillés pour le déploiement
-        logger.info("==== TELEGRAM BOT INITIALIZATION STARTED ====")
-        logger.info(f"Environment: {os.environ.get('FLASK_ENV', 'not set')}")
-        logger.info(f"Working directory: {os.getcwd()}")
-
-        # Log current configuration (without using imported values)
-        config = get_app_config()
-        logger.info(f"Telegram bot starting with model: {config['CURRENT_MODEL']}")
-        logger.info(f"System instructions: {config['get_system_instructions']()}")
-
-        # Add a small delay to ensure Flask app is fully initialized
-        logger.info("Waiting for 3 seconds to ensure application is fully initialized...")
-        import time
-        time.sleep(3)
-
-        # Create new event loop for this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        application = setup_telegram_bot()
-        logger.info("Starting Telegram bot polling...")
-        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-    except Exception as e:
-        logger.error(f"Error running Telegram bot: {str(e)}", exc_info=True)
-        # Log l'erreur complète avec la trace d'appel pour mieux diagnostiquer
-        import traceback
-        logger.error(f"Full error traceback: {traceback.format_exc()}")
-        raise
-
-if __name__ == '__main__':
-    run_telegram_bot()
+try:
+    application = setup_telegram_bot()
+    logger.info("Objet 'application' Telegram initialisé pour import.")
+except Exception as e:
+    logger.error(f"Échec de l'initialisation de l'objet 'application' Telegram au chargement du module: {e}", exc_info=True)
+    # Gérer cette erreur critique - peut-être arrêter l'app?
+    # Pour l'instant, on logge et on continue, mais la route webhook plantera.
+    application = None

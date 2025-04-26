@@ -1478,3 +1478,10 @@ body {
         display: none;
     }
 }
+
+#conversationsTable td:nth-child(4) {
+    max-width: 200px; /* Ajustez la largeur maximale souhaitée */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap; /* Gardez si vous voulez sur une seule ligne */
+}
