@@ -772,6 +772,12 @@ function viewConversation(identifier, platformType) { // <<< Signature modifiée
     }
 
     console.log(`Viewing conversation for platform [${platformType}] with identifier:`, identifier); // Log adapté
+    
+    // Store the current conversation ID and platform type for admin message sending
+    window.currentViewedConversation = {
+        id: identifier,
+        platform: platformType
+    };
 
     let fetchUrl;
 
@@ -879,6 +885,97 @@ function closeViewConversationModal() {
     const modal = document.getElementById('viewConversationModal');
     modal.style.display = 'none';
     document.body.style.overflow = 'auto';
+    
+    // Clear the current conversation data when closing the modal
+    window.currentViewedConversation = null;
+    
+    // Clear the admin message input
+    const adminMessageInput = document.getElementById('adminMessageInput');
+    if (adminMessageInput) {
+        adminMessageInput.value = '';
+    }
+}
+
+// Function to send an admin message to the current conversation
+function sendAdminMessage() {
+    // Check if there's a conversation active
+    if (!window.currentViewedConversation || !window.currentViewedConversation.id) {
+        console.error('No active conversation to send admin message to');
+        alert('Erreur: Aucune conversation active pour envoyer le message.');
+        return;
+    }
+    
+    const adminMessageInput = document.getElementById('adminMessageInput');
+    const messageContent = adminMessageInput.value.trim();
+    
+    if (!messageContent) {
+        console.log('Cannot send empty admin message');
+        return;
+    }
+    
+    const conversationId = window.currentViewedConversation.id;
+    const platformType = window.currentViewedConversation.platform;
+    
+    // Only Web and Telegram platforms support admin messages
+    if (platformType !== 'web' && platformType !== 'telegram') {
+        alert(`Envoi de messages administrateur non supporté pour la plateforme ${platformType}`);
+        return;
+    }
+    
+    // Prepare the request
+    const url = `/admin/conversations/${conversationId}/send`;
+    const requestData = {
+        message: messageContent
+    };
+    
+    // Send the message to the backend
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().catch(() => {
+                throw new Error(`Erreur HTTP ${response.status} (${response.statusText})`);
+            }).then(errorData => {
+                throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Clear the input field
+        adminMessageInput.value = '';
+        
+        // Add the new message to the chat
+        const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message admin';
+        
+        const contentElement = document.createElement('div');
+        contentElement.className = 'message-content';
+        contentElement.textContent = messageContent;
+        
+        messageElement.appendChild(contentElement);
+        messagesContainer.appendChild(messageElement);
+        
+        // Scroll to the new message
+        const viewport = document.querySelector('#viewConversationModal .chat-viewport');
+        viewport.scrollTop = viewport.scrollHeight;
+        
+        console.log('Admin message sent successfully:', data);
+    })
+    .catch(error => {
+        console.error('Error sending admin message:', error);
+        alert(`Erreur lors de l'envoi du message: ${error.message}`);
+    });
 }
 
 let conversationIdentifierToDelete = null;
@@ -1274,6 +1371,24 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     showSection('dashboard');
     fetchPlatformData('web');
+    
+    // Initialize admin message functionality
+    const sendAdminMessageBtn = document.getElementById('sendAdminMessageBtn');
+    if (sendAdminMessageBtn) {
+        sendAdminMessageBtn.addEventListener('click', sendAdminMessage);
+    }
+    
+    // Add event listener for pressing enter in the admin message input
+    const adminMessageInput = document.getElementById('adminMessageInput');
+    if (adminMessageInput) {
+        adminMessageInput.addEventListener('keydown', function(event) {
+            // Send message on Enter key (without Shift for new line)
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault(); // Prevent the default action (new line)
+                sendAdminMessage();
+            }
+        });
+    }
 
     // Filtres Utilisateur
     document.querySelectorAll('#users-section .filter-buttons .filter-btn').forEach(btn => {
