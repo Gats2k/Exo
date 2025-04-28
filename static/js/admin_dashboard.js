@@ -896,86 +896,155 @@ function closeViewConversationModal() {
     }
 }
 
-// Function to send an admin message to the current conversation
 function sendAdminMessage() {
-    // Check if there's a conversation active
     if (!window.currentViewedConversation || !window.currentViewedConversation.id) {
         console.error('No active conversation to send admin message to');
         alert('Erreur: Aucune conversation active pour envoyer le message.');
         return;
     }
-    
+
     const adminMessageInput = document.getElementById('adminMessageInput');
     const messageContent = adminMessageInput.value.trim();
-    
+
     if (!messageContent) {
         console.log('Cannot send empty admin message');
         return;
     }
-    
-    const conversationId = window.currentViewedConversation.id;
+
+    const conversationIdentifier = window.currentViewedConversation.id;
     const platformType = window.currentViewedConversation.platform;
-    
-    // Only Web and Telegram platforms support admin messages
-    if (platformType !== 'web' && platformType !== 'telegram') {
-        alert(`Envoi de messages administrateur non supporté pour la plateforme ${platformType}`);
-        return;
-    }
-    
-    // Prepare the request
-    const url = `/admin/conversations/${conversationId}/send`;
-    const requestData = {
-        message: messageContent
+
+    // --- Logique pour définir les actions des boutons ---
+
+    // Action si "Envoyer comme Assistant" est cliqué
+    const assistantAction = () => {
+        console.log("Exécution de l'action: Envoyer comme Assistant");
+        let url;
+        if (platformType === 'web') {
+            url = `/admin/web/conversations/${conversationIdentifier}/send`;
+        } else if (platformType === 'telegram') {
+            url = `/admin/telegram/conversations/${conversationIdentifier}/send`;
+        } else if (platformType === 'whatsapp') {
+            url = `/whatsapp/admin/whatsapp/conversations/${encodeURIComponent(conversationIdentifier)}/send`;
+        } else {
+            console.error(`Unsupported platform type: ${platformType}`);
+            alert(`Plateforme non supportée: ${platformType}`);
+            return;
+        }
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: messageContent })
+        })
+        .then(response => {
+            if (!response.ok) { throw new Error(`Erreur HTTP ${response.status}`); }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) { throw new Error(data.error); }
+            adminMessageInput.value = ''; // Vider l'input
+            if (data.message_data) {
+                // Ajouter visuellement le message admin à l'interface
+                appendSingleMessageToModal(data.message_data);
+            }
+            console.log('Admin message sent AS ASSISTANT:', data);
+        })
+        .catch(error => {
+            console.error('Error sending admin message AS ASSISTANT:', error);
+            alert(`Erreur lors de l'envoi comme Assistant: ${error.message}`);
+        });
     };
-    
-    // Send the message to the backend
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().catch(() => {
-                throw new Error(`Erreur HTTP ${response.status} (${response.statusText})`);
-            }).then(errorData => {
-                throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
-            });
+
+    // Action si "Envoyer comme Utilisateur" est cliqué
+    const userAction = () => {
+        console.log("Exécution de l'action: Envoyer comme Utilisateur (Simulé)");
+        if (platformType === 'whatsapp') {
+            url = `/whatsapp/admin/trigger_ai_as_user/${encodeURIComponent(conversationIdentifier)}`;
+        } else if (platformType === 'telegram') {
+            url = `/admin/telegram/trigger_ai_as_user/${conversationIdentifier}`;
+        } else {
+             alert("L'envoi 'en tant qu'utilisateur' n'est supporté que pour WhatsApp et Telegram pour le moment.");
+             return;
         }
-        return response.json();
-    })
-    .then(data => {
-        if (data.error) {
-            throw new Error(data.error);
+        console.log(`Triggering AI as user via URL: ${url}`);
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: messageContent })
+        })
+        .then(response => {
+            if (!response.ok) { throw new Error(`Erreur HTTP ${response.status}`); }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) { throw new Error(data.error); }
+            adminMessageInput.value = ''; // Vider l'input
+            console.log('AI triggered AS USER successfully:', data);
+            showAdminNotification("Message envoyé à l'IA comme utilisateur."); // Notifier l'admin
+            // La réponse de l'IA sera ajoutée via l'événement SocketIO
+        })
+        .catch(error => {
+            console.error('Error triggering AI AS USER:', error);
+            alert(`Erreur lors du déclenchement IA: ${error.message}`);
+        });
+    };
+
+    // --- Appel du nouveau modal ---
+    showSendAsModal(assistantAction, userAction);
+}
+
+// Fonction basique pour afficher une notification (à adapter)
+function showAdminNotification(message) {
+    console.log("ADMIN NOTIF:", message);
+    // Idéalement, utiliser un système de "toast" non bloquant
+    // alert(message); // Éviter alert si possible
+}
+
+function showSendAsModal(assistantCallback, userCallback) {
+    console.log("Affichage du modal SendAs...");
+    const modal = document.getElementById('sendAsModal');
+    const assistantBtn = document.getElementById('sendAsAssistantBtn');
+    const userBtn = document.getElementById('sendAsUserBtn');
+    const closeBtn = modal.querySelector('.close-modal'); // Sélectionne le bouton de fermeture DANS ce modal
+
+    // --- IMPORTANT : Nettoyer les anciens écouteurs pour éviter les appels multiples ---
+    // La méthode la plus simple et robuste est de cloner les boutons
+    const newAssistantBtn = assistantBtn.cloneNode(true);
+    const newUserBtn = userBtn.cloneNode(true);
+    assistantBtn.parentNode.replaceChild(newAssistantBtn, assistantBtn);
+    userBtn.parentNode.replaceChild(newUserBtn, userBtn);
+
+    // Ajouter les nouveaux écouteurs aux boutons clonés
+    newAssistantBtn.addEventListener('click', () => {
+        console.log("Clic sur 'Envoyer comme Assistant'");
+        if (typeof assistantCallback === 'function') {
+            assistantCallback(); // Exécute l'action "Assistant"
         }
-        
-        // Clear the input field
-        adminMessageInput.value = '';
-        
-        // Add the new message to the chat
-        const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
-        const messageElement = document.createElement('div');
-        messageElement.className = 'message admin';
-        
-        const contentElement = document.createElement('div');
-        contentElement.className = 'message-content';
-        contentElement.textContent = messageContent;
-        
-        messageElement.appendChild(contentElement);
-        messagesContainer.appendChild(messageElement);
-        
-        // Scroll to the new message
-        const viewport = document.querySelector('#viewConversationModal .chat-viewport');
-        viewport.scrollTop = viewport.scrollHeight;
-        
-        console.log('Admin message sent successfully:', data);
-    })
-    .catch(error => {
-        console.error('Error sending admin message:', error);
-        alert(`Erreur lors de l'envoi du message: ${error.message}`);
+        closeSendAsModal(); // Ferme le modal après action
     });
+
+    newUserBtn.addEventListener('click', () => {
+        console.log("Clic sur 'Envoyer comme Utilisateur'");
+        if (typeof userCallback === 'function') {
+            userCallback(); // Exécute l'action "Utilisateur"
+        }
+        closeSendAsModal(); // Ferme le modal après action
+    });
+
+    // Afficher le modal et l'overlay
+    modal.style.display = 'block';
+    // Tu peux réutiliser l'overlay existant si un seul modal est affiché à la fois
+    document.body.style.overflow = 'hidden'; // Empêcher le défilement
+}
+
+function closeSendAsModal() {
+    console.log("Fermeture du modal SendAs.");
+    const modal = document.getElementById('sendAsModal');
+    modal.style.display = 'none';
+    // document.getElementById('modalOverlay').style.display = 'none'; // Cacher l'overlay si nécessaire
+    document.body.style.overflow = 'auto'; // Réactiver le défilement
 }
 
 let conversationIdentifierToDelete = null;
@@ -1072,8 +1141,6 @@ function renderUserPaginationControls(pagination) {
     // Activer/désactiver bouton Suivant
     nextButton.disabled = !pagination.has_next;
 }
-
-// Code à AJOUTER dans admin_dashboard.js
 
 // Variables globales pour la pagination des abonnements (si nécessaire plus tard)
 let currentSubscriptionPage = 1;
@@ -1467,6 +1534,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (conversationPagination.has_next) {
              // Passer les filtres actuels lors du changement de page
             fetchAllConversations(currentPlatform, conversationPagination.next_page_num, currentConversationFilter);
+        }
+    });
+
+    // Ajout pour fermer le modal sendAs
+    const sendAsModal = document.getElementById('sendAsModal');
+    const sendAsCloseBtn = sendAsModal.querySelector('.close-modal');
+    if (sendAsCloseBtn) {
+        sendAsCloseBtn.addEventListener('click', closeSendAsModal);
+    }
+    // Fermer si on clique en dehors (sur l'overlay par exemple)
+    window.addEventListener('click', function(event) {
+        if (event.target === sendAsModal) { // Si on clique directement sur le fond du modal (pas son contenu)
+           closeSendAsModal();
         }
     });
 });
@@ -1887,6 +1967,28 @@ function setupRealtimeUpdates() {
         if (!socketInstance) {
             socketInstance = io();
 
+            // --- AJOUT DE L'ÉCOUTEUR POUR LES MESSAGES IA DÉCLENCHÉS ---
+            socketInstance.on('new_admin_message', function(messageData) {
+                console.log('Socket.IO received new_admin_message:', messageData);
+
+                // Vérifier si le message concerne la conversation actuellement ouverte dans le modal
+                if (window.currentViewedConversation &&
+                    messageData.platform === window.currentViewedConversation.platform &&
+                    messageData.conversation_identifier === window.currentViewedConversation.id) {
+
+                    console.log("Message is for the currently viewed conversation. Appending to UI.");
+
+                    // Utiliser une fonction pour ajouter le message à l'UI du modal
+                    // (Cette fonction existe peut-être déjà ou tu peux l'adapter de displayConversationMessages)
+                    appendSingleMessageToModal(messageData);
+
+                } else {
+                    console.log("Message is not for the currently viewed conversation.");
+                    // Optionnel : Afficher une notification générique qu'un message a été envoyé
+                    // dans une autre conversation si tu le souhaites.
+                }
+            });
+            
             // Ajouter un écouteur d'événement une seule fois
             socketInstance.on('feedback_stats_updated', function(data) {
                 console.log('Received real-time feedback stats update:', data);
@@ -1923,6 +2025,41 @@ function setupRealtimeUpdates() {
         }
     } else {
         console.error("Socket.IO n'est pas disponible. Vérifiez que la bibliothèque est bien chargée.");
+    }
+}
+
+// --- NOUVELLE FONCTION (ou adaptation) POUR AJOUTER UN SEUL MESSAGE AU MODAL ---
+function appendSingleMessageToModal(message) {
+    const messagesContainer = document.querySelector('#viewConversationModal .chat-messages');
+    if (!messagesContainer) return; // Quitter si le modal n'est pas visible/trouvé
+
+    const messageElement = document.createElement('div');
+    // Utiliser le rôle reçu ('assistant' dans ce cas)
+    messageElement.className = `message ${message.role}`;
+
+    const contentElement = document.createElement('div');
+    contentElement.className = 'message-content';
+
+    // Gérer image si nécessaire (même si peu probable pour réponse IA texte)
+    if (message.image_url) {
+        const img = document.createElement('img');
+        img.src = message.image_url;
+        img.style.maxWidth = '200px';
+        img.style.borderRadius = '4px';
+        img.style.marginBottom = '8px';
+        contentElement.appendChild(img);
+    }
+
+    // Ajouter le texte (plus sûr avec textContent ou une fonction d'échappement)
+    // Pour l'instant, on garde innerHTML mais attention si le contenu peut venir d'ailleurs
+    contentElement.innerHTML += message.content;
+    messageElement.appendChild(contentElement);
+    messagesContainer.appendChild(messageElement);
+
+    // Faire défiler vers le nouveau message
+    const viewport = document.querySelector('#viewConversationModal .chat-viewport');
+    if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
     }
 }
 

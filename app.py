@@ -31,6 +31,7 @@ from openai import AssistantEventHandler
 from flask_migrate import Migrate
 from telegram import Update
 from telegram_bot import application as telegram_app
+from telegram_bot import telegram_admin_bp
 from flask import request as flask_request
 from flask import Response
 import asyncio
@@ -312,6 +313,9 @@ with app.app_context():
 
 # Register the WhatsApp blueprint
 app.register_blueprint(whatsapp, url_prefix='/whatsapp')
+
+# Register the Telegram blueprint
+app.register_blueprint(telegram_admin_bp)
 
 
 # Contexte d'application pour les commandes flask
@@ -3428,75 +3432,58 @@ def get_conversation_messages(conversation_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 # --- NOUVELLE ROUTE POUR ENVOYER DES MESSAGES ADMIN ---
-@app.route('/admin/conversations/<int:conversation_id>/send', methods=['POST'])
-def send_admin_message(conversation_id):
-    """Send an admin message to a specific conversation"""
+@app.route('/admin/web/conversations/<int:conversation_id>/send', methods=['POST'])
+@login_required # Utilisez votre décorateur pour vérifier la connexion (admin check ci-dessous)
+def send_admin_web_message(conversation_id):
+    """Envoie un message admin à une conversation Web spécifique."""
     try:
+        # Vérification Admin
         if not session.get('is_admin'):
+            logger.warning("Tentative d'accès non autorisé à l'envoi de message admin Web.")
             return jsonify({'error': 'Unauthorized access'}), 403
 
-        # Get message content from the request
+        # Récupération du contenu
         data = request.json
         message_content = data.get('message')
-        
         if not message_content or message_content.strip() == '':
+            logger.warning("Tentative d'envoi de message admin Web vide.")
             return jsonify({'error': 'Message content is required'}), 400
 
-        # Check Web conversations first
+        # Trouver la conversation Web
         web_conv = Conversation.query.get(conversation_id)
-        if web_conv:
-            # Create a new message in the web conversation with admin role
-            new_message = Message(
-                conversation_id=web_conv.id,
-                role='admin',
-                content=message_content,
-                created_at=datetime.utcnow()
-            )
-            db.session.add(new_message)
-            db.session.commit()
-            
-            logger.info(f"Admin message sent to Web conversation ID: {conversation_id}")
-            return jsonify({
-                'success': True, 
-                'message': 'Admin message sent successfully',
-                'message_data': {
-                    'role': 'admin',
-                    'content': message_content,
-                    'created_at': new_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
-                }
-            })
+        if not web_conv:
+            logger.warning(f"Conversation Web ID {conversation_id} non trouvée.")
+            return jsonify({'error': 'Web Conversation not found'}), 404
 
-        # If not found in Web, check Telegram conversations
-        tg_conv = TelegramConversation.query.get(conversation_id)
-        if tg_conv:
-            # Create a new message in the telegram conversation with admin role
-            new_message = TelegramMessage(
-                conversation_id=tg_conv.id,
-                role='admin',
-                content=message_content,
-                created_at=datetime.utcnow()
-            )
-            db.session.add(new_message)
-            db.session.commit()
-            
-            logger.info(f"Admin message sent to Telegram conversation ID: {conversation_id}")
-            return jsonify({
-                'success': True, 
-                'message': 'Admin message sent successfully to Telegram conversation',
-                'message_data': {
-                    'role': 'admin',
-                    'content': message_content,
-                    'created_at': new_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
-                }
-            })
+        # Sauvegarder le message admin dans la DB Web
+        new_message = Message(
+            conversation_id=web_conv.id,
+            role='admin',
+            content=message_content,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(new_message)
+        db.session.commit()
+        logger.info(f"Message admin sauvegardé pour conversation Web ID: {conversation_id}, Message ID: {new_message.id}")
 
-        # Return 404 if conversation not found
-        logger.warning(f"Conversation (Web ou Telegram) avec ID {conversation_id} non trouvée pour l'envoi du message admin.")
-        return jsonify({'error': 'Conversation not found by ID'}), 404
+        # TODO (Optionnel): Émettre un événement SocketIO ici si l'interface Web doit être mise à jour en temps réel
+
+        # Préparer la réponse pour le frontend
+        message_data_for_frontend = {
+            'id': new_message.id, # ID du message sauvegardé
+            'role': 'admin',
+            'content': message_content,
+            'created_at': new_message.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        return jsonify({
+            'success': True,
+            'message': 'Web admin message saved',
+            'message_data': message_data_for_frontend
+        })
 
     except Exception as e:
-        logger.exception(f"Error sending admin message to conversation ID {conversation_id}: {e}")
         db.session.rollback()
+        logger.exception(f"Erreur lors de l'envoi/sauvegarde message admin Web pour conversation {conversation_id}: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 # --- NOUVELLE ROUTE POUR SUPPRIMER PAR ID (WEB/TELEGRAM) ---

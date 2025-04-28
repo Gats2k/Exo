@@ -5,18 +5,23 @@ packages = ["c-ares", "cacert", "cargo", "glibcLocales", "grpc", "iana-etc", "li
 [deployment]
 deploymentTarget = "autoscale"
 run = ["sh", "-c", "python main.py"]
+
 [workflows]
-runButton = "Project"
+runButton = "Run"
+
 [[workflows.workflow]]
 name = "Project"
 mode = "parallel"
 author = "agent"
+
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "app_server"
+
 [[workflows.workflow]]
 name = "app_server"
 author = "agent"
+
 [workflows.workflow.metadata]
 agentRequireRestartOnSave = false
 
@@ -27,6 +32,15 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "python main.py"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Run"
+author = 37808950
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
 [[ports]]
 localPort = 5000
 externalPort = 80

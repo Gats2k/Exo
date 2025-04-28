@@ -4,7 +4,7 @@ import hashlib
 import logging
 import requests
 import time
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from datetime import datetime
 from database import db
 from openai import OpenAI, BadRequestError, APIError
@@ -13,6 +13,7 @@ from sqlalchemy import Index, desc, BigInteger, Text
 import sys
 from threading import Lock
 from collections import defaultdict
+from app import socketio
 
 _thread_locks = defaultdict(Lock)
 _dict_lock = Lock()
@@ -458,6 +459,232 @@ def send_whatsapp_message(to_number, message):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending WhatsApp message: {e}")
         raise
+
+# --- ROUTE POUR ENVOYER MESSAGE ADMIN (WHATSAPP) ---
+@whatsapp.route('/admin/whatsapp/conversations/<string:thread_id>/send', methods=['POST'])
+# @login_required # Ajoutez votre décorateur ici si nécessaire
+def send_admin_whatsapp_message(thread_id):
+    """Envoie un message admin à une conversation WhatsApp spécifique via son thread_id."""
+    try:
+        # 1. Vérification Admin
+        if not session.get('is_admin'):
+            logger.warning("Tentative d'accès non autorisé à l'envoi de message admin WhatsApp.")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # 2. Récupération du contenu
+        data = request.json
+        message_content = data.get('message')
+        if not message_content or message_content.strip() == '':
+            logger.warning("Tentative d'envoi de message admin WhatsApp vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        # 3. Trouver le numéro du destinataire basé sur le thread_id
+        # (On prend le 'from_number' d'un message entrant comme référence)
+        whatsapp_message_ref = WhatsAppMessage.query.filter(
+            WhatsAppMessage.thread_id == thread_id,
+            WhatsAppMessage.direction == 'inbound'
+        ).order_by(WhatsAppMessage.timestamp.asc()).first()
+
+        if not whatsapp_message_ref or not whatsapp_message_ref.from_number:
+            logger.warning(f"Numéro destinataire WhatsApp non trouvé pour thread {thread_id}.")
+            return jsonify({'error': 'Recipient phone number not found for this thread'}), 404
+
+        recipient_phone = whatsapp_message_ref.from_number
+        success = False
+        error_msg = None
+        api_response_data = None # Pour stocker la réponse de l'API WA
+
+        # 4. Appel à l'API WhatsApp
+        try:
+            logger.info(f"Tentative d'envoi du message admin via API WhatsApp à: {recipient_phone} pour thread {thread_id}")
+            api_response = send_whatsapp_message(recipient_phone, message_content) # Appel de votre fonction
+            logger.debug(f"Réponse API WhatsApp: {api_response}")
+
+            # Vérification du succès (basée sur votre code : présence de 'messages')
+            if api_response and isinstance(api_response.get('messages'), list) and len(api_response['messages']) > 0:
+                success = True
+                sent_message_id = api_response['messages'][0].get('id') # Récupère l'ID du message envoyé par l'API
+                logger.info(f"Message admin envoyé via API WhatsApp à {recipient_phone}. Message ID API: {sent_message_id}")
+
+                # Optionnel : Sauvegarder une trace du message sortant admin
+                try:
+                    outbound_msg = WhatsAppMessage(
+                        message_id=sent_message_id,          # Utiliser l'ID de l'API
+                        thread_id=thread_id,                 # Le thread_id de la conversation
+                        from_number=os.getenv('WHATSAPP_PHONE_ID'), # Le numéro du bot/de l'expéditeur
+                        to_number=recipient_phone,           # Le numéro du destinataire
+                        content=message_content,             # Le contenu du message admin
+                        direction='outbound',                # Important: Marquer comme sortant
+                        status='sent',                       # Statut initial (sera mis à jour par webhook)
+                        timestamp=datetime.utcnow()          # Timestamp de l'envoi
+                    )
+                    db.session.add(outbound_msg)
+                    db.session.commit()
+                    logger.info(f"Message sortant WhatsApp sauvegardé pour thread {thread_id}")
+                except Exception as wa_db_error:
+                    db.session.rollback() # Annuler en cas d'erreur DB
+                    logger.error(f"Erreur sauvegarde message sortant WhatsApp pour {thread_id}: {wa_db_error}")
+
+            else: # L'API n'a pas renvoyé la structure attendue
+                 error_msg = f"WhatsApp API did not return expected success structure. Response: {api_response}"
+                 logger.error(error_msg)
+                 success = False
+
+        except Exception as wa_api_error:
+             logger.exception(f"Erreur lors de l'appel API WhatsApp: {wa_api_error}")
+             error_msg = f"WhatsApp API call failed: {str(wa_api_error)}"
+             success = False
+
+        # 5. Réponse au Frontend
+        if success:
+             message_data = {
+                 'role': 'admin',
+                 'content': message_content,
+                 'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                 # Note: Pas d'ID de base de données directe ici sauf si vous avez sauvegardé et récupéré celui de outbound_msg
+             }
+             return jsonify({'success': True, 'message': 'WhatsApp admin message sent', 'message_data': message_data})
+        else:
+             return jsonify({'error': error_msg or 'Failed to send WhatsApp admin message'}), 500
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans send_admin_whatsapp_message pour thread {thread_id}: {e}")
+        # Assurer un rollback si une erreur DB s'est produite avant commit
+        db.session.rollback()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+# --- NOUVELLE ROUTE POUR DÉCLENCHER L'IA COMME UTILISATEUR ---
+@whatsapp.route('/admin/trigger_ai_as_user/<string:thread_id>', methods=['POST'])
+# @login_required # Tu auras sûrement besoin d'une forme d'authentification ici aussi
+def trigger_ai_as_user(thread_id):
+    """
+    Reçoit un message de l'admin, le traite comme un message utilisateur
+    pour déclencher l'IA, envoie la réponse de l'IA à l'utilisateur,
+    mais NE sauvegarde PAS le message initial de l'admin.
+    """
+    try:
+        # 1. Vérification Admin (essentiel !)
+        if not session.get('is_admin'):
+            logger.warning("Tentative non autorisée de déclencher l'IA comme utilisateur.")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # 2. Récupération du contenu du message (envoyé par l'admin)
+        data = request.json
+        admin_message_content = data.get('message')
+        if not admin_message_content or admin_message_content.strip() == '':
+            logger.warning("Tentative de déclencher l'IA avec un message vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        logger.info(f"Déclenchement IA comme utilisateur pour thread {thread_id} avec contenu: '{admin_message_content[:50]}...'")
+
+        # --- NE PAS SAUVEGARDER admin_message_content ---
+
+        # 3. Trouver le numéro de téléphone de l'utilisateur réel associé à ce thread
+        #    (Nécessaire pour envoyer la réponse de l'IA)
+        user_phone = None
+        # Chercher un message quelconque dans ce thread pour trouver le numéro de l'utilisateur
+        any_message_in_thread = WhatsAppMessage.query.filter_by(thread_id=thread_id).first()
+        if any_message_in_thread:
+            if any_message_in_thread.direction == 'inbound':
+                user_phone = any_message_in_thread.from_number
+            else: # Si le dernier est outbound, le destinataire est l'utilisateur
+                user_phone = any_message_in_thread.to_number
+        else:
+            logger.error(f"Impossible de trouver un numéro utilisateur pour le thread {thread_id} lors du déclenchement IA.")
+            return jsonify({'error': 'Could not find user phone for this thread'}), 404 # Ou 500
+
+        if not user_phone: # Sécurité supplémentaire
+             logger.error(f"Extraction du numéro utilisateur échouée pour thread {thread_id}.")
+             return jsonify({'error': 'Failed to determine user phone number'}), 500
+
+        # 4. Appeler la fonction de génération de l'IA
+        #    On passe le message de l'admin comme 'message_body'
+        #    et le numéro de l'utilisateur réel comme 'sender' si generate_ai_response l'utilise
+        try:
+            logger.debug(f"Appel de generate_ai_response pour thread {thread_id} (déclenché par admin comme user {user_phone})")
+            ai_response_text = generate_ai_response(
+                message_body=admin_message_content,
+                thread_id=thread_id,
+                sender=user_phone # Passer le numéro de l'utilisateur si nécessaire pour le contexte/logs de generate_ai_response
+            )
+            logger.info(f"Réponse IA générée pour déclenchement admin (thread {thread_id}): '{ai_response_text[:50]}...'")
+
+        except Exception as ai_error:
+            logger.error(f"Erreur lors de la génération de la réponse IA (déclenchement admin) pour thread {thread_id}: {ai_error}", exc_info=True)
+            # Renvoyer une erreur mais ne rien envoyer à l'utilisateur final
+            return jsonify({'error': f'AI response generation failed: {str(ai_error)}'}), 500
+
+
+        # 5. Envoyer la réponse de l'IA à l'utilisateur réel
+        api_response = None
+        sent_message_id = None
+        try:
+            logger.info(f"Envoi de la réponse IA déclenchée par admin à l'utilisateur {user_phone} pour thread {thread_id}")
+            api_response = send_whatsapp_message(user_phone, ai_response_text) # Envoyer à l'utilisateur réel
+
+            if api_response and isinstance(api_response.get('messages'), list) and len(api_response['messages']) > 0:
+                 sent_message_id = api_response['messages'][0].get('id')
+                 logger.info(f"Réponse IA envoyée avec succès à {user_phone}. Message ID API: {sent_message_id}")
+            else:
+                 logger.error(f"Échec de l'envoi de la réponse IA à {user_phone}. Réponse API: {api_response}")
+                 # Que faire ici ? Renvoyer une erreur à l'admin ?
+                 return jsonify({'error': 'Failed to send AI response via WhatsApp API', 'api_response': api_response}), 502 # 502 Bad Gateway
+
+        except Exception as send_api_error:
+             logger.error(f"Erreur lors de l'envoi API de la réponse IA déclenchée par admin à {user_phone}: {send_api_error}", exc_info=True)
+             return jsonify({'error': f'Failed to send AI response via WhatsApp API: {str(send_api_error)}'}), 500
+
+        # 6. Sauvegarder la réponse de l'IA (pas le message de l'admin)
+        if sent_message_id: # Sauvegarder seulement si l'envoi API a réussi
+            try:
+                ai_outbound_msg = WhatsAppMessage(
+                    message_id=sent_message_id,
+                    thread_id=thread_id,
+                    from_number=os.getenv('WHATSAPP_PHONE_ID'), # Le bot envoie
+                    to_number=user_phone,                   # À l'utilisateur
+                    content=ai_response_text,               # Le contenu généré par l'IA
+                    direction='outbound',
+                    status='sent', # Ou basé sur api_response si plus précis
+                    timestamp=datetime.utcnow()
+                )
+                db.session.add(ai_outbound_msg)
+                db.session.commit()
+                logger.info(f"Réponse IA (déclenchée par admin) sauvegardée pour thread {thread_id}")
+                try:
+                    # Assure-toi que 'socketio' est importé depuis ton app principale
+                    message_data_for_socket = {
+                        # 'id': ai_outbound_msg.id, # L'ID n'est peut-être pas dispo immédiatement après commit
+                        'role': 'assistant', # Le rôle tel qu'attendu par le frontend
+                        'content': ai_outbound_msg.content,
+                        'image_url': None, # Pas d'image pour une réponse IA texte
+                        'created_at': ai_outbound_msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                        'conversation_identifier': thread_id, # Pour savoir quelle fenêtre MAJ
+                        'platform': 'whatsapp' # Pour identifier la plateforme
+                    }
+                    # Émettre à tous les admins connectés (ou mieux, à une 'room' spécifique si tu gères des rooms admin)
+                    # 'new_admin_message' est un nom d'événement que tu choisis.
+                    socketio.emit('new_admin_message', message_data_for_socket)
+                    logger.info(f"Événement SocketIO 'new_admin_message' émis pour thread {thread_id}")
+                except Exception as socket_error:
+                    logger.error(f"Échec de l'émission SocketIO pour le message admin/IA: {socket_error}")
+                    
+            except Exception as db_error:
+                 db.session.rollback()
+                 logger.error(f"Erreur sauvegarde réponse IA (déclenchée par admin) pour thread {thread_id}: {db_error}")
+                 # L'envoi API a réussi mais pas la sauvegarde DB. Informer l'admin est une bonne idée.
+                 return jsonify({'success': True, 'warning': 'AI response sent but failed to save to DB', 'message_id': sent_message_id}), 207 # Multi-Status
+
+        # 7. Renvoyer un succès à l'interface admin
+        return jsonify({
+            'success': True,
+            'message': 'AI triggered successfully as user, response sent and saved.',
+            'ai_response_preview': ai_response_text[:100] + ('...' if len(ai_response_text) > 100 else ''),
+            'sent_message_id': sent_message_id
+        })
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans trigger_ai_as_user pour thread {thread_id}: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 def verify_webhook_signature(request_data, signature_header):
     """Verify the webhook signature from WhatsApp"""

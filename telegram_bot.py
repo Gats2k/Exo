@@ -18,6 +18,9 @@ import base64
 import requests
 from contextlib import contextmanager
 from mathpix_utils import process_image_with_mathpix
+from flask import Blueprint
+from flask import jsonify, request, session
+from models import TelegramConversation, TelegramMessage
 
 # Import models after eventlet patch
 from models import TelegramUser, TelegramConversation, TelegramMessage
@@ -600,6 +603,291 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(assistant_message)
     except Exception as send_error:
         logger.error(f"Failed to send final message to user {user_id}: {send_error}", exc_info=True)
+
+# Crée un Blueprint pour les routes admin spécifiques à Telegram
+telegram_admin_bp = Blueprint('telegram_admin', __name__, url_prefix='/admin/telegram')
+
+# Si vous utilisez un Blueprint nommé 'telegram_bp': @telegram_bp.route(...)
+@telegram_admin_bp.route('/conversations/<int:conversation_id>/send', methods=['POST'])
+async def send_admin_telegram_message(conversation_id):
+    """Envoie un message admin à une conversation Telegram spécifique."""
+    try:
+        # Vérification Admin
+        if not session.get('is_admin'):
+            logger.warning("Tentative d'accès non autorisé à l'envoi de message admin Telegram.")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Récupération du contenu
+        data = request.json
+        message_content = data.get('message')
+        if not message_content or message_content.strip() == '':
+            logger.warning("Tentative d'envoi de message admin Telegram vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        # Trouver la conversation Telegram
+        tg_conv = TelegramConversation.query.get(conversation_id)
+        if not tg_conv:
+            logger.warning(f"Conversation Telegram ID {conversation_id} non trouvée.")
+            return jsonify({'error': 'Telegram Conversation not found'}), 404
+
+        # Récupérer l'utilisateur Telegram associé via l'ID stocké dans la conversation
+        # (Assure-toi que ta classe TelegramConversation a bien un attribut telegram_user_id)
+        if not tg_conv.telegram_user_id:
+             logger.error(f"L'attribut telegram_user_id est manquant pour la conversation Telegram ID {conversation_id}.")
+             return jsonify({'error': 'Missing user association in conversation'}), 500
+
+        tg_user = TelegramUser.query.get(tg_conv.telegram_user_id)
+        if not tg_user:
+             logger.warning(f"Utilisateur Telegram avec ID {tg_conv.telegram_user_id} (associé à conv {conversation_id}) non trouvé.")
+             return jsonify({'error': 'Associated Telegram User not found'}), 404
+
+        # Récupérer le chat_id depuis l'objet TelegramUser
+        # (Assure-toi que ta classe TelegramUser a bien un attribut chat_id)
+        user_chat_id = tg_user.telegram_id
+        if not user_chat_id:
+             logger.error(f"Chat ID manquant pour l'utilisateur Telegram ID {tg_conv.telegram_user_id} (associé à conv {conversation_id}).")
+             return jsonify({'error': 'Missing Chat ID for the associated user'}), 500
+
+
+        newly_saved_message_db_id = None
+        success = False # Sera mis à True si la tâche d'envoi est lancée
+        error_msg = None
+
+        # 1. Sauvegarder le message dans la base de données Telegram
+        try:
+            new_message = TelegramMessage(
+                conversation_id=tg_conv.id,
+                role='admin',
+                content=message_content,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_message)
+            db.session.commit()
+            newly_saved_message_db_id = new_message.id
+            logger.info(f"Message admin sauvegardé pour conversation Telegram ID: {conversation_id}, Message ID: {newly_saved_message_db_id}")
+        except Exception as db_error:
+            db.session.rollback()
+            logger.exception(f"Erreur DB sauvegarde message admin Telegram: {db_error}")
+            return jsonify({'error': f'Database error during save: {str(db_error)}'}), 500
+
+        # 2. Lancer l'envoi via l'API Telegram (de manière asynchrone non bloquante)
+        try:
+            logger.info(f"Préparation de l'envoi async Telegram vers chat_id: {user_chat_id}")
+            # Utiliser await directement car la fonction de route est maintenant async
+            await application.bot.send_message(chat_id=user_chat_id, text=message_content)
+            logger.info(f"Message admin envoyé avec succès à chat_id {user_chat_id}")
+            success = True # L'envoi a réussi si aucune exception n'est levée
+
+        except Exception as tg_send_error:
+            logger.error(f"Erreur lors de l'envoi direct Telegram à {user_chat_id}: {tg_send_error}", exc_info=True)
+            error_msg = f"Failed to send Telegram message: {str(tg_send_error)}"
+            success = False
+            # Note : Le message est sauvegardé en DB mais n'a pas pu être envoyé.
+
+        # 3. Réponse au Frontend
+        if success:
+            message_data = {
+                'id': newly_saved_message_db_id, # ID du message sauvegardé
+                'role': 'admin',
+                'content': message_content,
+                'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') # Heure de sauvegarde/envoi
+            }
+            return jsonify({'success': True, 'message': 'Telegram admin message processed', 'message_data': message_data})
+        else:
+            # Si l'erreur vient du spawn ou d'une logique avant l'API
+            return jsonify({'error': error_msg or 'Failed to process Telegram admin message'}), 500
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans send_admin_telegram_message pour conversation {conversation_id}: {e}")
+        # Assurer un rollback si une erreur DB s'est produite avant le commit final
+        db.session.rollback()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+# --- NOUVELLE ROUTE POUR DÉCLENCHER L'IA COMME UTILISATEUR TELEGRAM ---
+@telegram_admin_bp.route('/trigger_ai_as_user/<int:conversation_id>', methods=['POST'])
+async def trigger_ai_as_user_telegram(conversation_id):
+    """
+    Reçoit un message de l'admin, le traite comme un message utilisateur Telegram
+    pour déclencher l'IA, envoie la réponse de l'IA à l'utilisateur,
+    mais NE sauvegarde PAS le message initial de l'admin.
+    Nécessite d'être async car on await l'envoi Telegram.
+    """
+    # 1. Vérification Admin
+    if not session.get('is_admin'):
+        logger.warning("Tentative non autorisée de déclencher l'IA comme utilisateur Telegram.")
+        return jsonify({'error': 'Unauthorized access'}), 403
+
+    try:
+        # 2. Récupération du contenu du message (envoyé par l'admin)
+        data = request.json
+        admin_message_content = data.get('message')
+        if not admin_message_content or admin_message_content.strip() == '':
+            logger.warning("Tentative de déclencher l'IA Telegram avec un message vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        logger.info(f"Déclenchement IA comme utilisateur pour conversation Telegram ID {conversation_id} avec contenu: '{admin_message_content[:50]}...'")
+
+        # 3. Trouver la conversation Telegram et les infos nécessaires
+        tg_conv = None
+        user_chat_id = None
+        telegram_user_id = None
+        with db_retry_session() as sess: # <<< Bloc corrigé
+             tg_conv = sess.get(TelegramConversation, conversation_id)
+             if not tg_conv:
+                  logger.error(f"Conversation Telegram ID {conversation_id} non trouvée lors du déclenchement IA.")
+                  # Important de retourner *dans* le bloc with si on ne trouve pas la conv
+                  return jsonify({'error': 'Telegram conversation not found'}), 404
+
+             # Récupérer l'ID utilisateur associé
+             if not tg_conv.telegram_user_id:
+                 logger.error(f"L'attribut telegram_user_id est manquant pour la conversation Telegram ID {conversation_id}.")
+                 return jsonify({'error': 'Missing user association in conversation'}), 500
+             telegram_user_id = tg_conv.telegram_user_id # Stocker l'ID utilisateur
+
+             # Récupérer l'utilisateur Telegram
+             tg_user = sess.get(TelegramUser, telegram_user_id) # Utiliser sess.get() est plus direct
+             if not tg_user:
+                 logger.warning(f"Utilisateur Telegram avec ID {telegram_user_id} (associé à conv {conversation_id}) non trouvé.")
+                 return jsonify({'error': 'Associated Telegram User not found'}), 404
+
+             # Récupérer le chat_id depuis l'utilisateur (en utilisant telegram_id)
+             user_chat_id = tg_user.telegram_id # <<< CORRECTION ICI
+             if not user_chat_id:
+                 logger.error(f"Telegram ID (utilisé comme Chat ID) manquant pour l'utilisateur Telegram ID {telegram_user_id}.")
+                 return jsonify({'error': 'Missing Telegram ID (Chat ID) for the associated user'}), 500
+
+
+        if not user_chat_id:
+             logger.error(f"Chat ID manquant pour la conversation Telegram {conversation_id}.")
+             return jsonify({'error': 'Missing Chat ID for this conversation'}), 500
+
+        # --- NE PAS SAUVEGARDER admin_message_content ---
+
+        # 4. Générer la réponse de l'IA
+        ai_response_text = None
+        try:
+            # Récupérer la configuration AI
+            config = get_app_config()
+            CURRENT_MODEL = config['CURRENT_MODEL']
+            get_ai_client = config['get_ai_client']
+            get_model_name = config['get_model_name']
+            get_system_instructions = config['get_system_instructions']
+
+            logger.debug(f"Appel IA ({CURRENT_MODEL}) pour conv Telegram {conversation_id} (déclenché par admin)")
+
+            # Récupérer l'historique spécifique à Telegram
+            with db_retry_session() as hist_sess:
+                messages_query = hist_sess.query(TelegramMessage).filter(
+                    TelegramMessage.conversation_id == conversation_id
+                ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+
+                # Préparer l'historique pour l'API (réutiliser la fonction existante)
+                history_for_api = prepare_messages_for_model(
+                    reversed(messages_query),
+                    current_model=CURRENT_MODEL
+                    # Ne pas passer current_message/content car on ne sauvegarde pas l'input admin
+                )
+
+            # Ajouter le message "utilisateur" (admin) à l'historique API
+            history_for_api.append({"role": "user", "content": admin_message_content})
+
+            # Ajouter les instructions système si nécessaire (pour modèles non-assistant)
+            if CURRENT_MODEL != 'openai':
+                 system_instructions = get_system_instructions()
+                 if system_instructions:
+                     history_for_api.insert(0, {"role": "system", "content": system_instructions})
+
+            # Appeler l'API IA appropriée
+            ai_client = get_ai_client()
+            model_name = get_model_name() # Peut être None pour OpenAI Assistant
+
+            if CURRENT_MODEL == 'openai':
+                 # Logique spécifique OpenAI Assistant API v2 (si applicable ici)
+                 # Assurez-vous que vous avez le bon thread_id associé à conversation_id
+                 openai_thread_id = tg_conv.thread_id if tg_conv else None
+                 if not openai_thread_id:
+                      raise ValueError("Missing OpenAI thread_id for this Telegram conversation.")
+
+                 openai_client.beta.threads.messages.create(
+                    thread_id=openai_thread_id, role="user", content=admin_message_content
+                 )
+                 run = openai_client.beta.threads.runs.create(
+                    thread_id=openai_thread_id, assistant_id=ASSISTANT_ID
+                 )
+                 # Boucle d'attente (peut nécessiter adaptation pour async/eventlet)
+                 while True:
+                      run_status = openai_client.beta.threads.runs.retrieve(thread_id=openai_thread_id, run_id=run.id)
+                      if run_status.status == 'completed': break
+                      if run_status.status in ['failed', 'cancelled', 'expired']: raise Exception(f"OpenAI Run {run.id} failed: {run_status.status}")
+                      await asyncio.sleep(1) # Utiliser asyncio.sleep dans une route async
+
+                 messages_openai = openai_client.beta.threads.messages.list(thread_id=openai_thread_id, order='desc', limit=1)
+                 if messages_openai.data and messages_openai.data[0].role == 'assistant':
+                     ai_response_text = messages_openai.data[0].content[0].text.value
+                 else:
+                      raise Exception("Failed to retrieve assistant message from OpenAI thread.")
+
+            else: # Modèles Chat Completion
+                 if not model_name: raise ValueError("Model name is required for Chat Completions.")
+                 response = ai_client.chat.completions.create(
+                     model=model_name,
+                     messages=history_for_api
+                 )
+                 ai_response_text = response.choices[0].message.content
+
+            logger.info(f"Réponse IA générée pour déclenchement admin (conv Telegram {conversation_id}): '{ai_response_text[:50]}...'")
+
+        except Exception as ai_error:
+            logger.error(f"Erreur lors de la génération IA (déclenchement admin) pour conv Telegram {conversation_id}: {ai_error}", exc_info=True)
+            return jsonify({'error': f'AI response generation failed: {str(ai_error)}'}), 500
+
+        # 5. Envoyer la réponse de l'IA à l'utilisateur réel via Telegram
+        try:
+            logger.info(f"Envoi async de la réponse IA déclenchée par admin à chat_id {user_chat_id}")
+            # Utilisation directe de await car la route est async
+            await application.bot.send_message(chat_id=user_chat_id, text=ai_response_text)
+            logger.info(f"Réponse IA envoyée avec succès à chat_id {user_chat_id}")
+        except Exception as send_error:
+            logger.error(f"Erreur lors de l'envoi Telegram de la réponse IA (déclenchée par admin) à {user_chat_id}: {send_error}", exc_info=True)
+            # Renvoyer une erreur à l'admin, car l'utilisateur n'a rien reçu
+            return jsonify({'error': f'Failed to send AI response via Telegram API: {str(send_error)}'}), 500
+
+
+        # 6. Sauvegarder la réponse de l'IA dans la DB Telegram
+        try:
+            await add_telegram_message(conversation_id, 'assistant', ai_response_text)
+            logger.info(f"Réponse IA (déclenchée par admin) sauvegardée pour conv Telegram {conversation_id}")
+        except Exception as db_error:
+            logger.error(f"Erreur sauvegarde réponse IA (déclenchée par admin) pour conv Telegram {conversation_id}: {db_error}")
+            pass # Ne pas planter ici
+
+        # 7. Émettre l'événement Socket.IO pour l'UI Admin
+        try:
+            from app import socketio # Assure-toi que socketio est accessible
+            message_data_for_socket = {
+                'role': 'assistant',
+                'content': ai_response_text,
+                'image_url': None,
+                'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                'conversation_identifier': conversation_id, # ID numérique pour Telegram
+                'platform': 'telegram'
+            }
+            socketio.emit('new_admin_message', message_data_for_socket)
+            logger.info(f"Événement SocketIO 'new_admin_message' émis pour conv Telegram {conversation_id}")
+        except Exception as socket_error:
+            logger.error(f"Échec de l'émission SocketIO pour le message admin/IA Telegram: {socket_error}")
+
+
+        # 8. Renvoyer un succès à l'interface admin
+        return jsonify({
+            'success': True,
+            'message': 'AI triggered successfully as Telegram user, response sent and saved.',
+            'ai_response_preview': ai_response_text[:100] + ('...' if len(ai_response_text) > 100 else '')
+        })
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans trigger_ai_as_user_telegram pour conversation {conversation_id}: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""

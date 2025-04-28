@@ -385,6 +385,22 @@
             </div>
         </div>
 
+        <div id="sendAsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Envoyer le message en tant que...</h2>
+                    <span class="close-modal" onclick="closeSendAsModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <p>Choisissez le rôle d'expéditeur pour ce message :</p>
+                    </div>
+                <div class="modal-footer">
+                     <button id="sendAsUserBtn" class="modal-btn cancel">Utilisateur (Simulé)</button>
+                     <button id="sendAsAssistantBtn" class="modal-btn save">Assistant</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Settings Section -->
         <div class="section" id="settings-section" style="display: none;">
             <h1 class="section-title">Configuration du Modèle IA</h1>
