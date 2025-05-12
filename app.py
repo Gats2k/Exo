@@ -93,8 +93,15 @@ gemini_openai_client = OpenAI(
 # Clé API pour Gemini (utilisée soit pour l'API REST directe, soit pour l'endpoint compatible OpenAI)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-# Get the current AI model from environment or default to OpenAI
-CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+# Load AI model config from file if it exists, otherwise use environment variable
+try:
+    with open('ai_config.json', 'r') as f:
+        config = json.load(f)
+        CURRENT_MODEL = config.get('CURRENT_MODEL', os.environ.get('CURRENT_MODEL', 'openai'))
+    logger.info(f"Loaded AI model configuration: {CURRENT_MODEL}")
+except Exception as e:
+    logger.warning(f"Could not load AI config from file: {e}")
+    CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
 
 # Assurer qu'un event loop existe pour le contexte async (important dans certains déploiements)
 try:
