@@ -495,7 +495,7 @@ function fetchAllUsers(platform, page = 1, filterParams = {}) {
 
                 console.log('--- Pagination Users Reçue (fetchAllUsers) ---');
                 console.log(userPagination); // Affiche l'objet reçu
-                
+
                  renderUserPaginationControls(userPagination); // Affiche/Met à jour les boutons
 
                  // Gérer l'état vide si la liste d'utilisateurs est vide
@@ -772,7 +772,7 @@ function viewConversation(identifier, platformType) { // <<< Signature modifiée
     }
 
     console.log(`Viewing conversation for platform [${platformType}] with identifier:`, identifier); // Log adapté
-    
+
     // Store the current conversation ID and platform type for admin message sending
     window.currentViewedConversation = {
         id: identifier,
@@ -885,10 +885,10 @@ function closeViewConversationModal() {
     const modal = document.getElementById('viewConversationModal');
     modal.style.display = 'none';
     document.body.style.overflow = 'auto';
-    
+
     // Clear the current conversation data when closing the modal
     window.currentViewedConversation = null;
-    
+
     // Clear the admin message input
     const adminMessageInput = document.getElementById('adminMessageInput');
     if (adminMessageInput) {
@@ -1438,13 +1438,13 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     showSection('dashboard');
     fetchPlatformData('web');
-    
+
     // Initialize admin message functionality
     const sendAdminMessageBtn = document.getElementById('sendAdminMessageBtn');
     if (sendAdminMessageBtn) {
         sendAdminMessageBtn.addEventListener('click', sendAdminMessage);
     }
-    
+
     // Add event listener for pressing enter in the admin message input
     const adminMessageInput = document.getElementById('adminMessageInput');
     if (adminMessageInput) {
@@ -1988,7 +1988,7 @@ function setupRealtimeUpdates() {
                     // dans une autre conversation si tu le souhaites.
                 }
             });
-            
+
             // Ajouter un écouteur d'événement une seule fois
             socketInstance.on('feedback_stats_updated', function(data) {
                 console.log('Received real-time feedback stats update:', data);

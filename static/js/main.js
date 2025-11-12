@@ -790,6 +790,12 @@ document.addEventListener('DOMContentLoaded', function() {
         storeMessagesInCache(allMessages);
     });
 
+    // Gestion de l'événement de limite atteinte
+    socket.on('limit_exceeded', function(data) {
+        // Afficher une notification à l'utilisateur
+        showLimitExceededModal(data);
+    });
+
     // Nouvel événement pour indiquer le début d'un message streamé
     socket.on('message_started', function(data) {
         removeLoadingIndicator();
@@ -895,12 +901,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // UI already updated in handleTitleKeydown for the sidebar item, 
             // but we should also update the header title if this is the currently open conversation
             console.log('Conversation renamed successfully');
-            
+
             // If the update includes a title and id, also update the header
             if (data.title && data.id) {
                 // Get the current thread_id from localStorage
                 const currentThreadId = localStorage.getItem('thread_id');
-                
+
                 // If this is the currently open conversation, update the header title
                 if (currentThreadId === data.id.toString()) {
                     const titleElement = document.querySelector('.conversation-title');
@@ -991,6 +997,220 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Fonction pour afficher le modal de limite atteinte
+    function showLimitExceededModal(data) {
+        // Créer un modal temporaire pour informer l'utilisateur
+        const modalHtml = `
+            <div class="modal-overlay limit-modal-overlay" style="display: flex;">
+                <div class="limit-modal">
+                    <div class="limit-modal-header">
+                        <h3>Limite quotidienne atteinte</h3>
+                        <button class="close-limit-btn" onclick="closeLimitModal()">&times;</button>
+                    </div>
+                    <div class="limit-modal-content">
+                        <div class="limit-icon">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <p class="limit-message">${data.error}</p>
+                        <div class="limit-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Plan actuel :</span>
+                                <span class="stat-value">${data.user_limits.plan_name}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Messages utilisés :</span>
+                                <span class="stat-value">${data.user_limits.used_today}/${data.user_limits.daily_limit}</span>
+                            </div>
+                        </div>
+                        <div class="limit-actions">
+                            <button class="btn-upgrade" onclick="goToUpgrade()">
+                                <i class="bi bi-rocket"></i>
+                                Passer à Premium
+                            </button>
+                            <button class="btn-wait" onclick="closeLimitModal()">
+                                Attendre demain
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+            .limit-modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 2000;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .limit-modal {
+                background: white;
+                border-radius: 20px;
+                width: 90%;
+                max-width: 400px;
+                padding: 0;
+                box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+            }
+
+            .limit-modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1.5rem;
+                border-bottom: 1px solid #e5e7eb;
+                background: linear-gradient(135deg, #f59e0b, #d97706);
+                color: white;
+                border-radius: 20px 20px 0 0;
+            }
+
+            .limit-modal-header h3 {
+                margin: 0;
+                font-weight: 700;
+            }
+
+            .close-limit-btn {
+                background: none;
+                border: none;
+                font-size: 1.5rem;
+                cursor: pointer;
+                color: white;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: background-color 0.2s ease;
+            }
+
+            .close-limit-btn:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+
+            .limit-modal-content {
+                padding: 2rem 1.5rem;
+                text-align: center;
+            }
+
+            .limit-icon {
+                width: 64px;
+                height: 64px;
+                background: linear-gradient(135deg, #f59e0b, #d97706);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 1.5rem;
+            }
+
+            .limit-icon i {
+                color: white;
+                font-size: 1.5rem;
+            }
+
+            .limit-message {
+                font-size: 1.1rem;
+                color: #374151;
+                margin-bottom: 1.5rem;
+                line-height: 1.5;
+            }
+
+            .limit-stats {
+                background: #f9fafb;
+                border-radius: 12px;
+                padding: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .stat-item {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+            }
+
+            .stat-item:last-child {
+                margin-bottom: 0;
+            }
+
+            .stat-label {
+                color: #6b7280;
+                font-size: 0.9rem;
+            }
+
+            .stat-value {
+                font-weight: 600;
+                color: #374151;
+                font-size: 0.9rem;
+            }
+
+            .limit-actions {
+                display: flex;
+                gap: 1rem;
+                flex-direction: column;
+            }
+
+            .btn-upgrade, .btn-wait {
+                padding: 0.75rem 1.5rem;
+                border: none;
+                border-radius: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+            }
+
+            .btn-upgrade {
+                background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                color: white;
+            }
+
+            .btn-upgrade:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+            }
+
+            .btn-wait {
+                background: #f3f4f6;
+                color: #374151;
+            }
+
+            .btn-wait:hover {
+                background: #e5e7eb;
+            }
+
+            @media (max-width: 768px) {
+                .limit-modal {
+                    width: 95%;
+                    margin: 1rem;
+                }
+            }
+            </style>
+        `;
+
+        // Ajouter le modal au DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function closeLimitModal() {
+        const modal = document.querySelector('.limit-modal-overlay');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    function goToUpgrade() {
+        window.location.href = '/payment/upgrade';
+    }
+
     function checkEmptyMessages() {
         // Recherche les messages vides de l'assistant
         document.querySelectorAll('.message.assistant .message-content').forEach(contentDiv => {
@@ -1051,7 +1271,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Ensure we never show "Conversation du [date]" in the UI
         // If the title starts with "Conversation du", don't update until we have a real title
         const headerDisplayTitle = data.title;
-        
+
         // Skip default titles completely - this should never happen now with our backend changes
         if (!headerDisplayTitle || headerDisplayTitle.startsWith('Conversation du') || headerDisplayTitle === 'Nouvelle conversation') {
             console.log('[DEBUG] Received default title, waiting for first message content to set title');
@@ -1061,7 +1281,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // --- DEBUT DEBUG ---
             console.log(`[DEBUG] Mise à jour titre header avec: "${headerDisplayTitle}"`);
             // --- FIN DEBUG ---
-            
+
             // Always update the header title with the content-based conversation title
             titleElement.textContent = headerDisplayTitle;
         }

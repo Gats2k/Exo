@@ -101,7 +101,7 @@
                     <a href="{{ url_for('logout') }}" class="user-menu-item" id="logout-link">
                         <i class="bi bi-box-arrow-right"></i> Déconnexion
                     </a>
-                    <a href="#" class="user-menu-item">
+                    <a href="{{ url_for('payment.upgrade_page') }}" class="user-menu-item">
                         <i class="bi bi-star"></i> Abonnement
                     </a>
                 </div>
@@ -151,6 +151,10 @@
             <div class="suggestion-block">
                 <i class="bi bi-mortarboard"></i>
                 <span>Révisions examens</span>
+            </div>
+            <div class="suggestion-block upgrade-suggestion" onclick="goToUpgrade()" style="display: none;">
+                <i class="bi bi-star-fill"></i>
+                <span>Passer à Premium</span>
             </div>
         </div>
         <div class="input-container">

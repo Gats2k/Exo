@@ -1,0 +1,976 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="app-container">
+    <!-- Sidebar (réutilisation de la structure existante) -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="badge-container">
+                <span>1er de la Classe</span>
+            </div>
+        </div>
+        <div class="sidebar-nav">
+            <a href="{{ url_for('chat') }}" class="sidebar-section-new">
+                <i class="bi bi-arrow-left"></i>
+                <span>Retour au chat</span>
+            </a>
+            <div class="nav-item active">
+                <i class="bi bi-star"></i>
+                <span>Abonnements</span>
+            </div>
+        </div>
+
+        <!-- Informations du plan actuel -->
+        <div class="current-plan-info">
+            <h6 class="history-section-title">Plan actuel</h6>
+            <div class="current-plan-card">
+                <div class="plan-name">{{ current_plan.display_name }}</div>
+                <div class="plan-usage">
+                    {% if current_plan.daily_message_limit %}
+                        {{ limits_info.used_today }}/{{ current_plan.daily_message_limit }} messages
+                    {% else %}
+                        Messages illimités
+                    {% endif %}
+                </div>
+                {% if current_plan.expiry_date %}
+                <div class="plan-expiry">
+                    Expire le {{ current_plan.expiry_date.strftime('%d/%m/%Y') }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="nav-item">
+                <i class="bi bi-gear"></i>
+                <span>Paramètres</span>
+            </div>
+            <a href="{{ url_for('privacy_policy') }}" class="privacy-policy-link">Politique de confidentialité</a>
+        </div>
+    </div>
+
+    <!-- Zone principale -->
+    <div class="main-area">
+        <div class="chat-header">
+            <div class="conversation-title-container">
+                <div class="conversation-title">Choisir votre abonnement</div>
+                <a href="{{ url_for('chat') }}" class="new-conversation-btn" title="Retour au chat">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+            </div>
+            <div class="user-menu-container">
+                <button class="user-menu-button" id="userMenuButton">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <div class="user-menu-dropdown" id="userMenuDropdown">
+                    <a href="{{ url_for('logout') }}" class="user-menu-item">
+                        <i class="bi bi-box-arrow-right"></i> Déconnexion
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="upgrade-container">
+            <!-- Section d'accueil -->
+            <div class="upgrade-welcome">
+                <h1 class="upgrade-title">Débloquez tout le potentiel d'Exô</h1>
+                <p class="upgrade-subtitle">Choisissez le plan qui correspond à vos besoins d'apprentissage</p>
+            </div>
+
+            <!-- Statistiques d'utilisation -->
+            {% if limits_info.daily_limit %}
+            <div class="usage-stats">
+                <div class="usage-card">
+                    <div class="usage-header">
+                        <i class="bi bi-chat-dots"></i>
+                        <span>Utilisation aujourd'hui</span>
+                    </div>
+                    <div class="usage-bar-container">
+                        <div class="usage-bar">
+                            <div class="usage-fill" style="width: {{ limits_info.percentage_used }}%"></div>
+                        </div>
+                        <div class="usage-text">
+                            {{ limits_info.used_today }}/{{ limits_info.daily_limit }} messages utilisés
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Plans d'abonnement -->
+            <div class="plans-grid">
+                {% for plan in plans %}
+                <div class="plan-card {% if plan.id == current_plan.plan_id %}current{% endif %} {% if plan.is_free %}free{% elif plan.name == 'premium' %}popular{% endif %}">
+                    {% if plan.name == 'premium' %}
+                    <div class="plan-badge">Populaire</div>
+                    {% endif %}
+
+                    <div class="plan-header">
+                        <h3 class="plan-title">{{ plan.display_name }}</h3>
+                        <div class="plan-price">
+                            {% if plan.price == 0 %}
+                                <span class="price">Gratuit</span>
+                            {% else %}
+                                <span class="price">{{ plan.price }}</span>
+                                <span class="currency">FCFA</span>
+                                <span class="period">/{{ plan.duration_days }} jours</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="plan-features">
+                        <div class="feature-item">
+                            <i class="bi bi-check-circle"></i>
+                            <span>
+                                {% if plan.daily_message_limit %}
+                                    {{ plan.daily_message_limit }} messages/jour
+                                {% else %}
+                                    Messages illimités
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Support des images</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Aide aux devoirs</span>
+                        </div>
+                        {% if not plan.is_free %}
+                        <div class="feature-item premium">
+                            <i class="bi bi-star-fill"></i>
+                            <span>Réponses prioritaires</span>
+                        </div>
+                        <div class="feature-item premium">
+                            <i class="bi bi-star-fill"></i>
+                            <span>Support premium</span>
+                        </div>
+                        {% endif %}
+                        {% if plan.name == 'pro' %}
+                        <div class="feature-item pro">
+                            <i class="bi bi-lightning-fill"></i>
+                            <span>Accès aux modèles avancés</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="plan-action">
+                        {% if plan.id == current_plan.plan_id %}
+                            <button class="plan-btn current" disabled>
+                                <i class="bi bi-check-circle"></i>
+                                Plan actuel
+                            </button>
+                        {% elif plan.is_free %}
+                            <button class="plan-btn free" onclick="selectPlan({{ plan.id }}, '{{ plan.name }}', {{ plan.price }})">
+                                <i class="bi bi-download"></i>
+                                Passer au gratuit
+                            </button>
+                        {% else %}
+                            <button class="plan-btn premium" onclick="selectPlan({{ plan.id }}, '{{ plan.name }}', {{ plan.price }})">
+                                <i class="bi bi-rocket"></i>
+                                Choisir ce plan
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Section FAQ -->
+            <div class="faq-section">
+                <h2 class="faq-title">Questions fréquentes</h2>
+                <div class="faq-grid">
+                    <div class="faq-item">
+                        <h4>Comment fonctionne le paiement ?</h4>
+                        <p>Payez facilement via Orange Money, MTN Mobile Money, Moov Money ou Wave. Le paiement est sécurisé et instantané.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h4>Puis-je changer de plan ?</h4>
+                        <p>Oui, vous pouvez changer de plan à tout moment. Les changements prennent effet immédiatement.</p>
+                    </div>
+                    <div class="faq-item">
+                        <h4>Que se passe-t-il si j'atteins ma limite ?</h4>
+                        <p>Une fois votre limite quotidienne atteinte, vous devrez attendre le lendemain ou passer à un plan supérieur.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de paiement -->
+<div class="modal-overlay" id="paymentModalOverlay">
+    <div class="payment-modal" id="paymentModal">
+        <div class="payment-header">
+            <h3>Finaliser l'abonnement</h3>
+            <button class="close-payment-btn" onclick="closePaymentModal()">&times;</button>
+        </div>
+
+        <div class="payment-content">
+            <div class="payment-summary">
+                <div class="summary-item">
+                    <span>Plan sélectionné :</span>
+                    <span id="selectedPlanName"></span>
+                </div>
+                <div class="summary-item total">
+                    <span>Total :</span>
+                    <span id="selectedPlanPrice"></span>
+                </div>
+            </div>
+
+            <form id="paymentForm" class="payment-form">
+                <div class="form-group">
+                    <label for="phoneNumber">Numéro de téléphone</label>
+                    <input type="tel" id="phoneNumber" name="phone_number" 
+                           placeholder="+225 XX XX XX XX XX" required>
+                    <small>Le numéro associé à votre portefeuille mobile money</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Opérateur</label>
+                    <div class="operator-grid">
+                        <div class="operator-option" data-operator="orange">
+                            <img src="/static/images/orange-logo.png" alt="Orange Money" onerror="this.style.display='none'">
+                            <span>Orange Money</span>
+                            <input type="radio" name="operator" value="orange" required>
+                        </div>
+                        <div class="operator-option" data-operator="mtn">
+                            <img src="/static/images/mtn-logo.png" alt="MTN Mobile Money" onerror="this.style.display='none'">
+                            <span>MTN Mobile Money</span>
+                            <input type="radio" name="operator" value="mtn" required>
+                        </div>
+                        <div class="operator-option" data-operator="moov">
+                            <img src="/static/images/moov-logo.png" alt="Moov Money" onerror="this.style.display='none'">
+                            <span>Moov Money</span>
+                            <input type="radio" name="operator" value="moov" required>
+                        </div>
+                        <div class="operator-option" data-operator="wave">
+                            <img src="/static/images/wave-logo.png" alt="Wave" onerror="this.style.display='none'">
+                            <span>Wave</span>
+                            <input type="radio" name="operator" value="wave" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="payment-actions">
+                    <button type="button" class="btn-cancel" onclick="closePaymentModal()">
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn-pay">
+                        <i class="bi bi-credit-card"></i>
+                        Procéder au paiement
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="payment-status" id="paymentStatus" style="display: none;">
+            <div class="status-icon">
+                <i class="bi bi-clock"></i>
+            </div>
+            <h4>Paiement en cours...</h4>
+            <p id="paymentInstructions"></p>
+            <button class="btn-status" onclick="checkPaymentStatus()">
+                Vérifier le statut
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Styles spécifiques pour la page d'upgrade */
+.upgrade-container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.upgrade-welcome {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.upgrade-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 1rem;
+}
+
+.upgrade-subtitle {
+    font-size: 1.2rem;
+    color: #666;
+    margin-bottom: 0;
+}
+
+.current-plan-info {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+.current-plan-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+}
+
+.plan-name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.plan-usage, .plan-expiry {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.usage-stats {
+    margin-bottom: 3rem;
+}
+
+.usage-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.usage-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.usage-bar-container {
+    margin-top: 1rem;
+}
+
+.usage-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.usage-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    transition: width 0.3s ease;
+}
+
+.usage-text {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.plans-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 4rem;
+}
+
+.plan-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 2rem;
+    position: relative;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.plan-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+}
+
+.plan-card.popular {
+    border-color: #3b82f6;
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+}
+
+.plan-card.current {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+}
+
+.plan-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.plan-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.plan-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 1rem;
+}
+
+.plan-price {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.price {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #3b82f6;
+}
+
+.currency {
+    font-size: 1rem;
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.period {
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.plan-features {
+    margin-bottom: 2rem;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.feature-item i {
+    color: #10b981;
+    font-size: 1.1rem;
+}
+
+.feature-item.premium i {
+    color: #f59e0b;
+}
+
+.feature-item.pro i {
+    color: #8b5cf6;
+}
+
+.plan-btn {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.plan-btn.premium {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+}
+
+.plan-btn.premium:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+}
+
+.plan-btn.free {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.plan-btn.free:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(16, 185, 129, 0.3);
+}
+
+.plan-btn.current {
+    background: #e5e7eb;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.faq-section {
+    margin-top: 4rem;
+}
+
+.faq-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 2rem;
+}
+
+.faq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.faq-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.faq-item h4 {
+    color: #1a1a1a;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.faq-item p {
+    color: #6b7280;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Modal de paiement */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.payment-modal {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.payment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.payment-header h3 {
+    margin: 0;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.close-payment-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.close-payment-btn:hover {
+    background-color: #f3f4f6;
+}
+
+.payment-content {
+    padding: 1.5rem;
+}
+
+.payment-summary {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.summary-item.total {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #1a1a1a;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}
+
+.payment-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.payment-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.payment-form input[type="tel"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+}
+
+.payment-form input[type="tel"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.payment-form small {
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.operator-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.operator-option {
+    position: relative;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.operator-option:hover {
+    border-color: #3b82f6;
+}
+
+.operator-option.selected {
+    border-color: #3b82f6;
+    background-color: #f0f9ff;
+}
+
+.operator-option img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    margin-bottom: 0.5rem;
+}
+
+.operator-option span {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.operator-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.payment-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn-cancel, .btn-pay {
+    flex: 1;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-cancel {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.btn-cancel:hover {
+    background: #e5e7eb;
+}
+
+.btn-pay {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-pay:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.payment-status {
+    padding: 2rem;
+    text-align: center;
+}
+
+.status-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
+
+.status-icon i {
+    color: white;
+    font-size: 1.5rem;
+}
+
+.payment-status h4 {
+    color: #1a1a1a;
+    margin-bottom: 0.5rem;
+}
+
+.payment-status p {
+    color: #6b7280;
+    margin-bottom: 1.5rem;
+}
+
+.btn-status {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-status:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .upgrade-container {
+        padding: 1rem;
+    }
+
+    .upgrade-title {
+        font-size: 2rem;
+    }
+
+    .plans-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .faq-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .operator-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .payment-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+let currentPlanId = null;
+let currentTransactionId = null;
+
+function selectPlan(planId, planName, planPrice) {
+    currentPlanId = planId;
+
+    if (planPrice === 0) {
+        // Plan gratuit - activation directe
+        activateFreePlan(planId, planName);
+    } else {
+        // Plan payant - ouvrir le modal de paiement
+        showPaymentModal(planName, planPrice);
+    }
+}
+
+function activateFreePlan(planId, planName) {
+    fetch('/payment/initiate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            plan_id: planId,
+            phone_number: '',
+            operator: ''
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Plan gratuit activé avec succès !');
+            location.reload();
+        } else {
+            alert('Erreur lors de l\'activation : ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+    });
+}
+
+function showPaymentModal(planName, planPrice) {
+    document.getElementById('selectedPlanName').textContent = planName;
+    document.getElementById('selectedPlanPrice').textContent = planPrice + ' FCFA';
+    document.getElementById('paymentModalOverlay').style.display = 'flex';
+}
+
+function closePaymentModal() {
+    document.getElementById('paymentModalOverlay').style.display = 'none';
+    document.querySelector('.payment-content').style.display = 'block';
+    document.getElementById('paymentStatus').style.display = 'none';
+}
+
+// Gestion de la sélection d'opérateur
+document.addEventListener('DOMContentLoaded', function() {
+    const operatorOptions = document.querySelectorAll('.operator-option');
+
+    operatorOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            // Retirer la sélection de tous les opérateurs
+            operatorOptions.forEach(opt => opt.classList.remove('selected'));
+
+            // Sélectionner l'opérateur cliqué
+            this.classList.add('selected');
+
+            // Cocher le radio button correspondant
+            const radio = this.querySelector('input[type="radio"]');
+            radio.checked = true;
+        });
+    });
+
+    // Gestion du formulaire de paiement
+    document.getElementById('paymentForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const paymentData = {
+            plan_id: currentPlanId,
+            phone_number: formData.get('phone_number'),
+            operator: formData.get('operator')
+        };
+
+        // Masquer le formulaire et afficher le statut
+        document.querySelector('.payment-content').style.display = 'none';
+        document.getElementById('paymentStatus').style.display = 'block';
+
+        // Envoyer la requête de paiement
+        fetch('/payment/initiate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(paymentData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentTransactionId = data.transaction_id;
+                document.getElementById('paymentInstructions').textContent = data.instructions;
+
+                // Vérifier automatiquement le statut après 10 secondes
+                setTimeout(checkPaymentStatus, 10000);
+            } else {
+                alert('Erreur lors de l\'initiation du paiement : ' + data.error);
+                closePaymentModal();
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Erreur de connexion');
+            closePaymentModal();
+        });
+    });
+});
+
+function checkPaymentStatus() {
+    if (!currentTransactionId) return;
+
+    fetch(`/payment/status/${currentTransactionId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Paiement réussi ! Votre abonnement est maintenant actif.');
+            location.reload();
+        } else if (data.status === 'failed') {
+            alert('Paiement échoué : ' + data.message);
+            closePaymentModal();
+        } else {
+            // Paiement toujours en cours
+            document.getElementById('paymentInstructions').textContent = data.message;
+        }
+    })
+    .catch(error => {
+        console.error('Erreur lors de la vérification:', error);
+    });
+}
+</script>
+{% endblock %}

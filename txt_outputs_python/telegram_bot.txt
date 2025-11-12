@@ -1,0 +1,1311 @@
+import eventlet
+eventlet.monkey_patch()
+
+import os
+import logging
+import asyncio
+import time
+import openai
+import httpx
+from telegram import Update, constants
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from openai import OpenAI, OpenAIError
+from collections import defaultdict
+import aiohttp
+from pathlib import Path
+import uuid
+from datetime import datetime
+import base64
+import requests
+import os
+import uuid
+import base64
+import telegram
+from mathpix_utils import process_image_with_mathpix
+from flask import Blueprint
+from flask import jsonify, request, session
+from models import TelegramUser, User, UserMemory, TelegramConversation, TelegramMessage
+
+# Import de la configuration IA centralisée
+from ai_config import (
+    get_ai_client,
+    get_model_name,
+    get_system_instructions,
+    ASSISTANT_ID,
+    CONTEXT_MESSAGE_LIMIT,
+    openai_client
+)
+
+from utils import db_retry_session
+from ai_utils import prepare_messages_for_api, upload_image_to_openai, process_image_for_openai
+from config import Config
+
+from database import db
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG  
+)
+logger = logging.getLogger(__name__)
+
+
+# Store thread IDs for each user
+user_threads = defaultdict(lambda: None)
+
+async def get_or_create_telegram_user(user_id: int, first_name: str = None, last_name: str = None):
+    """Get or create a TelegramUser record with name information.
+
+    Returns:
+        tuple: (TelegramUser, is_new_user) - l'objet utilisateur et un booléen indiquant s'il a été créé
+    """
+    try:
+        with db_retry_session() as session:
+            logger.info(f"Attempting to get or create TelegramUser for ID: {user_id}")
+            user = TelegramUser.query.get(user_id)
+            is_new_user = False
+
+            if not user:
+                logger.info(f"Creating new TelegramUser for ID: {user_id}")
+                user = TelegramUser(
+                    telegram_id=user_id,
+                    first_name=first_name or "---",
+                    last_name=last_name or "---"
+                )
+                session.add(user)
+                session.commit()
+                logger.info(f"Successfully created TelegramUser: {user.telegram_id} ({first_name} {last_name})")
+                is_new_user = True
+            else:
+                # Mettre à jour les noms s'ils ont changé
+                updated = False
+                if first_name and user.first_name != first_name:
+                    user.first_name = first_name
+                    updated = True
+                if last_name and user.last_name != last_name:
+                    user.last_name = last_name
+                    updated = True
+                if updated:
+                    session.commit()
+                    logger.info(f"Updated user {user_id} with new name: {first_name} {last_name}")
+                logger.info(f"Found existing TelegramUser: {user.telegram_id}")
+
+            # Émettre un événement Socket.IO pour notifier le tableau de bord si nouveau utilisateur
+            if is_new_user:
+                # === DÉBUT : CRÉATION AUTOMATIQUE DU USER ===
+                user_phone_id = f"telegram_{user_id}"
+                web_user = User.query.filter_by(phone_number=user_phone_id).first()
+
+                if not web_user:
+                    logger.info(f"Création d'un User web associé pour le nouvel utilisateur Telegram {user_id}")
+                    new_web_user = User(
+                        phone_number=user_phone_id,
+                        first_name=first_name or "Utilisateur",
+                        last_name=last_name or f"TG {user_id}",
+                        age=0,
+                        study_level="Non défini",
+                        grade_goals="average"
+                    )
+                    session.add(new_web_user)
+                    session.commit()
+                    logger.info(f"✅ User créé (ID: {new_web_user.id}) pour Telegram {user_id}")
+                # === FIN : CRÉATION AUTOMATIQUE DU USER ===
+
+                from app import socketio
+                user_data = {
+                    'telegram_id': user.telegram_id,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'created_at': user.created_at.strftime('%d/%m/%Y'),
+                    'platform': 'telegram'
+                }
+                socketio.emit('new_telegram_user', user_data)
+                logger.info(f"Emitted new_telegram_user event for user {user_id}")
+
+            return user, is_new_user
+    except Exception as e:
+        logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
+        raise
+
+async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
+    """Create a new TelegramConversation record."""
+    try:
+        with db_retry_session() as session:
+            logger.info(f"Creating new TelegramConversation for user {user_id} with thread {thread_id}")
+            conversation = TelegramConversation(
+                telegram_user_id=user_id,
+                thread_id=thread_id,
+                title="Nouvelle conversation"
+            )
+            session.add(conversation)
+            session.commit()
+            logger.info(f"Successfully created TelegramConversation: {conversation.id}")
+
+            # Émettre un événement Socket.IO pour notifier le tableau de bord
+            from app import socketio
+
+            # Obtenir les informations sur l'utilisateur pour la notification
+            user = TelegramUser.query.get(user_id)
+            user_name = f"{user.first_name} {user.last_name}" if user else f"Telegram User {user_id}"
+
+            conversation_data = {
+                'id': conversation.id,
+                'title': conversation.title,
+                'thread_id': thread_id,
+                'telegram_user_id': user_id,
+                'user_name': user_name,
+                'created_at': conversation.created_at.strftime('%d/%m/%Y %H:%M'),
+                'platform': 'telegram'
+            }
+            socketio.emit('new_telegram_conversation', conversation_data)
+            logger.info(f"Emitted new_telegram_conversation event for conversation {conversation.id}")
+
+            return conversation
+    except Exception as e:
+        logger.error(f"Error in create_telegram_conversation: {str(e)}", exc_info=True)
+        raise
+
+async def add_telegram_message(conversation_id: int, role: str, content: str, image_url: str = None):
+    """Add a new message to a conversation."""
+    try:
+        with db_retry_session() as session:
+            logger.info(f"Adding new TelegramMessage to conversation {conversation_id}")
+            message = TelegramMessage(
+                conversation_id=conversation_id,
+                role=role,
+                content=content,
+                image_url=image_url
+            )
+            session.add(message)
+            session.commit()
+            logger.info(f"Successfully added TelegramMessage: {message.id}")
+    except Exception as e:
+        logger.error(f"Error in add_telegram_message: {str(e)}", exc_info=True)
+        raise
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /start is issued."""
+    user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name
+    try:
+        # Create or get the user in our database
+        user, is_new_user = await get_or_create_telegram_user(user_id, first_name, last_name)
+
+        # Vérifier si l'utilisateur a déjà une conversation active
+        with db_retry_session() as session:
+            existing_conversation = TelegramConversation.query.filter_by(
+                telegram_user_id=user_id
+            ).order_by(TelegramConversation.updated_at.desc()).first()
+
+            if not existing_conversation:
+                # Create a new thread for the user
+                thread = openai_client.beta.threads.create()
+                user_threads[user_id] = thread.id
+                logger.info(f"Created new thread {thread.id} for user {user_id}")
+
+                # Create a new conversation in our database
+                await create_telegram_conversation(user_id, thread.id)
+            else:
+                # Use existing conversation
+                user_threads[user_id] = existing_conversation.thread_id
+                logger.info(f"Using existing thread {existing_conversation.thread_id} for user {user_id}")
+
+        # Envoyer le premier message avec l'emoji
+        await update.message.reply_text(
+            '🤓'
+        )
+
+        # Envoyer le second message avec l'ID Telegram si c'est un nouvel utilisateur
+        if is_new_user:
+            await asyncio.sleep(1)  # Attendre un peu entre les messages
+            await update.message.reply_text(
+                f"⚠️ *IMPORTANT* ⚠️\n\n"
+                f"🔑 Votre ID Telegram est: *{user_id}*\n\n"
+                f"📝 Notez cet identifiant précieusement! Il vous permettra de vous connecter à notre plateforme web et d'accéder à davantage de fonctionnalités.\n\n"
+                f"🔐 Ne partagez jamais cet identifiant avec d'autres personnes.",
+                parse_mode=constants.ParseMode.MARKDOWN
+            )
+            logger.info(f"Sent Telegram ID information to new user {user_id}")
+    except Exception as e:
+        logger.error(f"Error in start command: {str(e)}", exc_info=True)
+        await update.message.reply_text(
+            "I'm having trouble setting up our conversation. Please try again in a moment."
+        )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text(
+        'You can send me any message and I will respond using AI!'
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming messages and respond using selected AI model."""
+    if not update.message or (not update.message.text and not update.message.photo): # Accepter aussi les messages sans texte si photo
+        logger.warning("Received message without text or photo. Ignoring.")
+        return
+
+    user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name or ""
+    message_text = update.message.text or "" # Utiliser "" si pas de texte (cas photo seule)
+    logger.info(f"Processing message (text: {bool(message_text)}) from user {user_id} ({first_name} {last_name})")
+
+    # --- Début de la gestion photo (si présente) ---
+    if update.message.photo:
+        logger.info("Message contains photo, delegating to handle_photo.")
+        await handle_photo(update, context)
+        return
+    # --- Fin de la gestion photo ---
+
+    # Si on arrive ici, c'est un message TEXTE uniquement.
+    if not message_text.strip():
+         logger.warning("Received empty text message after checking for photo. Ignoring.")
+         return
+
+    # conversation = None # On n'a plus besoin de l'objet conversation en dehors du bloc session initial
+    thread_id = None
+    assistant_message = None
+    conversation_id_value = None # <<< NOUVEAU: Variable pour stocker l'ID de la conversation
+    conversation_title_to_update = None # Variable temporaire pour savoir si le titre doit être MAJ
+
+    try:
+        # Get or create user first
+        user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
+        logger.info(f"User {user_id} retrieved/created successfully")
+
+        # Update last_active timestamp
+        if user:
+            user.last_active = datetime.utcnow()
+            try:
+                with db_retry_session() as session_for_update:
+                    merged_user = session_for_update.merge(user)
+                    merged_user.last_active = datetime.utcnow()
+                    session_for_update.commit()
+                    logger.debug(f"TelegramUser {user.telegram_id} last_active updated.")
+            except Exception as e:
+                logger.error(f"Erreur MAJ last_active pour telegram_user {user.telegram_id}: {e}", exc_info=True)
+
+        # Find or create conversation and thread_id, AND get conversation_id_value
+        with db_retry_session() as session:
+            existing_conversation = TelegramConversation.query.filter_by(
+                telegram_user_id=user_id
+            ).order_by(TelegramConversation.updated_at.desc()).first()
+
+            from ai_config import CURRENT_MODEL
+
+            if existing_conversation:
+                thread_id = existing_conversation.thread_id
+                conversation_id_value = existing_conversation.id # <<< Récupère l'ID ici
+                logger.info(f"Using existing conversation {conversation_id_value} / thread {thread_id} for user {user_id}")
+                user_threads[user_id] = thread_id
+                existing_conversation.updated_at = datetime.utcnow()
+                session.commit() # Commit update_at ici
+            else:
+                # No existing conversation, create a new one
+                if CURRENT_MODEL == 'openai':
+                    thread = openai_client.beta.threads.create()
+                    thread_id = thread.id
+                else:
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
+
+                user_threads[user_id] = thread_id
+                logger.info(f"Created new thread {thread_id} for user {user_id}")
+                # create_telegram_conversation retourne l'objet conversation
+                new_conversation = await create_telegram_conversation(user_id, thread_id)
+                conversation_id_value = new_conversation.id # <<< Récupère l'ID de la nouvelle conv
+                conversation_title_to_update = new_conversation.title # Marque le titre pour MAJ potentielle
+
+        # --- Opérations après la fermeture de la première session ---
+
+        # Vérification de sécurité : on doit avoir un ID de conversation
+        if conversation_id_value is None:
+             logger.error("Critical error: conversation_id_value is None after fetching/creating conversation.")
+             raise Exception("Failed to obtain a valid conversation ID.")
+
+        # Ajouter le message utilisateur en utilisant l'ID sauvegardé
+        await add_telegram_message(conversation_id_value, 'user', message_text) # <<< Utilise conversation_id_value
+
+        # Mettre à jour le titre si c'était une nouvelle conversation
+        # On doit re-requêter la conversation dans une nouvelle session pour la modifier
+        if conversation_title_to_update == "Nouvelle conversation":
+             first_msg_content = message_text.strip()
+             if first_msg_content:
+                 new_title = first_msg_content[:30] + "..." if len(first_msg_content) > 30 else first_msg_content
+                 try:
+                     with db_retry_session() as update_session:
+                         # Re-fetch the conversation using the ID
+                         conv_to_update = update_session.get(TelegramConversation, conversation_id_value)
+                         if conv_to_update:
+                             conv_to_update.title = new_title
+                             update_session.commit()
+                             logger.info(f"Updated conversation {conversation_id_value} title to: '{new_title}'")
+                             # Émettre l'événement SocketIO pour MAJ UI Admin
+                             from app import socketio # Assure-toi que socketio est accessible
+                             socketio.emit('telegram_conversation_updated', {
+                                 'id': conversation_id_value,
+                                 'title': new_title,
+                                 'last_message': message_text[:50] + "..."
+                             })
+                         else:
+                             logger.warning(f"Could not re-fetch conversation {conversation_id_value} to update title.")
+                 except Exception as title_update_e:
+                     logger.error(f"Error updating conversation title for {conversation_id_value}: {title_update_e}", exc_info=True)
+                     # On ne bloque pas le reste du traitement pour une erreur de titre
+
+        # Start typing indication
+        try:
+            # Vérifier et réparer la boucle d'événements avant d'appeler send_chat_action
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=constants.ChatAction.TYPING
+            )
+        except Exception as e:
+            logger.warning(f"Impossible d'envoyer l'action de chat, continuons sans elle: {str(e)}")
+            # Simplement continuer sans essayer d'envoyer d'action de chat
+            pass
+
+        # === DÉBUT : LECTURE ET INJECTION MÉMOIRE (TELEGRAM) ===
+        memory_context = ""
+        user_phone_id = f"telegram_{user_id}"
+        # On importe 'app' ici, juste avant de l'utiliser
+        from app import app
+        # On doit être dans un contexte d'application pour faire des requêtes DB
+        with app.app_context():
+            user = User.query.filter_by(phone_number=user_phone_id).first()
+            if user:
+                memory = UserMemory.query.filter_by(user_id=user.id).first()
+                if memory:
+                    derniers_sujets_str = str(memory.derniers_sujets[-2:]) if memory.derniers_sujets else "[]"
+                    memory_context = (
+                        f"[Contexte sur l'élève : "
+                        f"Nom='{memory.nom or 'Inconnu'}', "
+                        f"Niveau='{memory.niveau or 'Inconnu'}', "
+                        f"Matières difficiles={memory.matieres_difficiles or '[]'}, "
+                        f"Derniers sujets abordés={derniers_sujets_str}. "
+                        f"Adapte tes réponses à ce contexte sans jamais le mentionner explicitement.]\n"
+                        f"---\n"
+                    )
+
+        base_instructions = get_system_instructions()
+        final_system_prompt = memory_context + base_instructions
+        # === FIN : LECTURE ET INJECTION MÉMOIRE (TELEGRAM) ===
+
+        from ai_config import CURRENT_MODEL
+
+        logger.info(f"Using AI model: {CURRENT_MODEL}")
+
+        if CURRENT_MODEL == 'openai':
+            # --- OpenAI Assistants API Logic ---
+            logger.info(f"Processing with OpenAI Assistant API (Thread: {thread_id})")
+            # ... (La logique interne de l'API Assistant reste la même, elle utilise thread_id)
+            # ... (Elle doit assigner la réponse ou une erreur à assistant_message)
+            try:
+                # Add user message to the OpenAI thread
+                # On injecte le contexte directement dans le message utilisateur pour les Assistants
+                user_message_with_context = final_system_prompt + "\n\n---\n\n" + message_text
+                openai_client.beta.threads.messages.create(
+                    thread_id=thread_id,
+                    role="user",
+                    content=user_message_with_context
+                )
+                # Create and run the assistant
+                run = openai_client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=ASSISTANT_ID
+                )
+                # Wait for run completion
+                while True:
+                    try:
+                        # Vérifier et réparer la boucle d'événements avant chaque itération
+                        await context.bot.send_chat_action(
+                            chat_id=update.effective_chat.id,
+                            action=constants.ChatAction.TYPING
+                        )
+                    except Exception as e:
+                        logger.warning(f"Impossible d'envoyer l'action de chat dans la boucle: {str(e)}")
+                        # Continuer sans action de chat
+                        pass
+
+                    run_status = openai_client.beta.threads.runs.retrieve(
+                        thread_id=thread_id,
+                        run_id=run.id
+                    )
+                    if run_status.status == 'completed':
+                        logger.info("Assistant run completed")
+                        break
+                    elif run_status.status in ['failed', 'cancelled', 'expired']:
+                        error_msg = f"Assistant run failed with status: {run_status.status}"
+                        logger.error(error_msg)
+                        raise Exception(error_msg)
+                    await asyncio.sleep(1)
+
+                # Retrieve the latest message from the assistant
+                messages = openai_client.beta.threads.messages.list(thread_id=thread_id, order='desc', limit=1)
+                if messages.data and messages.data[0].role == 'assistant' and messages.data[0].content[0].type == 'text':
+                    assistant_message = messages.data[0].content[0].text.value
+                else:
+                    logger.error(f"Could not retrieve valid assistant message from thread {thread_id}.")
+                    assistant_message = "Sorry, I couldn't retrieve a valid response from the assistant."
+
+            except OpenAIError as e:
+                 logger.error(f"OpenAI API error during Assistant processing: {str(e)}", exc_info=True)
+                 assistant_message = "I'm having trouble connecting to my AI brain (Assistant API). Please try again."
+            except Exception as e:
+                 logger.error(f"Unexpected error during OpenAI Assistant processing: {str(e)}", exc_info=True)
+                 assistant_message = "An unexpected error occurred while communicating with the AI assistant."
+
+
+        elif CURRENT_MODEL in ['deepseek', 'deepseek-reasoner', 'qwen', 'gemini']:
+            # --- Chat Completions API Logic ---
+            logger.info(f"Processing with Chat Completions API ({CURRENT_MODEL})")
+            try:
+                user_store_content = message_text
+
+                # Get previous messages for context using conversation_id_value
+                with db_retry_session() as sess:
+                    messages_query = TelegramMessage.query.filter(
+                         TelegramMessage.conversation_id == conversation_id_value
+                    ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+
+                    # Convertir les messages en format dictionnaire
+                    messages_history = []
+                    for msg in reversed(messages_query):
+                        role = msg.role if msg.role == 'user' else 'assistant'
+                        if msg.content and msg.content.strip():
+                            # Exclure le message actuel s'il est déjà dans la base
+                            if user_store_content and msg.content == user_store_content:
+                                continue
+                            messages_history.append({"role": role, "content": msg.content})
+
+                    # Ajouter le message actuel
+                    if user_store_content:
+                        messages_history.append({"role": "user", "content": user_store_content})
+
+                # Appel à la fonction centralisée
+                from ai_utils import execute_chat_completion
+
+                # On injecte le prompt système dans l'historique avant l'appel
+                if final_system_prompt:
+                    messages_history.insert(0, {"role": "system", "content": final_system_prompt})
+
+                assistant_message = execute_chat_completion(
+                    messages_history=messages_history,
+                    current_model=CURRENT_MODEL,
+                    stream=False,
+                    add_system_instructions=False # Important pour éviter le doublon
+                )
+                logger.info(f"Réponse complète reçue de {CURRENT_MODEL}")
+
+            except Exception as e:
+                logger.error(f"Error during {CURRENT_MODEL} processing: {str(e)}", exc_info=True)
+                assistant_message = f"An unexpected error occurred while communicating with the {CURRENT_MODEL} AI."
+
+
+        else:
+            # --- Handle Unknown Model ---
+            logger.error(f"Unsupported CURRENT_MODEL configured: {CURRENT_MODEL}")
+            assistant_message = "Sorry, the configured AI model is not supported."
+
+    # --- Catch errors from user/conversation lookup or initial DB operations ---
+    except Exception as e:
+        logger.error(f"Error before AI processing (user/conversation handling): {str(e)}", exc_info=True)
+        # Assign error message here as well
+        assistant_message = "I apologize, but I encountered an error processing your request before contacting the AI. Please try again."
+
+    # --- Final Sending and Storage ---
+    if assistant_message is None:
+        logger.error("Assistant message is None after all processing attempts. Assigning generic error.")
+        assistant_message = "Sorry, an unknown error occurred while generating the response."
+
+    # Store the final assistant's response (or error message)
+    try:
+        if conversation_id_value: # Vérifie qu'on a bien un ID
+            await add_telegram_message(conversation_id_value, 'assistant', assistant_message) # <<< Utilise conversation_id_value
+        else:
+             logger.error("Cannot save assistant message because conversation_id_value is None.")
+    except Exception as db_error:
+        logger.error(f"Failed to save assistant message to DB for conversation {conversation_id_value}: {db_error}", exc_info=True)
+        # On continue pour envoyer le message à l'utilisateur même si la sauvegarde échoue
+
+    # Send the final response (or error message) to the user
+    try:
+        logger.info(f"Sending final response/error to user {user_id}: {assistant_message[:100]}...")
+        await update.message.reply_text(assistant_message)
+    except Exception as send_error:
+        logger.error(f"Failed to send final message to user {user_id}: {send_error}", exc_info=True)
+
+# Crée un Blueprint pour les routes admin spécifiques à Telegram
+telegram_admin_bp = Blueprint('telegram_admin', __name__, url_prefix='/admin/telegram')
+
+# Si vous utilisez un Blueprint nommé 'telegram_bp': @telegram_bp.route(...)
+@telegram_admin_bp.route('/conversations/<int:conversation_id>/send', methods=['POST'])
+async def send_admin_telegram_message(conversation_id):
+    """Envoie un message admin à une conversation Telegram spécifique."""
+    try:
+        # Vérification Admin
+        if not session.get('is_admin'):
+            logger.warning("Tentative d'accès non autorisé à l'envoi de message admin Telegram.")
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        # Récupération du contenu
+        data = request.json
+        message_content = data.get('message')
+        if not message_content or message_content.strip() == '':
+            logger.warning("Tentative d'envoi de message admin Telegram vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        # Trouver la conversation Telegram
+        tg_conv = TelegramConversation.query.get(conversation_id)
+        if not tg_conv:
+            logger.warning(f"Conversation Telegram ID {conversation_id} non trouvée.")
+            return jsonify({'error': 'Telegram Conversation not found'}), 404
+
+        # Récupérer l'utilisateur Telegram associé via l'ID stocké dans la conversation
+        # (Assure-toi que ta classe TelegramConversation a bien un attribut telegram_user_id)
+        if not tg_conv.telegram_user_id:
+             logger.error(f"L'attribut telegram_user_id est manquant pour la conversation Telegram ID {conversation_id}.")
+             return jsonify({'error': 'Missing user association in conversation'}), 500
+
+        tg_user = TelegramUser.query.get(tg_conv.telegram_user_id)
+        if not tg_user:
+             logger.warning(f"Utilisateur Telegram avec ID {tg_conv.telegram_user_id} (associé à conv {conversation_id}) non trouvé.")
+             return jsonify({'error': 'Associated Telegram User not found'}), 404
+
+        # Récupérer le chat_id depuis l'objet TelegramUser
+        # (Assure-toi que ta classe TelegramUser a bien un attribut chat_id)
+        user_chat_id = tg_user.telegram_id
+        if not user_chat_id:
+             logger.error(f"Chat ID manquant pour l'utilisateur Telegram ID {tg_conv.telegram_user_id} (associé à conv {conversation_id}).")
+             return jsonify({'error': 'Missing Chat ID for the associated user'}), 500
+
+
+        newly_saved_message_db_id = None
+        success = False # Sera mis à True si la tâche d'envoi est lancée
+        error_msg = None
+
+        # 1. Sauvegarder le message dans la base de données Telegram
+        try:
+            new_message = TelegramMessage(
+                conversation_id=tg_conv.id,
+                role='admin',
+                content=message_content,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_message)
+            db.session.commit()
+            newly_saved_message_db_id = new_message.id
+            logger.info(f"Message admin sauvegardé pour conversation Telegram ID: {conversation_id}, Message ID: {newly_saved_message_db_id}")
+        except Exception as db_error:
+            db.session.rollback()
+            logger.exception(f"Erreur DB sauvegarde message admin Telegram: {db_error}")
+            return jsonify({'error': f'Database error during save: {str(db_error)}'}), 500
+
+        # 2. Lancer l'envoi via l'API Telegram (de manière asynchrone non bloquante)
+        try:
+            logger.info(f"Préparation de l'envoi async Telegram vers chat_id: {user_chat_id}")
+            # Utiliser await directement car la fonction de route est maintenant async
+            await application.bot.send_message(chat_id=user_chat_id, text=message_content)
+            logger.info(f"Message admin envoyé avec succès à chat_id {user_chat_id}")
+            success = True # L'envoi a réussi si aucune exception n'est levée
+
+        except Exception as tg_send_error:
+            logger.error(f"Erreur lors de l'envoi direct Telegram à {user_chat_id}: {tg_send_error}", exc_info=True)
+            error_msg = f"Failed to send Telegram message: {str(tg_send_error)}"
+            success = False
+            # Note : Le message est sauvegardé en DB mais n'a pas pu être envoyé.
+
+        # 3. Réponse au Frontend
+        if success:
+            message_data = {
+                'id': newly_saved_message_db_id, # ID du message sauvegardé
+                'role': 'admin',
+                'content': message_content,
+                'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') # Heure de sauvegarde/envoi
+            }
+            return jsonify({'success': True, 'message': 'Telegram admin message processed', 'message_data': message_data})
+        else:
+            # Si l'erreur vient du spawn ou d'une logique avant l'API
+            return jsonify({'error': error_msg or 'Failed to process Telegram admin message'}), 500
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans send_admin_telegram_message pour conversation {conversation_id}: {e}")
+        # Assurer un rollback si une erreur DB s'est produite avant le commit final
+        db.session.rollback()
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+# --- NOUVELLE ROUTE POUR DÉCLENCHER L'IA COMME UTILISATEUR TELEGRAM ---
+@telegram_admin_bp.route('/trigger_ai_as_user/<int:conversation_id>', methods=['POST'])
+async def trigger_ai_as_user_telegram(conversation_id):
+    """
+    Reçoit un message de l'admin, le traite comme un message utilisateur Telegram
+    pour déclencher l'IA, envoie la réponse de l'IA à l'utilisateur,
+    mais NE sauvegarde PAS le message initial de l'admin.
+    Nécessite d'être async car on await l'envoi Telegram.
+    """
+    # 1. Vérification Admin
+    if not session.get('is_admin'):
+        logger.warning("Tentative non autorisée de déclencher l'IA comme utilisateur Telegram.")
+        return jsonify({'error': 'Unauthorized access'}), 403
+
+    try:
+        # 2. Récupération du contenu du message (envoyé par l'admin)
+        data = request.json
+        admin_message_content = data.get('message')
+        if not admin_message_content or admin_message_content.strip() == '':
+            logger.warning("Tentative de déclencher l'IA Telegram avec un message vide.")
+            return jsonify({'error': 'Message content is required'}), 400
+
+        logger.info(f"Déclenchement IA comme utilisateur pour conversation Telegram ID {conversation_id} avec contenu: '{admin_message_content[:50]}...'")
+
+        # 3. Trouver la conversation Telegram et les infos nécessaires
+        tg_conv = None
+        user_chat_id = None
+        telegram_user_id = None
+        with db_retry_session() as sess: # <<< Bloc corrigé
+             tg_conv = sess.get(TelegramConversation, conversation_id)
+             if not tg_conv:
+                  logger.error(f"Conversation Telegram ID {conversation_id} non trouvée lors du déclenchement IA.")
+                  # Important de retourner *dans* le bloc with si on ne trouve pas la conv
+                  return jsonify({'error': 'Telegram conversation not found'}), 404
+
+             # Récupérer l'ID utilisateur associé
+             if not tg_conv.telegram_user_id:
+                 logger.error(f"L'attribut telegram_user_id est manquant pour la conversation Telegram ID {conversation_id}.")
+                 return jsonify({'error': 'Missing user association in conversation'}), 500
+             telegram_user_id = tg_conv.telegram_user_id # Stocker l'ID utilisateur
+
+             # Récupérer l'utilisateur Telegram
+             tg_user = sess.get(TelegramUser, telegram_user_id) # Utiliser sess.get() est plus direct
+             if not tg_user:
+                 logger.warning(f"Utilisateur Telegram avec ID {telegram_user_id} (associé à conv {conversation_id}) non trouvé.")
+                 return jsonify({'error': 'Associated Telegram User not found'}), 404
+
+             # Récupérer le chat_id depuis l'utilisateur (en utilisant telegram_id)
+             user_chat_id = tg_user.telegram_id # <<< CORRECTION ICI
+             if not user_chat_id:
+                 logger.error(f"Telegram ID (utilisé comme Chat ID) manquant pour l'utilisateur Telegram ID {telegram_user_id}.")
+                 return jsonify({'error': 'Missing Telegram ID (Chat ID) for the associated user'}), 500
+
+
+        if not user_chat_id:
+             logger.error(f"Chat ID manquant pour la conversation Telegram {conversation_id}.")
+             return jsonify({'error': 'Missing Chat ID for this conversation'}), 500
+
+        # --- NE PAS SAUVEGARDER admin_message_content ---
+
+        # 4. Générer la réponse de l'IA
+        ai_response_text = None
+        try:
+            # Récupérer la configuration AI directement depuis les imports
+            from ai_config import (
+                CURRENT_MODEL, 
+                get_ai_client, 
+                get_model_name, 
+                get_system_instructions
+            )
+
+            logger.debug(f"Appel IA ({CURRENT_MODEL}) pour conv Telegram {conversation_id} (déclenché par admin)")
+
+            # Récupérer l'historique spécifique à Telegram
+            with db_retry_session() as hist_sess:
+                messages_query = hist_sess.query(TelegramMessage).filter(
+                    TelegramMessage.conversation_id == conversation_id
+                ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+
+                # Préparer l'historique pour l'API (réutiliser la fonction existante)
+                history_for_api = prepare_messages_for_model(
+                    reversed(messages_query),
+                    current_model=CURRENT_MODEL
+                    # Ne pas passer current_message/content car on ne sauvegarde pas l'input admin
+                )
+
+            # Ajouter le message "utilisateur" (admin) à l'historique API
+            history_for_api.append({"role": "user", "content": admin_message_content})
+
+            # Ajouter les instructions système si nécessaire (pour modèles non-assistant)
+            if CURRENT_MODEL != 'openai':
+                 system_instructions = get_system_instructions()
+                 if system_instructions:
+                     history_for_api.insert(0, {"role": "system", "content": system_instructions})
+
+            # Appeler l'API IA appropriée
+            ai_client = get_ai_client()
+            model_name = get_model_name() # Peut être None pour OpenAI Assistant
+
+            if CURRENT_MODEL == 'openai':
+                 # Logique spécifique OpenAI Assistant API v2 (si applicable ici)
+                 # Assurez-vous que vous avez le bon thread_id associé à conversation_id
+                 openai_thread_id = tg_conv.thread_id if tg_conv else None
+                 if not openai_thread_id:
+                      raise ValueError("Missing OpenAI thread_id for this Telegram conversation.")
+
+                 openai_client.beta.threads.messages.create(
+                    thread_id=openai_thread_id, role="user", content=admin_message_content
+                 )
+                 run = openai_client.beta.threads.runs.create(
+                    thread_id=openai_thread_id, assistant_id=ASSISTANT_ID
+                 )
+                 # Boucle d'attente (peut nécessiter adaptation pour async/eventlet)
+                 while True:
+                      run_status = openai_client.beta.threads.runs.retrieve(thread_id=openai_thread_id, run_id=run.id)
+                      if run_status.status == 'completed': break
+                      if run_status.status in ['failed', 'cancelled', 'expired']: raise Exception(f"OpenAI Run {run.id} failed: {run_status.status}")
+                      await asyncio.sleep(1) # Utiliser asyncio.sleep dans une route async
+
+                 messages_openai = openai_client.beta.threads.messages.list(thread_id=openai_thread_id, order='desc', limit=1)
+                 if messages_openai.data and messages_openai.data[0].role == 'assistant':
+                     ai_response_text = messages_openai.data[0].content[0].text.value
+                 else:
+                      raise Exception("Failed to retrieve assistant message from OpenAI thread.")
+
+            else: # Modèles Chat Completion
+                 if not model_name: raise ValueError("Model name is required for Chat Completions.")
+                 response = ai_client.chat.completions.create(
+                     model=model_name,
+                     messages=history_for_api
+                 )
+                 ai_response_text = response.choices[0].message.content
+
+            logger.info(f"Réponse IA générée pour déclenchement admin (conv Telegram {conversation_id}): '{ai_response_text[:50]}...'")
+
+        except Exception as ai_error:
+            logger.error(f"Erreur lors de la génération IA (déclenchement admin) pour conv Telegram {conversation_id}: {ai_error}", exc_info=True)
+            return jsonify({'error': f'AI response generation failed: {str(ai_error)}'}), 500
+
+        # 5. Envoyer la réponse de l'IA à l'utilisateur réel via Telegram
+        try:
+            logger.info(f"Envoi async de la réponse IA déclenchée par admin à chat_id {user_chat_id}")
+            # Utilisation directe de await car la route est async
+            await application.bot.send_message(chat_id=user_chat_id, text=ai_response_text)
+            logger.info(f"Réponse IA envoyée avec succès à chat_id {user_chat_id}")
+        except Exception as send_error:
+            logger.error(f"Erreur lors de l'envoi Telegram de la réponse IA (déclenchée par admin) à {user_chat_id}: {send_error}", exc_info=True)
+            # Renvoyer une erreur à l'admin, car l'utilisateur n'a rien reçu
+            return jsonify({'error': f'Failed to send AI response via Telegram API: {str(send_error)}'}), 500
+
+
+        # 6. Sauvegarder la réponse de l'IA dans la DB Telegram
+        try:
+            await add_telegram_message(conversation_id, 'assistant', ai_response_text)
+            logger.info(f"Réponse IA (déclenchée par admin) sauvegardée pour conv Telegram {conversation_id}")
+        except Exception as db_error:
+            logger.error(f"Erreur sauvegarde réponse IA (déclenchée par admin) pour conv Telegram {conversation_id}: {db_error}")
+            pass # Ne pas planter ici
+
+        # 7. Émettre l'événement Socket.IO pour l'UI Admin
+        try:
+            from app import socketio # Assure-toi que socketio est accessible
+            message_data_for_socket = {
+                'role': 'assistant',
+                'content': ai_response_text,
+                'image_url': None,
+                'created_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                'conversation_identifier': conversation_id, # ID numérique pour Telegram
+                'platform': 'telegram'
+            }
+            socketio.emit('new_admin_message', message_data_for_socket)
+            logger.info(f"Événement SocketIO 'new_admin_message' émis pour conv Telegram {conversation_id}")
+        except Exception as socket_error:
+            logger.error(f"Échec de l'émission SocketIO pour le message admin/IA Telegram: {socket_error}")
+
+
+        # 8. Renvoyer un succès à l'interface admin
+        return jsonify({
+            'success': True,
+            'message': 'AI triggered successfully as Telegram user, response sent and saved.',
+            'ai_response_preview': ai_response_text[:100] + ('...' if len(ai_response_text) > 100 else '')
+        })
+
+    except Exception as e:
+        logger.exception(f"Erreur générale dans trigger_ai_as_user_telegram pour conversation {conversation_id}: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+def get_file_direct(bot, file_id):
+    """
+    Obtient un fichier Telegram de manière synchrone et compatible avec eventlet.
+    Évite les conflits de boucles d'événements asyncio.
+
+    Args:
+        bot: L'objet Bot de python-telegram-bot (pour accéder au token)
+        file_id: L'ID du fichier à récupérer
+
+    Returns:
+        Un objet File ou None en cas d'erreur
+    """
+    import requests
+    from telegram import File
+
+    # Construire l'URL directement
+    file_url = f"https://api.telegram.org/bot{bot.token}/getFile"
+
+    try:
+        # Utiliser requests (qui sera patché par eventlet)
+        response = requests.post(file_url, data={"file_id": file_id}, timeout=30)
+        response.raise_for_status()
+
+        # Extraire le chemin du fichier de la réponse
+        result = response.json()
+        if not result.get("ok"):
+            logger.error(f"Telegram API error: {result.get('description')}")
+            return None
+
+        file_path = result["result"]["file_path"]
+        file_size = result["result"].get("file_size")
+        file_unique_id = result["result"].get("file_unique_id")
+
+        # Vérifier que file_path est bien renseigné
+        if not file_path:
+            logger.error("File path is empty in Telegram response")
+            return None
+
+        # Créer un objet File manuellement
+        file_obj = File(
+            file_id=file_id,
+            file_unique_id=file_unique_id,
+            file_size=file_size,
+            file_path=file_path
+        )
+
+        # Ajouter les attributs manquants
+        file_obj.set_bot(bot)
+
+        # Log détaillé pour debug
+        logger.info(f"File object created: ID={file_id}, Path={file_path}, Size={file_size}")
+
+        return file_obj
+    except requests.exceptions.RequestException as req_err:
+        logger.error(f"Request error in get_file_direct: {str(req_err)}", exc_info=True)
+        return None
+    except KeyError as key_err:
+        logger.error(f"Key error in Telegram response: {str(key_err)}", exc_info=True)
+        logger.error(f"Response content: {response.text if 'response' in locals() else 'No response'}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in get_file_direct: {str(e)}", exc_info=True)
+        return None
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle messages containing photos"""
+    user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
+    last_name = update.effective_user.last_name or ""
+
+    conversation = None
+    thread_id = None
+
+    try:
+        # Get or create user first
+        user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
+        logger.info(f"User {user_id} retrieved/created successfully")
+
+        # Ensure user_threads dict is initialized for this user
+        if user_id not in user_threads:
+            user_threads[user_id] = None
+
+        # Gestion de la base de données
+        session = None
+        try:
+            with db_retry_session() as session:
+                logger.info(f"Receiving photo from user {user_id}")
+
+                if not update.message or not update.message.photo:
+                    logger.error("No photo found in the message")
+                    return
+
+                # La variable CURRENT_MODEL est déjà importée depuis ai_config
+                from ai_config import CURRENT_MODEL
+
+                # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
+                existing_conversation = TelegramConversation.query.filter_by(
+                    telegram_user_id=user_id
+                ).order_by(TelegramConversation.updated_at.desc()).first()
+
+                if existing_conversation:
+                    # Utiliser la conversation existante
+                    thread_id = existing_conversation.thread_id
+                    conversation = existing_conversation
+                    logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
+
+                    # Mettre à jour user_threads pour référence en mémoire
+                    user_threads[user_id] = thread_id
+                else:
+                    # Aucune conversation existante trouvée, créer une nouvelle
+                    if CURRENT_MODEL == 'openai':
+                        thread = openai_client.beta.threads.create()
+                        thread_id = thread.id
+                    else:
+                        # Pour les autres modèles, créer un ID de thread unique
+                        thread_id = f"thread_{user_id}_{int(time.time())}"
+
+                    user_threads[user_id] = thread_id
+                    logger.info(f"Created new thread {thread_id} for user {user_id}")
+                    # Créer une nouvelle conversation dans la base de données
+                    conversation = await create_telegram_conversation(user_id, thread_id)
+
+                # Sauvegarder l'ID de conversation pour l'utiliser en dehors de ce bloc
+                conversation_id = conversation.id if conversation else None
+        except Exception as session_err:
+            logger.error(f"Error in database operations: {str(session_err)}", exc_info=True)
+            await update.message.reply_text(
+                "I'm having trouble initializing our conversation. Please try again."
+            )
+            return
+
+        # Start typing indication
+        try:
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=constants.ChatAction.TYPING
+            )
+        except Exception as e:
+            logger.warning(f"Unable to send chat action, continuing without it: {str(e)}")
+            pass
+
+        # Variables pour la nouvelle logique
+        file_path_local = None
+        openai_file_id = None
+        user_store_content = None
+        assistant_message = None
+        caption = update.message.caption or ""
+        complete_file_url = ""
+
+        try:
+            # 1. Obtenir le fichier depuis Telegram et le télécharger en mémoire (bytes)
+            file_tg = get_file_direct(context.bot, update.message.photo[-1].file_id)
+            if not file_tg or not file_tg.file_path:
+                raise Exception("Impossible d'obtenir les informations du fichier depuis Telegram.")
+
+            full_download_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+            response = requests.get(full_download_url)
+            response.raise_for_status()  # S'assure que la requête a réussi
+            image_bytes = response.content
+
+            # 2. Sauvegarder l'image localement (nécessaire pour l'upload OpenAI)
+            upload_folder = Config.UPLOAD_FOLDER
+            os.makedirs(upload_folder, exist_ok=True)
+            filename = f"telegram_{uuid.uuid4()}.jpg"
+            file_path_local = os.path.join(upload_folder, filename)
+            with open(file_path_local, 'wb') as f:
+                f.write(image_bytes)
+
+            # 3. Convertir en base64 pour Mathpix
+            base64_image_str = base64.b64encode(image_bytes).decode('utf-8')
+            base64_data_for_mathpix = f"data:image/jpeg;base64,{base64_image_str}"
+
+            # 4. Construire l'URL du fichier pour la sauvegarde en BDD
+            complete_file_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la préparation de l'image Telegram: {str(e)}", exc_info=True)
+            await update.message.reply_text("Désolé, une erreur est survenue lors de la préparation de votre image.")
+            return
+
+        # Get the current model configuration dynamically
+        from ai_config import CURRENT_MODEL
+
+        # Logique de traitement différente selon le modèle
+        if CURRENT_MODEL == 'openai':
+            try:
+                # Utiliser la nouvelle fonction de double traitement
+                openai_file_id, message_for_assistant, process_info = process_image_for_openai(
+                    file_path_local,
+                    base64_data_for_mathpix,
+                    caption,
+                    platform="Telegram"
+                )
+                user_store_content = message_for_assistant
+                logger.info("Traitement double approche (Vision+OCR) pour Telegram réussi.")
+            except Exception as process_error:
+                logger.error(f"Échec du traitement d'image OpenAI pour Telegram: {str(process_error)}")
+                await update.message.reply_text(f"Désolé, une erreur est survenue: {str(process_error)}")
+                return
+        else:
+            # Pour les autres modèles, utiliser Mathpix uniquement
+            mathpix_result = process_image_with_mathpix(base64_data_for_mathpix)
+            formatted_summary = "L'extraction du contenu de l'image a échoué."
+            if "error" not in mathpix_result:
+                formatted_summary = mathpix_result.get("formatted_summary", "")
+
+            message_for_assistant = f"{caption}\n\n{formatted_summary}".strip()
+            user_store_content = message_for_assistant
+
+        # Mise à jour du titre de la conversation dans une session séparée
+        try:
+            with db_retry_session() as session:
+                if conversation and conversation.title == "Nouvelle conversation" and mathpix_result:
+                    content_types = []
+                    if mathpix_result.get("has_math"): content_types.append("math")
+                    if mathpix_result.get("has_table"): content_types.append("table")
+                    if mathpix_result.get("has_chemistry"): content_types.append("chemistry")
+                    if mathpix_result.get("has_geometry"): content_types.append("geometry")
+
+                    if content_types:
+                        new_title = f"Image ({', '.join(content_types)})"
+                    else:
+                        new_title = "Image"
+
+                    # Récupérer une référence fraîche à la conversation
+                    conv_to_update = session.query(TelegramConversation).get(conversation_id)
+                    if conv_to_update:
+                        conv_to_update.title = new_title
+                        session.commit()
+                        logger.info(f"Updated conversation title to: {new_title}")
+        except Exception as title_err:
+            logger.error(f"Error updating conversation title: {str(title_err)}")
+            # Continue despite title update error
+
+        # Store the user's message in our database
+        try:
+            if conversation_id:
+                # Construire l'URL complète pour stocker en base de données
+                complete_file_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+                await add_telegram_message(conversation_id, 'user', user_store_content, complete_file_url)
+        except Exception as msg_err:
+            logger.error(f"Error storing user message: {str(msg_err)}", exc_info=True)
+            # Continue despite message storage error
+
+        # Get the current model configuration dynamically
+        from ai_config import CURRENT_MODEL
+
+        logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
+
+        # Different handling based on selected model
+        assistant_message = None
+
+        # Sauvegarder le message utilisateur (avec contenu extrait) en BDD
+        try:
+            if conversation_id:
+                await add_telegram_message(conversation_id, 'user', user_store_content, complete_file_url)
+        except Exception as msg_err:
+            logger.error(f"Erreur sauvegarde message utilisateur: {str(msg_err)}", exc_info=True)
+
+        # Générer la réponse de l'IA
+        if CURRENT_MODEL == 'openai':
+            try:
+                # Construire le message pour l'API Assistants
+                content_items = [{"type": "text", "text": message_for_assistant}]
+                if openai_file_id:
+                    content_items.append({"type": "image_file", "image_file": {"file_id": openai_file_id}})
+
+                # Envoyer le message composite et lancer la 'run'
+                openai_client.beta.threads.messages.create(thread_id=thread_id, role="user", content=content_items)
+                run = openai_client.beta.threads.runs.create(thread_id=thread_id, assistant_id=ASSISTANT_ID)
+
+                # Attendre la complétion
+                while True:
+                    run_status = openai_client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+                    if run_status.status == 'completed': break
+                    if run_status.status in ['failed', 'cancelled', 'expired']: raise Exception(f"Run {run.id} a échoué avec le statut: {run_status.status}")
+                    await asyncio.sleep(1)
+
+                # Récupérer la réponse
+                messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+                assistant_message = messages.data[0].content[0].text.value
+            except Exception as openai_err:
+                logger.error(f"Error in OpenAI run/retrieve: {str(openai_err)}", exc_info=True)
+                assistant_message = "Une erreur est survenue lors de l'analyse de l'image par l'IA."
+        else:
+            # Logique pour les autres modèles (Gemini, etc.)
+            try:
+                ai_client = get_ai_client()
+                model = get_model_name()
+
+                # Récupérer l'historique de la conversation
+                with db_retry_session() as sess:
+                    messages_query = sess.query(TelegramMessage).filter_by(conversation_id=conversation_id).order_by(TelegramMessage.created_at).all()
+
+                # Préparer les messages pour l'API
+                api_messages = prepare_messages_for_api(
+                    messages=[{"role": msg.role, "content": msg.content} for msg in messages_query],
+                    current_model=CURRENT_MODEL,
+                    system_instructions=get_system_instructions()
+                )
+
+                response = ai_client.chat.completions.create(model=model, messages=api_messages, timeout=90.0)
+                assistant_message = response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"Error during AI image processing (non-OpenAI): {str(e)}", exc_info=True)
+                assistant_message = "Désolé, une erreur est survenue lors de l'analyse de cette image."
+
+        # Store the assistant's response in our database
+        try:
+            if conversation_id and assistant_message:
+                await add_telegram_message(conversation_id, 'assistant', assistant_message)
+        except Exception as db_err:
+            logger.error(f"Error saving response: {str(db_err)}", exc_info=True)
+            # Continue despite saving error
+
+        # Reply to the user with a fallback timeout
+        if assistant_message:
+            logger.info(f"Sending response: {assistant_message[:100]}...")
+            try:
+                # Try to send the response with a timeout
+                await asyncio.wait_for(
+                    update.message.reply_text(assistant_message),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                logger.error("Timeout sending Telegram response")
+                # Try an alternative sending method in case of timeout
+                try:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="I'm sorry, but I encountered a problem sending my full response. Please try again."
+                    )
+                except Exception as e2:
+                    logger.error(f"Failure of plan B for message sending: {str(e2)}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Error sending response: {str(e)}", exc_info=True)
+                try:
+                    # Ultime tentative d'envoi d'un message d'erreur
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="I apologize, but I encountered an error sending my response. Please try again."
+                    )
+                except Exception as e3:
+                    logger.error(f"All attempts to send message failed: {str(e3)}", exc_info=True)
+        else:
+            # Send default error message if no assistant message was generated
+            try:
+                await update.message.reply_text(
+                    "I apologize, but I couldn't generate a proper response for your image. Please try again."
+                )
+            except Exception as default_err:
+                logger.error(f"Error sending default error message: {str(default_err)}", exc_info=True)
+
+    except Exception as e:
+        logger.error(f"Error handling photo: {str(e)}", exc_info=True)
+        try:
+            await update.message.reply_text(
+                "I apologize, but I encountered an error processing your image. Please try again."
+            )
+        except Exception as reply_err:
+            logger.error(f"Failed to send error message: {str(reply_err)}", exc_info=True)
+
+async def send_reminder_telegram(telegram_id: int, message: str) -> bool:
+    """
+    Envoie un message de rappel Telegram
+
+    Args:
+        telegram_id: ID Telegram du destinataire
+        message: Contenu du message
+
+    Returns:
+        bool: True si envoyé avec succès, False sinon
+    """
+    try:
+        if not application or not application.bot:
+            logger.error("Application Telegram non initialisée pour envoi de rappel")
+            return False
+
+        # Envoyer le message
+        await application.bot.send_message(
+            chat_id=telegram_id,
+            text=message
+        )
+
+        logger.info(f"[RAPPEL TELEGRAM] Message envoyé à {telegram_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"[RAPPEL TELEGRAM] Erreur envoi à {telegram_id}: {str(e)}")
+        return False
+
+def process_telegram_update(json_data):
+    """Process Telegram update in a separate greenlet."""
+    try:
+        # Créer un objet Update à partir des données JSON
+        update = Update.de_json(json_data, application.bot)
+        logger.debug(f"Update deserialized: {update.update_id}")
+
+        # Créer une nouvelle boucle d'événements isolée pour ce traitement
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            # Initialiser l'application Telegram si nécessaire
+            loop.run_until_complete(application.initialize())
+            logger.debug("telegram_app.initialize() terminé.")
+
+            # Traiter l'update
+            loop.run_until_complete(application.process_update(update))
+            logger.debug(f"Update {update.update_id} processed.")
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement de l'update Telegram: {e}", exc_info=True)
+        # Ne fermez pas la boucle ici, cela cause le problème
+    except Exception as e:
+        logger.error(f"Erreur générale dans process_telegram_update: {e}", exc_info=True)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Log Errors caused by Updates."""
+    logger.error(f'Update "{update}" caused error "{context.error}"', exc_info=True)
+
+def download_telegram_image_sync(bot, file_path):
+    """
+    Télécharge l'image depuis l'URL Telegram de manière synchrone et la convertit en base64.
+
+    Args:
+        bot: L'objet Bot de python-telegram-bot (pour accéder au token)
+        file_path: Le chemin du fichier retourné par getFile
+
+    Returns:
+        Une chaîne base64 de l'image ou None en cas d'erreur
+    """
+    import requests
+    import base64
+
+    try:
+        # Construire l'URL complète pour accéder au fichier
+        # Format: https://api.telegram.org/file/bot{TOKEN}/{file_path}
+        complete_file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
+        logger.info(f"Downloading file from URL: {complete_file_url}")
+
+        # Utiliser requests (qui sera patché par eventlet)
+        response = requests.get(complete_file_url, timeout=30)
+        response.raise_for_status()
+
+        # Conversion en base64
+        image_data = response.content
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        return f"data:image/jpeg;base64,{base64_image}"
+    except Exception as e:
+        logger.error(f"Error downloading image: {str(e)}", exc_info=True)
+        return None
+
+def setup_telegram_bot():
+    """Initialize and setup the Telegram bot."""
+    try:
+        logger.info("Starting Telegram bot setup...")
+
+        # Create the Application
+        application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+
+        # Empêcher la fermeture auto de la boucle d'événements
+        application._shutdown_asyncgens = False
+
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        logger.info("Handlers added successfully")
+
+        # Add error handler
+        application.add_error_handler(error_handler)
+        logger.info("Error handler added")
+
+        logger.info("Telegram bot setup completed successfully")
+        return application
+    except Exception as e:
+        logger.error(f"Error setting up Telegram bot: {str(e)}", exc_info=True)
+        raise
+
+try:
+    application = setup_telegram_bot()
+    logger.info("Objet 'application' Telegram initialisé pour import.")
+except Exception as e:
+    logger.error(f"Échec de l'initialisation de l'objet 'application' Telegram au chargement du module: {e}", exc_info=True)
+    # Gérer cette erreur critique - peut-être arrêter l'app?
+    # Pour l'instant, on logge et on continue, mais la route webhook plantera.
+    application = None

@@ -1,0 +1,346 @@
+import os
+import requests
+import json
+import uuid
+from datetime import datetime
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash
+from flask_login import login_required, current_user
+from models import Plan, Transaction, db
+from subscription_manager import SubscriptionManager, MessageLimitChecker
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Configuration EasyTransfert
+EASYTRANSFERT_API_KEY = os.getenv('EASYTRANSFERT_API_KEY')
+EASYTRANSFERT_BASE_URL = "https://proxy-airtime.easytransfert.app/api_v1/transaction"
+IPN_BASE_URL = os.getenv('IPN_BASE_URL')
+
+# Validation de la configuration au démarrage
+if not EASYTRANSFERT_API_KEY:
+    logger.error("EASYTRANSFERT_API_KEY non configurée ! Ajoutez-la dans l'onglet Secrets de Replit")
+
+if not IPN_BASE_URL:
+    logger.error("IPN_BASE_URL non configurée ! Ajoutez-la dans l'onglet Secrets de Replit")
+elif not IPN_BASE_URL.startswith('https://'):
+    logger.error("IPN_BASE_URL doit commencer par https://")
+
+# Mapping des opérateurs vers les service_id EasyTransfert (Cashin uniquement)
+OPERATOR_SERVICE_MAP = {
+    'orange': 26,  # Orange CI Cashin
+    'mtn': 24,     # MTN CI Cashin  
+    'moov': 12,    # Moov CI Cashin
+    'wave': 16     # Wave CI Cashin
+}
+
+# Blueprint pour les routes de paiement
+payment_bp = Blueprint('payment', __name__, url_prefix='/payment')
+
+
+@payment_bp.route('/upgrade')
+@login_required
+def upgrade_page():
+    """Page de choix du plan d'abonnement pour utilisateurs web"""
+    try:
+        # Vérifier que c'est un utilisateur web (pas Telegram/WhatsApp)
+        if session.get('is_telegram_user') or session.get('is_whatsapp_user'):
+            flash('Fonctionnalité disponible uniquement pour les utilisateurs web.', 'info')
+            return redirect(url_for('chat'))
+
+        # Récupérer les plans disponibles
+        available_plans = SubscriptionManager.get_available_plans()
+
+        # Récupérer le plan actuel de l'utilisateur
+        current_plan = SubscriptionManager.get_user_current_plan(current_user.id)
+
+        # Récupérer les informations d'usage
+        limits_info = MessageLimitChecker.get_user_limits_info(current_user.id)
+
+        return render_template('upgrade.html', 
+                             plans=available_plans,
+                             current_plan=current_plan,
+                             limits_info=limits_info)
+
+    except Exception as e:
+        logger.error(f"Erreur dans upgrade_page: {e}")
+        flash('Erreur lors du chargement des plans', 'error')
+        return redirect(url_for('chat'))
+
+
+@payment_bp.route('/initiate', methods=['POST'])
+@login_required
+def initiate_payment():
+    """Initie le processus de paiement avec EasyTransfert pour utilisateurs web"""
+    try:
+        # Vérifier que c'est un utilisateur web
+        if session.get('is_telegram_user') or session.get('is_whatsapp_user'):
+            return jsonify({'error': 'Fonctionnalité disponible uniquement pour les utilisateurs web'}), 403
+
+        data = request.get_json()
+
+        # Validation des données
+        plan_id = data.get('plan_id')
+        phone_number = data.get('phone_number')
+        operator = data.get('operator')
+
+        if not all([plan_id, phone_number, operator]):
+            return jsonify({'error': 'Données manquantes'}), 400
+
+        # Vérifier que le plan existe
+        plan = Plan.query.get(plan_id)
+        if not plan or not plan.is_active:
+            return jsonify({'error': 'Plan invalide'}), 400
+
+        # Vérifier que l'opérateur est supporté
+        if operator not in OPERATOR_SERVICE_MAP:
+            return jsonify({'error': 'Opérateur non supporté'}), 400
+
+        # Plan gratuit ne nécessite pas de paiement
+        if plan.price == 0:
+            subscription = SubscriptionManager.create_subscription(
+                user_id=current_user.id,
+                plan_id=plan_id
+            )
+            if subscription:
+                return jsonify({
+                    'success': True,
+                    'message': 'Plan gratuit activé avec succès',
+                    'subscription_id': subscription.id
+                })
+            else:
+                return jsonify({'error': 'Erreur lors de l\'activation du plan gratuit'}), 500
+
+        # Nettoyer le numéro de téléphone
+        clean_phone = phone_number.replace('+', '').replace(' ', '')
+        if not clean_phone.startswith('225'):
+            clean_phone = '225' + clean_phone.lstrip('0')
+
+        # Créer la transaction en base de données
+        transaction = Transaction(
+            user_id=current_user.id,
+            plan_id=plan_id,
+            amount=plan.price,
+            phone_number=clean_phone,
+            operator=operator,
+            service_id=OPERATOR_SERVICE_MAP[operator],
+            status='pending',
+            custom_data=json.dumps({
+                'user_id': current_user.id,
+                'plan_name': plan.name,
+                'user_name': f"{current_user.first_name} {current_user.last_name}"
+            })
+        )
+
+        db.session.add(transaction)
+        db.session.flush()
+
+        # Préparer la requête EasyTransfert
+        easytransfert_data = {
+            "amount": plan.price,
+            "api_key": EASYTRANSFERT_API_KEY,
+            "destination": clean_phone.replace('225', ''),
+            "ipn_url": f"{IPN_BASE_URL}/payment/callback",
+            "service_id": OPERATOR_SERVICE_MAP[operator],
+            "custom_data": str(transaction.id)
+        }
+
+        # Appel à l'API EasyTransfert
+        logger.info(f"Envoi requête EasyTransfert pour transaction {transaction.id}")
+
+        response = requests.post(
+            f"{EASYTRANSFERT_BASE_URL}/airtime",
+            json=easytransfert_data,
+            headers={'Content-Type': 'application/json'},
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            easytransfert_response = response.json()
+
+            if easytransfert_response.get('statut_code') == 200:
+                easytransfert_tx_id = easytransfert_response.get('data', {}).get('transaction_id')
+                transaction.easytransfert_transaction_id = easytransfert_tx_id
+                transaction.status = 'processing'
+
+                db.session.commit()
+
+                logger.info(f"Transaction {transaction.id} initiée avec succès: {easytransfert_tx_id}")
+
+                return jsonify({
+                    'success': True,
+                    'transaction_id': transaction.id,
+                    'easytransfert_id': easytransfert_tx_id,
+                    'message': easytransfert_response.get('message', 'Transaction initiée'),
+                    'instructions': easytransfert_response.get('message', '')
+                })
+            else:
+                error_msg = easytransfert_response.get('message', 'Erreur inconnue')
+                transaction.status = 'failed'
+                transaction.error_message = error_msg
+                db.session.commit()
+
+                logger.error(f"Erreur EasyTransfert pour transaction {transaction.id}: {error_msg}")
+                return jsonify({'error': f'Erreur de paiement: {error_msg}'}), 400
+        else:
+            transaction.status = 'failed'
+            transaction.error_message = f"Erreur HTTP {response.status_code}"
+            db.session.commit()
+
+            logger.error(f"Erreur HTTP EasyTransfert {response.status_code}: {response.text}")
+            return jsonify({'error': 'Service de paiement temporairement indisponible'}), 500
+
+    except Exception as e:
+        logger.error(f"Erreur dans initiate_payment: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Erreur interne du serveur'}), 500
+
+
+@payment_bp.route('/callback', methods=['POST'])
+def payment_callback():
+    """Callback IPN d'EasyTransfert"""
+    try:
+        data = request.get_json()
+
+        if not data:
+            logger.warning("Callback reçu sans données JSON")
+            return "Invalid data", 400
+
+        logger.info(f"Callback EasyTransfert reçu: {data}")
+
+        # Extraire les informations importantes
+        easytransfert_tx_id = data.get('transaction_id')
+        status = data.get('state', '').upper()
+        custom_data = data.get('custom_data')
+        error_message = data.get('error', '')
+
+        if not easytransfert_tx_id or not custom_data:
+            logger.warning("Callback sans transaction_id ou custom_data")
+            return "Missing required data", 400
+
+        # Trouver la transaction dans notre base
+        try:
+            transaction_id = int(custom_data)
+            transaction = Transaction.query.get(transaction_id)
+        except (ValueError, TypeError):
+            logger.error(f"custom_data invalide: {custom_data}")
+            return "Invalid custom_data", 400
+
+        if not transaction:
+            logger.error(f"Transaction {transaction_id} non trouvée")
+            return "Transaction not found", 404
+
+        # Mettre à jour la transaction
+        transaction.easytransfert_transaction_id = easytransfert_tx_id
+        transaction.completed_at = datetime.utcnow()
+
+        if status in ['SUCCESS', 'COMPLETED']:
+            transaction.status = 'success'
+
+            # Créer l'abonnement
+            subscription = SubscriptionManager.create_subscription(
+                user_id=transaction.user_id,
+                plan_id=transaction.plan_id,
+                transaction_id=transaction.id
+            )
+
+            if subscription:
+                logger.info(f"Abonnement créé avec succès pour transaction {transaction.id}")
+            else:
+                logger.error(f"Échec de création d'abonnement pour transaction {transaction.id}")
+
+        elif status in ['FAILED', 'CANCELLED', 'EXPIRED']:
+            transaction.status = 'failed'
+            transaction.error_message = error_message or f"Paiement {status.lower()}"
+            logger.info(f"Transaction {transaction.id} marquée comme échouée: {status}")
+
+        else:
+            transaction.status = 'pending'
+            logger.info(f"Transaction {transaction.id} en attente: {status}")
+
+        db.session.commit()
+        logger.info(f"Transaction {transaction.id} mise à jour: {transaction.status}")
+
+        return "OK", 200
+
+    except Exception as e:
+        logger.error(f"Erreur dans payment_callback: {e}")
+        db.session.rollback()
+        return "Server error", 500
+
+
+@payment_bp.route('/status/<int:transaction_id>')
+@login_required
+def payment_status(transaction_id):
+    """Vérifier le statut d'une transaction pour utilisateurs web"""
+    try:
+        # Vérifier que c'est un utilisateur web
+        if session.get('is_telegram_user') or session.get('is_whatsapp_user'):
+            return jsonify({'error': 'Fonctionnalité disponible uniquement pour les utilisateurs web'}), 403
+
+        transaction = Transaction.query.filter_by(
+            id=transaction_id,
+            user_id=current_user.id
+        ).first()
+
+        if not transaction:
+            return jsonify({'error': 'Transaction non trouvée'}), 404
+
+        status_info = {
+            'transaction_id': transaction.id,
+            'status': transaction.status,
+            'amount': transaction.amount,
+            'operator': transaction.operator,
+            'created_at': transaction.created_at.isoformat(),
+            'plan_name': transaction.plan.display_name if transaction.plan else 'Inconnu'
+        }
+
+        if transaction.status == 'success':
+            status_info['message'] = 'Paiement réussi ! Votre abonnement est maintenant actif.'
+            status_info['new_plan'] = SubscriptionManager.get_user_current_plan(current_user.id)
+
+        elif transaction.status == 'failed':
+            status_info['message'] = f'Paiement échoué: {transaction.error_message or "Erreur inconnue"}'
+
+        elif transaction.status in ['pending', 'processing']:
+            status_info['message'] = 'Paiement en cours de traitement...'
+
+        else:
+            status_info['message'] = 'Statut inconnu'
+
+        return jsonify(status_info)
+
+    except Exception as e:
+        logger.error(f"Erreur dans payment_status: {e}")
+        return jsonify({'error': 'Erreur interne du serveur'}), 500
+
+
+@payment_bp.route('/history')
+@login_required  
+def payment_history():
+    """Historique des transactions de l'utilisateur web"""
+    try:
+        # Vérifier que c'est un utilisateur web
+        if session.get('is_telegram_user') or session.get('is_whatsapp_user'):
+            return jsonify({'error': 'Fonctionnalité disponible uniquement pour les utilisateurs web'}), 403
+
+        transactions = Transaction.query.filter_by(
+            user_id=current_user.id
+        ).order_by(Transaction.created_at.desc()).limit(20).all()
+
+        transactions_data = []
+        for tx in transactions:
+            transactions_data.append({
+                'id': tx.id,
+                'plan_name': tx.plan.display_name if tx.plan else 'Inconnu',
+                'amount': tx.amount,
+                'status': tx.status,
+                'operator': tx.operator,
+                'created_at': tx.created_at.strftime('%d/%m/%Y %H:%M'),
+                'completed_at': tx.completed_at.strftime('%d/%m/%Y %H:%M') if tx.completed_at else None
+            })
+
+        return jsonify({'transactions': transactions_data})
+
+    except Exception as e:
+        logger.error(f"Erreur dans payment_history: {e}")
+        return jsonify({'error': 'Erreur interne du serveur'}), 500

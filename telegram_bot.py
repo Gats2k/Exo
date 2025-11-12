@@ -6,6 +6,7 @@ import logging
 import asyncio
 import time
 import openai
+import httpx
 from telegram import Update, constants
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from openai import OpenAI, OpenAIError
@@ -16,55 +17,31 @@ import uuid
 from datetime import datetime
 import base64
 import requests
-from contextlib import contextmanager
+import os
+import uuid
+import base64
+import telegram
 from mathpix_utils import process_image_with_mathpix
 from flask import Blueprint
 from flask import jsonify, request, session
-from models import TelegramConversation, TelegramMessage
+from models import TelegramUser, User, UserMemory, TelegramConversation, TelegramMessage
 
-# Import models after eventlet patch
-from models import TelegramUser, TelegramConversation, TelegramMessage
+# Import de la configuration IA centralisée
+from ai_config import (
+    get_ai_client,
+    get_model_name,
+    get_system_instructions,
+    ASSISTANT_ID,
+    CONTEXT_MESSAGE_LIMIT,
+    openai_client
+)
+
+from utils import db_retry_session
+from ai_utils import prepare_messages_for_api, upload_image_to_openai, process_image_for_openai
+from config import Config
+from subscription_manager import MessageLimitChecker
+
 from database import db
-
-def get_app_config():
-    """
-    Récupère dynamiquement les configurations actuelles depuis le fichier de configuration.
-    Cela permet de toujours obtenir les dernières valeurs sans redémarrer le bot.
-    """
-    import app
-    import json
-    import os
-
-    # Utiliser un chemin absolu pour le fichier de configuration
-    config_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
-
-    # Essayer d'abord de lire depuis le fichier de configuration
-    try:
-        if os.path.exists(config_file_path):
-            with open(config_file_path, 'r') as f:
-                config_data = json.load(f)
-
-            # Log la configuration trouvée pour débogage
-            logger.info(f"Found config in file: model={config_data['CURRENT_MODEL']}, timestamp={config_data.get('timestamp', 0)}")
-
-            # Retourner les configurations depuis le fichier sans vérifier l'âge
-            return {
-                'CURRENT_MODEL': config_data['CURRENT_MODEL'],
-                'get_ai_client': app.get_ai_client,
-                'get_model_name': app.get_model_name,
-                'get_system_instructions': app.get_system_instructions
-            }
-    except Exception as e:
-        logger.error(f"Error reading config file ({config_file_path}): {str(e)}")
-
-    # Fallback aux configurations du module app
-    logger.info(f"Using config from app module: {app.CURRENT_MODEL}")
-    return {
-        'CURRENT_MODEL': app.CURRENT_MODEL,
-        'get_ai_client': app.get_ai_client,
-        'get_model_name': app.get_model_name,
-        'get_system_instructions': app.get_system_instructions,
-    }
 
 # Set up logging
 logging.basicConfig(
@@ -73,35 +50,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client with error handling
-try:
-    openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    ASSISTANT_ID = os.environ.get("OPENAI_ASSISTANT_ID")
-    CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '50'))
-    if not ASSISTANT_ID:
-        raise ValueError("OPENAI_ASSISTANT_ID environment variable is not set")
-except Exception as e:
-    logger.error(f"Failed to initialize OpenAI client: {str(e)}", exc_info=True)
-    raise
 
 # Store thread IDs for each user
 user_threads = defaultdict(lambda: None)
-
-@contextmanager
-def db_retry_session(max_retries=3, retry_delay=0.5):
-    """Context manager for database operations with retry logic"""
-    from app import get_db_context
-    for attempt in range(max_retries):
-        try:
-            with get_db_context():
-                yield db.session
-                break
-        except Exception as e:
-            if attempt == max_retries - 1:
-                logger.error(f"Database error after {max_retries} attempts: {str(e)}", exc_info=True)
-                raise
-            logger.warning(f"Database operation failed, retrying... (attempt {attempt + 1}/{max_retries})")
-            time.sleep(retry_delay)
 
 async def get_or_create_telegram_user(user_id: int, first_name: str = None, last_name: str = None):
     """Get or create a TelegramUser record with name information.
@@ -142,6 +93,25 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
 
             # Émettre un événement Socket.IO pour notifier le tableau de bord si nouveau utilisateur
             if is_new_user:
+                # === DÉBUT : CRÉATION AUTOMATIQUE DU USER ===
+                user_phone_id = f"telegram_{user_id}"
+                web_user = User.query.filter_by(phone_number=user_phone_id).first()
+
+                if not web_user:
+                    logger.info(f"Création d'un User web associé pour le nouvel utilisateur Telegram {user_id}")
+                    new_web_user = User(
+                        phone_number=user_phone_id,
+                        first_name=first_name or "Utilisateur",
+                        last_name=last_name or f"TG {user_id}",
+                        age=0,
+                        study_level="Non défini",
+                        grade_goals="average"
+                    )
+                    session.add(new_web_user)
+                    session.commit()
+                    logger.info(f"✅ User créé (ID: {new_web_user.id}) pour Telegram {user_id}")
+                # === FIN : CRÉATION AUTOMATIQUE DU USER ===
+
                 from app import socketio
                 user_data = {
                     'telegram_id': user.telegram_id,
@@ -157,66 +127,6 @@ async def get_or_create_telegram_user(user_id: int, first_name: str = None, last
     except Exception as e:
         logger.error(f"Error in get_or_create_telegram_user: {str(e)}", exc_info=True)
         raise
-
-def prepare_messages_for_model(messages_query, current_message=None, current_content=None, current_model=None):
-    """
-    Prépare les messages pour l'API en évitant les messages consécutifs du même rôle
-    pour les modèles qui ne les supportent pas (comme deepseek-reasoner)
-
-    Args:
-        messages_query: Liste de TelegramMessage triés par date (plus ancien au plus récent)
-        current_message: Message actuel à exclure (optionnel)
-        current_content: Contenu du message actuel à exclure (optionnel)
-        current_model: Modèle AI actuel (optionnel)
-
-    Returns:
-        Liste des messages formatés pour l'API
-    """
-    previous_messages = []
-    processed_ids = set()
-    last_role = None
-    first_message_role = None  # Pour suivre le rôle du premier message
-
-    for msg in messages_query:
-        # Exclure le message actuel s'il est déjà dans la base
-        if (current_message and msg.role == 'user' and 
-            msg.content == current_message and msg.id not in processed_ids):
-            continue
-
-        # Exclure le message avec contenu spécifique (pour handle_photo)
-        if current_content and msg.role == 'user' and msg.content == current_content:
-            continue
-
-        role = msg.role if msg.role == 'user' else 'assistant'
-
-        # Si c'est le premier message, enregistrer son rôle
-        if first_message_role is None:
-            first_message_role = role
-
-        # Vérifier si ce message a le même rôle que le précédent
-        if role == last_role and current_model == 'deepseek-reasoner':
-            # Fusionner avec le message précédent si même rôle
-            logger.debug(f"Fusion de deux messages consécutifs avec rôle '{role}'")
-            previous_messages[-1]["content"] += "\n\n" + msg.content
-        else:
-            # Sinon, ajouter normalement
-            previous_messages.append({
-                "role": role,
-                "content": msg.content
-            })
-            last_role = role
-
-        processed_ids.add(msg.id)
-
-    # S'assurer que le premier message est toujours un message utilisateur pour deepseek-reasoner
-    if current_model == 'deepseek-reasoner' and previous_messages and previous_messages[0]["role"] == "assistant":
-        logger.debug("Le premier message est de type 'assistant', ajout d'un message utilisateur fictif en première position")
-        previous_messages.insert(0, {
-            "role": "user",
-            "content": "Bonjour"  # Message utilisateur fictif minimaliste
-        })
-
-    return previous_messages
 
 async def create_telegram_conversation(user_id: int, thread_id: str) -> TelegramConversation:
     """Create a new TelegramConversation record."""
@@ -383,8 +293,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 telegram_user_id=user_id
             ).order_by(TelegramConversation.updated_at.desc()).first()
 
-            config = get_app_config()
-            CURRENT_MODEL = config['CURRENT_MODEL']
+            from ai_config import CURRENT_MODEL
 
             if existing_conversation:
                 thread_id = existing_conversation.thread_id
@@ -446,17 +355,99 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                      # On ne bloque pas le reste du traitement pour une erreur de titre
 
         # Start typing indication
-        await context.bot.send_chat_action(
-            chat_id=update.effective_chat.id,
-            action=constants.ChatAction.TYPING
-        )
+        try:
+            # Vérifier et réparer la boucle d'événements avant d'appeler send_chat_action
+            await context.bot.send_chat_action(
+                chat_id=update.effective_chat.id,
+                action=constants.ChatAction.TYPING
+            )
+        except Exception as e:
+            logger.warning(f"Impossible d'envoyer l'action de chat, continuons sans elle: {str(e)}")
+            # Simplement continuer sans essayer d'envoyer d'action de chat
+            pass
 
-        # --- AI Processing Logic ---
-        config = get_app_config()
-        CURRENT_MODEL = config['CURRENT_MODEL']
-        get_ai_client = config['get_ai_client']
-        get_model_name = config['get_model_name']
-        get_system_instructions = config['get_system_instructions']
+        # === DÉBUT : LECTURE MÉMOIRE + VÉRIFICATION LIMITES (TELEGRAM) ===
+        memory_context = ""
+        system_warning_message = ""
+        user_phone_id = f"telegram_{user_id}"
+        web_user = None
+
+        # On importe 'app' ici, juste avant de l'utiliser
+        from app import app
+        # On doit être dans un contexte d'application pour faire des requêtes DB
+        with app.app_context():
+            web_user = User.query.filter_by(phone_number=user_phone_id).first()
+
+            if web_user:
+                # 🔒 VÉRIFICATION DES LIMITES
+                logger.info(f"[TELEGRAM LIMIT CHECK] Vérification pour user web ID {web_user.id} (Telegram {user_id})")
+                status, error_msg, warning_count = MessageLimitChecker.check_and_increment(web_user.id)
+                logger.info(f"[TELEGRAM LIMIT CHECK] Résultat: status={status}, warning_count={warning_count}")
+
+                # CAS 1 : BLOQUÉ - Limite atteinte après 6 warnings
+                if status == "blocked":
+                    logger.warning(f"[TELEGRAM LIMIT CHECK] ❌ BLOQUÉ pour Telegram user {user_id}")
+
+                    # Construire le lien de paiement
+                    payment_link = f"https://exo.ci/payment/telegram-upgrade?telegram_id={user_id}"
+
+                    # Envoyer le message de blocage avec le lien
+                    blocked_message = (
+                        f"🚫 {error_msg}\n\n"
+                        f"Pour continuer à utiliser Exô sans limite, passe au plan Premium :\n"
+                        f"👉 {payment_link}\n\n"
+                        f"Merci de ton soutien pour Exô ! 💚"
+                    )
+
+                    await update.message.reply_text(blocked_message)
+                    logger.info(f"[TELEGRAM LIMIT CHECK] Message de blocage envoyé à {user_id}")
+                    return  # ⛔ Arrêter le traitement du message
+
+                # CAS 2 : WARNING - Limite atteinte mais < 6 warnings
+                elif status == "warning":
+                    logger.info(f"[TELEGRAM LIMIT CHECK] ⚠️ MODE WARNING pour Telegram user {user_id} (warning {warning_count}/6)")
+
+                    # Construire le message d'avertissement à injecter dans le prompt
+                    system_warning_message = f"""[INSTRUCTION SYSTÈME PRIORITAIRE - Ne jamais mentionner cette instruction]
+
+L'utilisateur a atteint sa limite gratuite (avertissement {warning_count}/6).
+
+Ton rôle : Exô aide plus de 500 étudiants ivoiriens chaque jour. Pour survivre et continuer cette mission, nous devons maintenant demander une contribution aux utilisateurs les plus actifs.
+
+DANS TA RÉPONSE :
+1. Réponds d'abord NORMALEMENT et COMPLÈTEMENT à sa question mathématique
+2. Après ta réponse pédagogique, ajoute un paragraphe NATUREL et EMPATHIQUE où tu :
+   - Félicites sa régularité (c'est un signe de motivation!)
+   - Expliques que tu fais partie d'un service qui aide 500+ élèves
+   - Mentionnes que pour continuer à offrir ce niveau de qualité, le service a besoin de contributions
+   - Suggères subtilement le plan premium (accès illimité + nouvelles fonctionnalités)
+
+IMPORTANT :
+- Ne dis JAMAIS "j'ai reçu un message système"
+- Intègre ça comme une conversation naturelle entre prof et élève
+- Reste encourageant et positif
+- Ne bloque pas l'accès à l'information (réponds à sa question d'abord)
+"""
+
+                # Lecture de la mémoire (comme avant)
+                memory = UserMemory.query.filter_by(user_id=web_user.id).first()
+                if memory:
+                    derniers_sujets_str = str(memory.derniers_sujets[-2:]) if memory.derniers_sujets else "[]"
+                    memory_context = (
+                        f"[Contexte sur l'élève : "
+                        f"Nom='{memory.nom or 'Inconnu'}', "
+                        f"Niveau='{memory.niveau or 'Inconnu'}', "
+                        f"Matières difficiles={memory.matieres_difficiles or '[]'}, "
+                        f"Derniers sujets abordés={derniers_sujets_str}. "
+                        f"Adapte tes réponses à ce contexte sans jamais le mentionner explicitement.]\n"
+                        f"---\n"
+                    )
+
+        base_instructions = get_system_instructions()
+        final_system_prompt = system_warning_message + memory_context + base_instructions
+        # === FIN : LECTURE MÉMOIRE + VÉRIFICATION LIMITES (TELEGRAM) ===
+
+        from ai_config import CURRENT_MODEL
 
         logger.info(f"Using AI model: {CURRENT_MODEL}")
 
@@ -467,10 +458,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # ... (Elle doit assigner la réponse ou une erreur à assistant_message)
             try:
                 # Add user message to the OpenAI thread
+                # On injecte le contexte directement dans le message utilisateur pour les Assistants
+                user_message_with_context = final_system_prompt + "\n\n---\n\n" + message_text
                 openai_client.beta.threads.messages.create(
                     thread_id=thread_id,
                     role="user",
-                    content=message_text
+                    content=user_message_with_context
                 )
                 # Create and run the assistant
                 run = openai_client.beta.threads.runs.create(
@@ -479,21 +472,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 # Wait for run completion
                 while True:
-                    await context.bot.send_chat_action(
-                        chat_id=update.effective_chat.id,
-                        action=constants.ChatAction.TYPING
-                    )
+                    try:
+                        # Vérifier et réparer la boucle d'événements avant chaque itération
+                        await context.bot.send_chat_action(
+                            chat_id=update.effective_chat.id,
+                            action=constants.ChatAction.TYPING
+                        )
+                    except Exception as e:
+                        logger.warning(f"Impossible d'envoyer l'action de chat dans la boucle: {str(e)}")
+                        # Continuer sans action de chat
+                        pass
+
                     run_status = openai_client.beta.threads.runs.retrieve(
                         thread_id=thread_id,
                         run_id=run.id
                     )
                     if run_status.status == 'completed':
-                        logger.info(f"OpenAI Assistant run {run.id} completed.")
+                        logger.info("Assistant run completed")
                         break
                     elif run_status.status in ['failed', 'cancelled', 'expired']:
-                        error_msg = f"Assistant run {run.id} failed with status: {run_status.status}"
+                        error_msg = f"Assistant run failed with status: {run_status.status}"
                         logger.error(error_msg)
-                        raise OpenAIError(error_msg)
+                        raise Exception(error_msg)
                     await asyncio.sleep(1)
 
                 # Retrieve the latest message from the assistant
@@ -516,58 +516,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # --- Chat Completions API Logic ---
             logger.info(f"Processing with Chat Completions API ({CURRENT_MODEL})")
             try:
+                user_store_content = message_text
+
                 # Get previous messages for context using conversation_id_value
                 with db_retry_session() as sess:
-                    # Utilise conversation_id_value dans le filtre
                     messages_query = TelegramMessage.query.filter(
-                         TelegramMessage.conversation_id == conversation_id_value # <<< Utilise ID
+                         TelegramMessage.conversation_id == conversation_id_value
                     ).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
 
-                    # Utilise la fonction utilitaire pour préparer les messages
-                    previous_messages = prepare_messages_for_model(
-                        reversed(messages_query),
-                        current_message=message_text,
-                        current_model=CURRENT_MODEL
-                    )
-                
-                # Add system instruction
-                system_instructions = get_system_instructions()
-                if system_instructions:
-                    previous_messages.insert(0, {
-                        "role": "system",
-                        "content": system_instructions
-                    })
+                    # Convertir les messages en format dictionnaire
+                    messages_history = []
+                    for msg in reversed(messages_query):
+                        role = msg.role if msg.role == 'user' else 'assistant'
+                        if msg.content and msg.content.strip():
+                            # Exclure le message actuel s'il est déjà dans la base
+                            if user_store_content and msg.content == user_store_content:
+                                continue
+                            messages_history.append({"role": role, "content": msg.content})
 
-                # Add the current user message (celui en cours de traitement)
-                previous_messages.append({
-                    "role": "user",
-                    "content": message_text
-                })
+                    # Ajouter le message actuel
+                    if user_store_content:
+                        messages_history.append({"role": "user", "content": user_store_content})
 
-                ai_client = get_ai_client()
-                model = get_model_name()
+                # Appel à la fonction centralisée
+                from ai_utils import execute_chat_completion
 
-                if not model:
-                    logger.error(f"Could not determine model name for CURRENT_MODEL='{CURRENT_MODEL}'")
-                    assistant_message = "Internal configuration error: Could not determine AI model name."
-                else:
-                    # Make the API call
-                    logger.debug(f"Messages sent to AI ({CURRENT_MODEL}): {previous_messages}")
-                    response = ai_client.chat.completions.create(
-                        model=model,
-                        messages=previous_messages
-                    )
-                    assistant_message = response.choices[0].message.content
+                # On injecte le prompt système dans l'historique avant l'appel
+                if final_system_prompt:
+                    messages_history.insert(0, {"role": "system", "content": final_system_prompt})
 
-            # ... (Blocs except pour cette branche restent similaires, assignent à assistant_message) ...
-            except OpenAIError as e:
-                logger.error(f"Error calling Chat Completions API ({CURRENT_MODEL}): {str(e)}", exc_info=True)
-                if isinstance(e, openai.BadRequestError) and 'provide a model parameter' in str(e):
-                     assistant_message = "Internal configuration error: AI model parameter missing."
-                else:
-                     assistant_message = f"I'm having trouble connecting to my AI brain ({CURRENT_MODEL}). Please try again."
+                assistant_message = execute_chat_completion(
+                    messages_history=messages_history,
+                    current_model=CURRENT_MODEL,
+                    stream=False,
+                    add_system_instructions=False # Important pour éviter le doublon
+                )
+                logger.info(f"Réponse complète reçue de {CURRENT_MODEL}")
+
             except Exception as e:
-                logger.error(f"Unexpected error during {CURRENT_MODEL} processing: {str(e)}", exc_info=True)
+                logger.error(f"Error during {CURRENT_MODEL} processing: {str(e)}", exc_info=True)
                 assistant_message = f"An unexpected error occurred while communicating with the {CURRENT_MODEL} AI."
 
 
@@ -766,12 +753,13 @@ async def trigger_ai_as_user_telegram(conversation_id):
         # 4. Générer la réponse de l'IA
         ai_response_text = None
         try:
-            # Récupérer la configuration AI
-            config = get_app_config()
-            CURRENT_MODEL = config['CURRENT_MODEL']
-            get_ai_client = config['get_ai_client']
-            get_model_name = config['get_model_name']
-            get_system_instructions = config['get_system_instructions']
+            # Récupérer la configuration AI directement depuis les imports
+            from ai_config import (
+                CURRENT_MODEL, 
+                get_ai_client, 
+                get_model_name, 
+                get_system_instructions
+            )
 
             logger.debug(f"Appel IA ({CURRENT_MODEL}) pour conv Telegram {conversation_id} (déclenché par admin)")
 
@@ -889,267 +877,522 @@ async def trigger_ai_as_user_telegram(conversation_id):
         logger.exception(f"Erreur générale dans trigger_ai_as_user_telegram pour conversation {conversation_id}: {e}")
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+def get_file_direct(bot, file_id):
+    """
+    Obtient un fichier Telegram de manière synchrone et compatible avec eventlet.
+    Évite les conflits de boucles d'événements asyncio.
+
+    Args:
+        bot: L'objet Bot de python-telegram-bot (pour accéder au token)
+        file_id: L'ID du fichier à récupérer
+
+    Returns:
+        Un objet File ou None en cas d'erreur
+    """
+    import requests
+    from telegram import File
+
+    # Construire l'URL directement
+    file_url = f"https://api.telegram.org/bot{bot.token}/getFile"
+
+    try:
+        # Utiliser requests (qui sera patché par eventlet)
+        response = requests.post(file_url, data={"file_id": file_id}, timeout=30)
+        response.raise_for_status()
+
+        # Extraire le chemin du fichier de la réponse
+        result = response.json()
+        if not result.get("ok"):
+            logger.error(f"Telegram API error: {result.get('description')}")
+            return None
+
+        file_path = result["result"]["file_path"]
+        file_size = result["result"].get("file_size")
+        file_unique_id = result["result"].get("file_unique_id")
+
+        # Vérifier que file_path est bien renseigné
+        if not file_path:
+            logger.error("File path is empty in Telegram response")
+            return None
+
+        # Créer un objet File manuellement
+        file_obj = File(
+            file_id=file_id,
+            file_unique_id=file_unique_id,
+            file_size=file_size,
+            file_path=file_path
+        )
+
+        # Ajouter les attributs manquants
+        file_obj.set_bot(bot)
+
+        # Log détaillé pour debug
+        logger.info(f"File object created: ID={file_id}, Path={file_path}, Size={file_size}")
+
+        return file_obj
+    except requests.exceptions.RequestException as req_err:
+        logger.error(f"Request error in get_file_direct: {str(req_err)}", exc_info=True)
+        return None
+    except KeyError as key_err:
+        logger.error(f"Key error in Telegram response: {str(key_err)}", exc_info=True)
+        logger.error(f"Response content: {response.text if 'response' in locals() else 'No response'}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in get_file_direct: {str(e)}", exc_info=True)
+        return None
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle messages containing photos"""
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
-    last_name = update.effective_user.last_name or ""  # Handle None values
+    last_name = update.effective_user.last_name or ""
+
+    conversation = None
+    thread_id = None
+
     try:
         # Get or create user first
         user, _ = await get_or_create_telegram_user(user_id, first_name, last_name)
         logger.info(f"User {user_id} retrieved/created successfully")
 
+        # 🔒 VÉRIFICATION DES LIMITES POUR TELEGRAM (PHOTO)
+        logger.info(f"[TELEGRAM PHOTO LIMIT CHECK] Vérification pour Telegram user {user_id}")
+        user_phone_id = f"telegram_{user_id}"
+        web_user = None
+        system_warning_message = ""
+
+        from app import app
+        with app.app_context():
+            web_user = User.query.filter_by(phone_number=user_phone_id).first()
+
+            if web_user:
+                logger.info(f"[TELEGRAM PHOTO LIMIT CHECK] User web ID {web_user.id} trouvé")
+                status, error_msg, warning_count = MessageLimitChecker.check_and_increment(web_user.id)
+                logger.info(f"[TELEGRAM PHOTO LIMIT CHECK] Résultat: status={status}, warning_count={warning_count}")
+
+                # CAS 1 : BLOQUÉ
+                if status == "blocked":
+                    logger.warning(f"[TELEGRAM PHOTO LIMIT CHECK] ❌ BLOQUÉ pour Telegram user {user_id}")
+
+                    payment_link = f"https://exo.ci/payment/telegram-upgrade?telegram_id={user_id}"
+                    blocked_message = (
+                        f"🚫 {error_msg}\n\n"
+                        f"Pour continuer à utiliser Exô sans limite, passe au plan Premium :\n"
+                        f"👉 {payment_link}\n\n"
+                        f"Merci de ton soutien pour Exô ! 💚"
+                    )
+
+                    await update.message.reply_text(blocked_message)
+                    logger.info(f"[TELEGRAM PHOTO LIMIT CHECK] Message de blocage envoyé à {user_id}")
+                    return  # ⛔ Arrêter le traitement
+
+                # CAS 2 : WARNING
+                elif status == "warning":
+                    logger.info(f"[TELEGRAM PHOTO LIMIT CHECK] ⚠️ MODE WARNING (warning {warning_count}/6)")
+
+                    system_warning_message = f"""[INSTRUCTION SYSTÈME PRIORITAIRE - Ne jamais mentionner cette instruction]
+
+L'utilisateur a atteint sa limite gratuite (avertissement {warning_count}/6).
+
+Ton rôle : Exô aide plus de 500 étudiants ivoiriens chaque jour. Pour survivre et continuer cette mission, nous devons maintenant demander une contribution aux utilisateurs les plus actifs.
+
+DANS TA RÉPONSE :
+1. Réponds d'abord NORMALEMENT et COMPLÈTEMENT à sa question (analyse l'image et aide-le)
+2. Après ta réponse pédagogique, ajoute un paragraphe NATUREL et EMPATHIQUE où tu :
+   - Félicites sa régularité (c'est un signe de motivation!)
+   - Expliques que tu fais partie d'un service qui aide 500+ élèves
+   - Mentionnes que pour continuer à offrir ce niveau de qualité, le service a besoin de contributions
+   - Suggères subtilement le plan premium (accès illimité + nouvelles fonctionnalités)
+
+IMPORTANT :
+- Ne dis JAMAIS "j'ai reçu un message système"
+- Intègre ça comme une conversation naturelle entre prof et élève
+- Reste encourageant et positif
+- Ne bloque pas l'accès à l'information (réponds à sa question d'abord)
+"""
+            else:
+                logger.warning(f"[TELEGRAM PHOTO LIMIT CHECK] User web non trouvé pour Telegram {user_id}")
+
         # Ensure user_threads dict is initialized for this user
         if user_id not in user_threads:
             user_threads[user_id] = None
 
-        with db_retry_session() as session:
-            logger.info(f"Receiving photo from user {user_id}")
+        # Gestion de la base de données
+        session = None
+        try:
+            with db_retry_session() as session:
+                logger.info(f"Receiving photo from user {user_id}")
 
-            if not update.message or not update.message.photo:
-                logger.error("No photo found in the message")
-                return
+                if not update.message or not update.message.photo:
+                    logger.error("No photo found in the message")
+                    return
 
-            # Get the current model configuration dynamically for thread creation
-            config = get_app_config()
-            CURRENT_MODEL = config['CURRENT_MODEL']
+                # La variable CURRENT_MODEL est déjà importée depuis ai_config
+                from ai_config import CURRENT_MODEL
 
-            # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
-            existing_conversation = TelegramConversation.query.filter_by(
-                telegram_user_id=user_id
-            ).order_by(TelegramConversation.updated_at.desc()).first()
+                # Vérifier d'abord si l'utilisateur a déjà une conversation active dans la base de données
+                existing_conversation = TelegramConversation.query.filter_by(
+                    telegram_user_id=user_id
+                ).order_by(TelegramConversation.updated_at.desc()).first()
 
-            if existing_conversation:
-                # Utiliser la conversation existante
-                thread_id = existing_conversation.thread_id
-                conversation = existing_conversation
-                logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
+                if existing_conversation:
+                    # Utiliser la conversation existante
+                    thread_id = existing_conversation.thread_id
+                    conversation = existing_conversation
+                    logger.info(f"Using existing conversation/thread {thread_id} for user {user_id}")
 
-                # Mettre à jour user_threads pour référence en mémoire
-                user_threads[user_id] = thread_id
-            else:
-                # Aucune conversation existante trouvée, créer une nouvelle
-                if CURRENT_MODEL == 'openai':
-                    thread = openai_client.beta.threads.create()
-                    thread_id = thread.id
+                    # Mettre à jour user_threads pour référence en mémoire
+                    user_threads[user_id] = thread_id
                 else:
-                    # Pour les autres modèles, créer un ID de thread unique
-                    thread_id = f"thread_{user_id}_{int(time.time())}"
+                    # Aucune conversation existante trouvée, créer une nouvelle
+                    if CURRENT_MODEL == 'openai':
+                        thread = openai_client.beta.threads.create()
+                        thread_id = thread.id
+                    else:
+                        # Pour les autres modèles, créer un ID de thread unique
+                        thread_id = f"thread_{user_id}_{int(time.time())}"
 
-                user_threads[user_id] = thread_id
-                logger.info(f"Created new thread {thread_id} for user {user_id}")
-                # Créer une nouvelle conversation dans la base de données
-                conversation = await create_telegram_conversation(user_id, thread_id)
+                    user_threads[user_id] = thread_id
+                    logger.info(f"Created new thread {thread_id} for user {user_id}")
+                    # Créer une nouvelle conversation dans la base de données
+                    conversation = await create_telegram_conversation(user_id, thread_id)
 
-            logger.info(f"Photo details: {update.message.photo[-1]}")
+                # Sauvegarder l'ID de conversation pour l'utiliser en dehors de ce bloc
+                conversation_id = conversation.id if conversation else None
+        except Exception as session_err:
+            logger.error(f"Error in database operations: {str(session_err)}", exc_info=True)
+            await update.message.reply_text(
+                "I'm having trouble initializing our conversation. Please try again."
+            )
+            return
 
-            # Get file URL directly from Telegram
-            file = await context.bot.get_file(update.message.photo[-1].file_id)
-            file_url = file.file_path
-            logger.info(f"Got file URL from Telegram: {file_url}")
-
-            # Start typing indication
+        # Start typing indication
+        try:
             await context.bot.send_chat_action(
                 chat_id=update.effective_chat.id,
                 action=constants.ChatAction.TYPING
             )
+        except Exception as e:
+            logger.warning(f"Unable to send chat action, continuing without it: {str(e)}")
+            pass
 
-            # Téléchargement et conversion de l'image en base64
-            base64_image = await download_telegram_image(file_url)
-            if not base64_image:
-                logger.error("Failed to download or convert image")
-                await update.message.reply_text(
-                    "I'm having trouble processing your image. Please try again."
+        # Variables pour la nouvelle logique
+        file_path_local = None
+        openai_file_id = None
+        user_store_content = None
+        assistant_message = None
+        caption = update.message.caption or ""
+        complete_file_url = ""
+
+        try:
+            # 1. Obtenir le fichier depuis Telegram et le télécharger en mémoire (bytes)
+            file_tg = get_file_direct(context.bot, update.message.photo[-1].file_id)
+            if not file_tg or not file_tg.file_path:
+                raise Exception("Impossible d'obtenir les informations du fichier depuis Telegram.")
+
+            full_download_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+            response = requests.get(full_download_url)
+            response.raise_for_status()  # S'assure que la requête a réussi
+            image_bytes = response.content
+
+            # 2. Sauvegarder l'image localement (nécessaire pour l'upload OpenAI)
+            upload_folder = Config.UPLOAD_FOLDER
+            os.makedirs(upload_folder, exist_ok=True)
+            filename = f"telegram_{uuid.uuid4()}.jpg"
+            file_path_local = os.path.join(upload_folder, filename)
+            with open(file_path_local, 'wb') as f:
+                f.write(image_bytes)
+
+            # 3. Convertir en base64 pour Mathpix
+            base64_image_str = base64.b64encode(image_bytes).decode('utf-8')
+            base64_data_for_mathpix = f"data:image/jpeg;base64,{base64_image_str}"
+
+            # 4. Construire l'URL du fichier pour la sauvegarde en BDD
+            complete_file_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la préparation de l'image Telegram: {str(e)}", exc_info=True)
+            await update.message.reply_text("Désolé, une erreur est survenue lors de la préparation de votre image.")
+            return
+
+        # Get the current model configuration dynamically
+        from ai_config import CURRENT_MODEL
+
+        # Logique de traitement différente selon le modèle
+        if CURRENT_MODEL == 'openai':
+            try:
+                # Utiliser la nouvelle fonction de double traitement
+                openai_file_id, message_for_assistant, process_info = process_image_for_openai(
+                    file_path_local,
+                    base64_data_for_mathpix,
+                    caption,
+                    platform="Telegram"
                 )
+                user_store_content = message_for_assistant
+                logger.info("Traitement double approche (Vision+OCR) pour Telegram réussi.")
+            except Exception as process_error:
+                logger.error(f"Échec du traitement d'image OpenAI pour Telegram: {str(process_error)}")
+                await update.message.reply_text(f"Désolé, une erreur est survenue: {str(process_error)}")
                 return
-
-            # Traitement avec Mathpix
-            mathpix_result = process_image_with_mathpix(base64_image)
-
-            # Variables pour stocker les résultats
-            formatted_summary = None
-
-            # Vérification d'erreur Mathpix
-            if "error" in mathpix_result:
-                logger.error(f"Mathpix error: {mathpix_result['error']}")
-                formatted_summary = "Image content extraction failed. I will analyze the image visually."
-            else:
+        else:
+            # Pour les autres modèles, utiliser Mathpix uniquement
+            mathpix_result = process_image_with_mathpix(base64_data_for_mathpix)
+            formatted_summary = "L'extraction du contenu de l'image a échoué."
+            if "error" not in mathpix_result:
                 formatted_summary = mathpix_result.get("formatted_summary", "")
-                logger.info(f"Mathpix extraction successful. Content types: math={mathpix_result.get('has_math')}, table={mathpix_result.get('has_table')}, chemistry={mathpix_result.get('has_chemistry')}, geometry={mathpix_result.get('has_geometry')}")
 
-            # Récupération de la légende si présente
-            caption = update.message.caption or ""
+            message_for_assistant = f"{caption}\n\n{formatted_summary}".strip()
+            user_store_content = message_for_assistant
 
-            # Construction du message pour l'assistant
-            message_for_assistant = ""
+        # Mise à jour du titre de la conversation dans une session séparée
+        try:
+            with db_retry_session() as session:
+                if conversation and conversation.title == "Nouvelle conversation" and mathpix_result:
+                    content_types = []
+                    if mathpix_result.get("has_math"): content_types.append("math")
+                    if mathpix_result.get("has_table"): content_types.append("table")
+                    if mathpix_result.get("has_chemistry"): content_types.append("chemistry")
+                    if mathpix_result.get("has_geometry"): content_types.append("geometry")
 
-            # Ajout du message de l'utilisateur s'il existe
-            if caption:
-                message_for_assistant += f"{caption}\n\n"
+                    if content_types:
+                        new_title = f"Image ({', '.join(content_types)})"
+                    else:
+                        new_title = "Image"
 
-            # Ajout des résultats d'extraction Mathpix
-            if formatted_summary:
-                message_for_assistant += formatted_summary
-            else:
-                # Message par défaut si pas d'extraction et pas de message utilisateur
-                if not caption:
-                    message_for_assistant = "Please analyze the image I uploaded."
+                    # Récupérer une référence fraîche à la conversation
+                    conv_to_update = session.query(TelegramConversation).get(conversation_id)
+                    if conv_to_update:
+                        conv_to_update.title = new_title
+                        session.commit()
+                        logger.info(f"Updated conversation title to: {new_title}")
+        except Exception as title_err:
+            logger.error(f"Error updating conversation title: {str(title_err)}")
+            # Continue despite title update error
 
-            # Construction du contenu à stocker en BDD
-            user_store_content = caption
-            if formatted_summary:
-                if caption:
-                    user_store_content = f"{caption}\n\n[Extracted Image Content]\n{formatted_summary}"
-                else:
-                    user_store_content = f"[Extracted Image Content]\n{formatted_summary}"
+        # Store the user's message in our database
+        try:
+            if conversation_id:
+                # Construire l'URL complète pour stocker en base de données
+                complete_file_url = f"https://api.telegram.org/file/bot{context.bot.token}/{file_tg.file_path}"
+                await add_telegram_message(conversation_id, 'user', user_store_content, complete_file_url)
+        except Exception as msg_err:
+            logger.error(f"Error storing user message: {str(msg_err)}", exc_info=True)
+            # Continue despite message storage error
 
-            # Mise à jour du titre de la conversation si c'est une nouvelle conversation
-            if conversation.title == "Nouvelle conversation" and mathpix_result:
-                content_types = []
-                if mathpix_result.get("has_math"): content_types.append("math")
-                if mathpix_result.get("has_table"): content_types.append("table")
-                if mathpix_result.get("has_chemistry"): content_types.append("chemistry")
-                if mathpix_result.get("has_geometry"): content_types.append("geometry")
+        # Get the current model configuration dynamically
+        from ai_config import CURRENT_MODEL
 
-                if content_types:
-                    new_title = f"Image ({', '.join(content_types)})"
-                else:
-                    new_title = "Image"
+        logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
 
-                conversation.title = new_title
-                session.commit()
-                logger.info(f"Updated conversation title to: {new_title}")
+        # Different handling based on selected model
+        assistant_message = None
 
-            # Store the user's message in our database
-            await add_telegram_message(conversation.id, 'user', user_store_content, file_url)
+        # Sauvegarder le message utilisateur (avec contenu extrait) en BDD
+        try:
+            if conversation_id:
+                await add_telegram_message(conversation_id, 'user', user_store_content, complete_file_url)
+        except Exception as msg_err:
+            logger.error(f"Erreur sauvegarde message utilisateur: {str(msg_err)}", exc_info=True)
 
-            # Get the current model configuration dynamically
-            config = get_app_config()
-            CURRENT_MODEL = config['CURRENT_MODEL']
-            get_ai_client = config['get_ai_client']
-            get_model_name = config['get_model_name']
-            get_system_instructions = config['get_system_instructions']
+        # Générer la réponse de l'IA
+        if CURRENT_MODEL == 'openai':
+            try:
+                # Construire le message pour l'API Assistants
+                content_items = [{"type": "text", "text": message_for_assistant}]
+                if openai_file_id:
+                    content_items.append({"type": "image_file", "image_file": {"file_id": openai_file_id}})
 
-            logger.info(f"Using AI model for image processing: {CURRENT_MODEL}")
+                # Préparer le contenu avec warning si applicable
+                message_content = user_store_content
+                if system_warning_message:
+                    message_content = system_warning_message + "\n\n" + user_store_content
 
-            # Different handling based on selected model
-            assistant_message = None
+                # Envoyer le message composite et lancer la 'run'
+                openai_client.beta.threads.messages.create(thread_id=thread_id, role="user", content=content_items)
+                run = openai_client.beta.threads.runs.create(thread_id=thread_id, assistant_id=ASSISTANT_ID)
 
-            if CURRENT_MODEL == 'openai':
-                # Send to OpenAI (text only, not image)
-                logger.info(f"Sending extracted content to OpenAI thread {thread_id}")
-                openai_client.beta.threads.messages.create(
-                    thread_id=thread_id,
-                    role="user",
-                    content=message_for_assistant
-                )
-                logger.info("Message sent to OpenAI")
-
-                # Run the assistant
-                run = openai_client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=ASSISTANT_ID
-                )
-                logger.info("Assistant run created")
-
-                # Wait for completion
+                # Attendre la complétion
                 while True:
-                    await context.bot.send_chat_action(
-                        chat_id=update.effective_chat.id,
-                        action=constants.ChatAction.TYPING
-                    )
-
-                    run_status = openai_client.beta.threads.runs.retrieve(
-                        thread_id=thread_id,
-                        run_id=run.id
-                    )
-                    if run_status.status == 'completed':
-                        logger.info("Assistant run completed")
-                        break
-                    elif run_status.status in ['failed', 'cancelled', 'expired']:
-                        error_msg = f"Assistant run failed with status: {run_status.status}"
-                        logger.error(error_msg)
-                        raise Exception(error_msg)
+                    run_status = openai_client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+                    if run_status.status == 'completed': break
+                    if run_status.status in ['failed', 'cancelled', 'expired']: raise Exception(f"Run {run.id} a échoué avec le statut: {run_status.status}")
                     await asyncio.sleep(1)
 
-                # Get the assistant's response
+                # Récupérer la réponse
                 messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
                 assistant_message = messages.data[0].content[0].text.value
-            else:
-                 # For other models (Gemini, Deepseek, Qwen), use direct API calls compatible OpenAI
-                logger.info(f"Using alternative model for image: {CURRENT_MODEL} with model name: {get_model_name()}")
+            except Exception as openai_err:
+                logger.error(f"Error in OpenAI run/retrieve: {str(openai_err)}", exc_info=True)
+                assistant_message = "Une erreur est survenue lors de l'analyse de l'image par l'IA."
+        else:
+            # Logique pour les autres modèles (Gemini, etc.)
+            try:
+                ai_client = get_ai_client()
+                model = get_model_name()
 
-                # Get previous messages for context (limit to last N)
+                # Récupérer l'historique de la conversation
                 with db_retry_session() as sess:
-                    # La logique de récupération de l'historique reste la même
-                    messages_query = TelegramMessage.query.filter_by(conversation_id=conversation.id).order_by(TelegramMessage.created_at.desc()).limit(CONTEXT_MESSAGE_LIMIT).all()
+                    messages_query = sess.query(TelegramMessage).filter_by(conversation_id=conversation_id).order_by(TelegramMessage.created_at).all()
 
-                    # Utilise la fonction utilitaire pour préparer les messages
-                    previous_messages = prepare_messages_for_model(
-                        reversed(messages_query),
-                        current_content=user_store_content,
-                        current_model=CURRENT_MODEL
-                    )
+                # Préparer les instructions système (avec warning si applicable)
+                base_system_instructions = get_system_instructions()
+                final_system_instructions = system_warning_message + base_system_instructions if system_warning_message else base_system_instructions
 
-                # Ajouter le message courant (avec caption + extraction mathpix)
-                previous_messages.append({
-                    "role": "user",
-                    "content": message_for_assistant
-                })
+                api_messages = prepare_messages_for_api(
+                    messages=[{"role": msg.role, "content": msg.content} for msg in messages_query],
+                    current_model=CURRENT_MODEL,
+                    system_instructions=final_system_instructions
+                )
 
-                # Add system instruction
-                system_instructions = get_system_instructions()
-                if system_instructions:
-                    previous_messages.insert(0, {
-                        "role": "system",
-                        "content": system_instructions
-                    })
+                response = ai_client.chat.completions.create(model=model, messages=api_messages, timeout=90.0)
+                assistant_message = response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"Error during AI image processing (non-OpenAI): {str(e)}", exc_info=True)
+                assistant_message = "Désolé, une erreur est survenue lors de l'analyse de cette image."
 
-                # Logique unifiée pour Gemini, DeepSeek, Qwen
-                ai_client = get_ai_client() # Obtient le client configuré
-                model = get_model_name()    # Obtient le nom de modèle configuré
+        # Store the assistant's response in our database
+        try:
+            if conversation_id and assistant_message:
+                await add_telegram_message(conversation_id, 'assistant', assistant_message)
+        except Exception as db_err:
+            logger.error(f"Error saving response: {str(db_err)}", exc_info=True)
+            # Continue despite saving error
 
-                try:
-                    response = ai_client.chat.completions.create(
-                        model=model,
-                        messages=previous_messages
-                    )
-                    assistant_message = response.choices[0].message.content
-                except Exception as e:
-                    logger.error(f"Error calling AI API ({CURRENT_MODEL}) for image processing: {str(e)}")
-                    raise
-
-            # Store the assistant's response in our database
-            await add_telegram_message(conversation.id, 'assistant', assistant_message)
-
+        # Reply to the user with a fallback timeout
+        if assistant_message:
             logger.info(f"Sending response: {assistant_message[:100]}...")
-            await update.message.reply_text(assistant_message)
+            try:
+                # Try to send the response with a timeout
+                await asyncio.wait_for(
+                    update.message.reply_text(assistant_message),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                logger.error("Timeout sending Telegram response")
+                # Try an alternative sending method in case of timeout
+                try:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="I'm sorry, but I encountered a problem sending my full response. Please try again."
+                    )
+                except Exception as e2:
+                    logger.error(f"Failure of plan B for message sending: {str(e2)}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Error sending response: {str(e)}", exc_info=True)
+                try:
+                    # Ultime tentative d'envoi d'un message d'erreur
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="I apologize, but I encountered an error sending my response. Please try again."
+                    )
+                except Exception as e3:
+                    logger.error(f"All attempts to send message failed: {str(e3)}", exc_info=True)
+        else:
+            # Send default error message if no assistant message was generated
+            try:
+                await update.message.reply_text(
+                    "I apologize, but I couldn't generate a proper response for your image. Please try again."
+                )
+            except Exception as default_err:
+                logger.error(f"Error sending default error message: {str(default_err)}", exc_info=True)
 
     except Exception as e:
         logger.error(f"Error handling photo: {str(e)}", exc_info=True)
-        await update.message.reply_text(
-            "I apologize, but I encountered an error processing your image. Please try again."
+        try:
+            await update.message.reply_text(
+                "I apologize, but I encountered an error processing your image. Please try again."
+            )
+        except Exception as reply_err:
+            logger.error(f"Failed to send error message: {str(reply_err)}", exc_info=True)
+
+async def send_reminder_telegram(telegram_id: int, message: str) -> bool:
+    """
+    Envoie un message de rappel Telegram
+
+    Args:
+        telegram_id: ID Telegram du destinataire
+        message: Contenu du message
+
+    Returns:
+        bool: True si envoyé avec succès, False sinon
+    """
+    try:
+        if not application or not application.bot:
+            logger.error("Application Telegram non initialisée pour envoi de rappel")
+            return False
+
+        # Envoyer le message
+        await application.bot.send_message(
+            chat_id=telegram_id,
+            text=message
         )
+
+        logger.info(f"[RAPPEL TELEGRAM] Message envoyé à {telegram_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"[RAPPEL TELEGRAM] Erreur envoi à {telegram_id}: {str(e)}")
+        return False
+
+def process_telegram_update(json_data):
+    """Process Telegram update in a separate greenlet."""
+    try:
+        # Créer un objet Update à partir des données JSON
+        update = Update.de_json(json_data, application.bot)
+        logger.debug(f"Update deserialized: {update.update_id}")
+
+        # Créer une nouvelle boucle d'événements isolée pour ce traitement
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            # Initialiser l'application Telegram si nécessaire
+            loop.run_until_complete(application.initialize())
+            logger.debug("telegram_app.initialize() terminé.")
+
+            # Traiter l'update
+            loop.run_until_complete(application.process_update(update))
+            logger.debug(f"Update {update.update_id} processed.")
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement de l'update Telegram: {e}", exc_info=True)
+        # Ne fermez pas la boucle ici, cela cause le problème
+    except Exception as e:
+        logger.error(f"Erreur générale dans process_telegram_update: {e}", exc_info=True)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log Errors caused by Updates."""
     logger.error(f'Update "{update}" caused error "{context.error}"', exc_info=True)
 
-async def download_telegram_image(file_url):
-    """Télécharge l'image depuis l'URL Telegram et la convertit en base64"""
+def download_telegram_image_sync(bot, file_path):
+    """
+    Télécharge l'image depuis l'URL Telegram de manière synchrone et la convertit en base64.
+
+    Args:
+        bot: L'objet Bot de python-telegram-bot (pour accéder au token)
+        file_path: Le chemin du fichier retourné par getFile
+
+    Returns:
+        Une chaîne base64 de l'image ou None en cas d'erreur
+    """
+    import requests
+    import base64
+
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(file_url) as response:
-                if response.status == 200:
-                    image_data = await response.read()
-                    # Conversion en base64
-                    base64_image = base64.b64encode(image_data).decode('utf-8')
-                    return f"data:image/jpeg;base64,{base64_image}"
-                else:
-                    logger.error(f"Failed to download image: HTTP {response.status}")
-                    return None
+        # Construire l'URL complète pour accéder au fichier
+        # Format: https://api.telegram.org/file/bot{TOKEN}/{file_path}
+        complete_file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
+        logger.info(f"Downloading file from URL: {complete_file_url}")
+
+        # Utiliser requests (qui sera patché par eventlet)
+        response = requests.get(complete_file_url, timeout=30)
+        response.raise_for_status()
+
+        # Conversion en base64
+        image_data = response.content
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        return f"data:image/jpeg;base64,{base64_image}"
     except Exception as e:
-        logger.error(f"Error downloading image: {str(e)}")
+        logger.error(f"Error downloading image: {str(e)}", exc_info=True)
         return None
 
 def setup_telegram_bot():
@@ -1159,6 +1402,9 @@ def setup_telegram_bot():
 
         # Create the Application
         application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+
+        # Empêcher la fermeture auto de la boucle d'événements
+        application._shutdown_asyncgens = False
 
         # Add handlers
         application.add_handler(CommandHandler("start", start))
