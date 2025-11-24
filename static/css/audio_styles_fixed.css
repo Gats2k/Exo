@@ -1,0 +1,433 @@
+/* ============================================
+   AUDIO RECORDING STYLES - Exô (VERSION CORRIGÉE)
+   Design moderne avec glassmorphism
+   SANS CONFLITS avec style.css
+   ============================================ */
+
+/* Reset spécifique pour les pages d'enregistrement */
+.audio-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.audio-page * {
+    box-sizing: border-box;
+}
+
+/* Container */
+.audio-page .container {
+    width: 100% !important;
+    max-width: 600px !important;
+    padding: 20px !important;
+    position: relative !important;
+    margin: 0 auto !important;
+}
+
+/* Bouton Retour */
+.audio-page .back-button {
+    position: fixed !important;
+    top: 20px !important;
+    left: 20px !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px) !important;
+    border: none !important;
+    padding: 12px 20px !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    color: #333 !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+    z-index: 1000 !important;
+}
+
+.audio-page .back-button:hover {
+    background: rgba(255, 255, 255, 1) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Bouton "Voir mes cours" */
+.audio-page .view-lessons-btn {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 2px solid rgba(255, 255, 255, 0.5) !important;
+    padding: 12px 24px !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    color: #667eea !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+    z-index: 1000 !important;
+}
+
+.audio-page .view-lessons-btn:hover {
+    background: #667eea !important;
+    color: white !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4) !important;
+    border-color: #667eea !important;
+}
+
+/* Container Audio Principal */
+.audio-page .audio-container {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    border-radius: 30px !important;
+    padding: 60px 40px !important;
+    text-align: center !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+    margin-top: 80px !important;
+}
+
+/* Icône de la Matière - CRITIQUE */
+.audio-page .subject-icon {
+    width: 100px !important;
+    height: 100px !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border-radius: 25px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 auto 30px !important;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3) !important;
+    position: relative !important;
+}
+
+.audio-page .subject-icon i {
+    font-size: 48px !important;
+    color: white !important;
+    display: block !important;
+    line-height: 1 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    font-variant: normal !important;
+    text-transform: none !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+}
+
+.audio-page .subject-icon i::before {
+    display: inline-block !important;
+    font-family: 'bootstrap-icons' !important;
+}
+
+/* Titre de la Matière */
+.audio-page .subject-title {
+    font-size: 42px !important;
+    font-weight: 700 !important;
+    color: #667eea !important;
+    margin: 0 0 20px 0 !important;
+}
+
+/* Texte d'instruction */
+.audio-page .instruction-text {
+    font-size: 16px !important;
+    color: #666 !important;
+    margin-bottom: 40px !important;
+    line-height: 1.6 !important;
+}
+
+/* Bouton d'Enregistrement Principal */
+.audio-page .record-button {
+    width: 200px !important;
+    height: 200px !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    border-radius: 50% !important;
+    cursor: pointer !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 auto !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.audio-page .record-button:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 15px 50px rgba(102, 126, 234, 0.5) !important;
+}
+
+.audio-page .record-button:active {
+    transform: scale(0.95) !important;
+}
+
+.audio-page .record-button.recording {
+    animation: pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+    }
+    50% {
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.8), 0 0 0 20px rgba(102, 126, 234, 0.1);
+    }
+}
+
+.audio-page .record-icon {
+    width: 60px !important;
+    height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-bottom: 10px !important;
+}
+
+.audio-page .record-icon i {
+    font-size: 40px !important;
+    color: white !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.audio-page .record-text {
+    color: white !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+}
+
+/* Timer */
+.audio-page .timer {
+    font-size: 36px !important;
+    font-weight: 700 !important;
+    color: #667eea !important;
+    margin-top: 30px !important;
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Boutons d'Action */
+.audio-page .action-buttons {
+    display: flex !important;
+    justify-content: center !important;
+    gap: 20px !important;
+    margin-top: 30px !important;
+}
+
+.audio-page .action-btn {
+    padding: 15px 30px !important;
+    border: none !important;
+    border-radius: 15px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+.audio-page .stop-btn {
+    background: #f5365c !important;
+    color: white !important;
+}
+
+.audio-page .stop-btn:hover {
+    background: #ec0c38 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 20px rgba(245, 54, 92, 0.4) !important;
+}
+
+.audio-page .save-btn {
+    background: #2dce89 !important;
+    color: white !important;
+}
+
+.audio-page .save-btn:hover {
+    background: #24a46d !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 20px rgba(45, 206, 137, 0.4) !important;
+}
+
+.audio-page .cancel-btn {
+    background: #8898aa !important;
+    color: white !important;
+}
+
+.audio-page .cancel-btn:hover {
+    background: #6a7989 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 20px rgba(136, 152, 170, 0.4) !important;
+}
+
+/* Section de Sauvegarde */
+.audio-page .save-section {
+    margin-top: 30px !important;
+}
+
+.audio-page .audio-preview {
+    background: rgba(102, 126, 234, 0.1) !important;
+    padding: 20px !important;
+    border-radius: 15px !important;
+    margin-bottom: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 12px !important;
+    color: #667eea !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+}
+
+.audio-page .audio-preview i {
+    font-size: 24px !important;
+}
+
+.audio-page .save-buttons {
+    display: flex !important;
+    justify-content: center !important;
+    gap: 15px !important;
+}
+
+/* Message de Statut */
+.audio-page .status-message {
+    margin-top: 20px !important;
+    padding: 15px !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    display: none !important;
+}
+
+.audio-page .status-message.success {
+    background: rgba(45, 206, 137, 0.1) !important;
+    color: #2dce89 !important;
+    display: block !important;
+}
+
+.audio-page .status-message.error {
+    background: rgba(245, 54, 92, 0.1) !important;
+    color: #f5365c !important;
+    display: block !important;
+}
+
+.audio-page .status-message.info {
+    background: rgba(102, 126, 234, 0.1) !important;
+    color: #667eea !important;
+    display: block !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .audio-page .audio-container {
+        padding: 40px 20px !important;
+        margin-top: 100px !important;
+    }
+
+    .audio-page .subject-icon {
+        width: 80px !important;
+        height: 80px !important;
+        border-radius: 20px !important;
+    }
+
+    .audio-page .subject-icon i {
+        font-size: 40px !important;
+    }
+
+    .audio-page .subject-title {
+        font-size: 32px !important;
+    }
+
+    .audio-page .record-button {
+        width: 160px !important;
+        height: 160px !important;
+    }
+
+    .audio-page .record-icon {
+        width: 50px !important;
+        height: 50px !important;
+    }
+
+    .audio-page .record-icon i {
+        font-size: 32px !important;
+    }
+
+    .audio-page .record-text {
+        font-size: 16px !important;
+    }
+
+    .audio-page .timer {
+        font-size: 28px !important;
+    }
+
+    .audio-page .action-buttons {
+        flex-direction: column !important;
+    }
+
+    .audio-page .action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    .audio-page .back-button,
+    .audio-page .view-lessons-btn {
+        top: 10px !important;
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+    }
+
+    .audio-page .back-button {
+        left: 10px !important;
+    }
+
+    .audio-page .view-lessons-btn {
+        right: 10px !important;
+    }
+}
+
+/* Animation de chargement */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.audio-page .loading-spinner {
+    border: 4px solid rgba(102, 126, 234, 0.2) !important;
+    border-top: 4px solid #667eea !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    animation: spin 1s linear infinite !important;
+    margin: 0 auto !important;
+}
+
+/* Fix Bootstrap Icons - CRITIQUE */
+.audio-page i[class^="bi-"]::before,
+.audio-page i[class*=" bi-"]::before {
+    display: inline-block !important;
+    font-family: 'bootstrap-icons' !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    font-variant: normal !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    vertical-align: -.125em !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+}

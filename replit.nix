@@ -9,5 +9,6 @@
     pkgs.pandoc
     pkgs.texlive.combined.scheme-full
     pkgs.zip
+    pkgs.sqlite
   ];
 }

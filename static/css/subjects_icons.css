@@ -1,0 +1,82 @@
+/* ============================================
+   FIX ICÔNES PAGE /SUBJECTS
+   Pour corriger l'affichage des icônes Physique et SVT
+   ============================================ */
+
+/* 
+   UTILISATION :
+   Ajoutez ce code à la fin de votre fichier style.css
+   OU créez un nouveau fichier subjects_fix.css et chargez-le après style.css
+*/
+
+/* Force l'affichage des icônes Bootstrap dans les cartes matières */
+.subject-card i[class^="bi-"]::before,
+.subject-card i[class*=" bi-"]::before {
+    display: inline-block !important;
+    font-family: 'bootstrap-icons' !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    font-variant: normal !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    vertical-align: -.125em !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* Conteneur de l'icône */
+.subject-card .subject-icon {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Styles des icônes */
+.subject-card .subject-icon i {
+    color: white !important;
+    font-size: 48px !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 1 !important;
+}
+
+/* Fix spécifique pour chaque matière */
+.subject-card[data-subject="mathematics"] .subject-icon i {
+    color: white !important;
+}
+
+.subject-card[data-subject="physics"] .subject-icon i {
+    color: white !important;
+}
+
+.subject-card[data-subject="chemistry"] .subject-icon i {
+    color: white !important;
+}
+
+.subject-card[data-subject="svt"] .subject-icon i {
+    color: white !important;
+}
+
+/* Si les cartes utilisent d'autres classes */
+.subject-item i[class^="bi-"],
+.subject-box i[class^="bi-"],
+.matiere-card i[class^="bi-"] {
+    display: inline-block !important;
+    font-family: 'bootstrap-icons' !important;
+    color: white !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Alternative : Si le problème persiste, forcez avec content */
+/* 
+.subject-icon .bi-book::before { content: "\f2ff" !important; }
+.subject-icon .bi-lightbulb-fill::before { content: "\f4dd" !important; }
+.subject-icon .bi-atom::before { content: "\f3aa" !important; }
+.subject-icon .bi-flask::before { content: "\f300" !important; }
+.subject-icon .bi-microscope::before { content: "\f38d" !important; }
+*/

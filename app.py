@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 # Load environment variables before any other imports
 load_dotenv()
 
+from audio_handler import handle_audio_upload
+
 from config import Config
 from flask import Flask, render_template, request, jsonify, url_for, session, redirect, flash
 from flask_socketio import SocketIO, emit
@@ -53,6 +55,17 @@ app = Flask(__name__)
 
 app.config.from_object(Config)
 
+# Provide a sensible default for local development when no DB URI is configured
+if not app.config.get('SQLALCHEMY_DATABASE_URI'):
+    # Prefer an on-disk SQLite DB for convenience
+    default_sqlite = 'sqlite:///dev.sqlite3'
+    app.config['SQLALCHEMY_DATABASE_URI'] = default_sqlite
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "No SQLALCHEMY_DATABASE_URI configured; falling back to '%s' for local development.",
+        default_sqlite
+    )
+
 # Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -76,7 +89,7 @@ db.init_app(app)
 migrate = Migrate(app, db)
 
 # Importer les modèles après l'initialisation de db
-from models import User, Conversation, Message, TelegramUser, TelegramConversation, TelegramMessage, Subscription, MessageFeedback
+from models import User, Conversation, Message, TelegramUser, TelegramConversation, TelegramMessage, Subscription, MessageFeedback, Lesson
 
 # Initialize SocketIO with eventlet
 socketio = SocketIO(app,
@@ -200,6 +213,12 @@ def load_user(id):
     return User.query.get(int(id))
 
 
+@app.route('/api/audio/upload', methods=['POST'])
+@login_required
+def audio_upload():
+    """Route pour uploader et traiter un fichier audio"""
+    return handle_audio_upload()
+
 @app.route('/privacy-policy')
 def privacy_policy():
     """Privacy Policy page"""
@@ -306,6 +325,270 @@ def chat():
             conversation_history=[],
             credits=42,
             error="Une erreur est survenue. Veuillez réessayer.")
+
+
+# ============================================================================
+# ROUTES POUR LE SYSTÈME DE MATIÈRES ET ENREGISTREMENT AUDIO
+# ============================================================================
+
+@app.route('/subjects')
+@login_required
+def subjects_page():
+    """Page affichant les 4 matières disponibles pour l'enregistrement"""
+    return render_template('subjects.html')
+
+
+@app.route('/record/mathematics')
+@login_required
+def record_mathematics():
+    """Page d'enregistrement audio pour Mathématiques"""
+    return render_template('record_mathematics.html')
+
+
+@app.route('/record/physics')
+@login_required
+def record_physics():
+    """Page d'enregistrement audio pour Physique"""
+    return render_template('record_physics.html')
+
+
+@app.route('/record/chemistry')
+@login_required
+def record_chemistry():
+    """Page d'enregistrement audio pour Chimie"""
+    return render_template('record_chemistry.html')
+
+
+@app.route('/record/svt')
+@login_required
+def record_svt():
+    """Page d'enregistrement audio pour SVT (Sciences de la Vie et de la Terre)"""
+    return render_template('record_svt.html')
+
+
+@app.route('/api/save-audio', methods=['POST'])
+@login_required
+def save_audio():
+    """
+    API pour sauvegarder un enregistrement audio de cours et déclencher le traitement
+    
+    Cette route reçoit :
+    - audio : fichier audio (webm format)
+    - subject : matière (Mathématiques, Physique, Chimie, SVT)
+    
+    Processus complet :
+    1. Sauvegarde temporaire du fichier
+    2. Transcription via Groq Whisper
+    3. Amélioration du texte par l'IA d'Exô
+    4. Enregistrement dans la base de données (table Lesson)
+    5. Nettoyage du fichier temporaire
+    """
+    try:
+        from audio_handler import save_lesson_from_audio
+        
+        audio_file = request.files.get('audio')
+        subject = request.form.get('subject')
+        
+        if not audio_file or not subject:
+            logger.warning(f"Requête audio incomplète - audio: {bool(audio_file)}, subject: {subject}")
+            return jsonify({'error': 'Fichier audio ou matière manquant'}), 400
+        
+        logger.info(f"🎓 Traitement de leçon {subject} pour l'utilisateur {current_user.id}")
+        
+        # Traiter l'audio avec le système intégré (transcription + amélioration + sauvegarde BD)
+        result = save_lesson_from_audio(
+            audio_file=audio_file,
+            subject=subject,
+            user_id=current_user.id
+        )
+        
+        if result.get('success'):
+            logger.info(f"✅ Leçon {result.get('lesson_id')} traitée avec succès")
+            return jsonify({
+                'success': True,
+                'message': 'Leçon enregistrée avec succès',
+                'lesson_id': result.get('lesson_id'),
+                'subject': subject,
+                'transcript': result.get('transcript'),
+                'improved_text': result.get('improved_text'),
+                'duration': result.get('duration')
+            }), 200
+        else:
+            logger.error(f"❌ Échec du traitement: {result.get('error')}")
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Erreur lors du traitement de l\'audio')
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur critique dans save_audio: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
+
+# ============================================================================
+# FIN DES ROUTES MATIÈRES
+# ============================================================================
+
+
+# ============================================================================
+# ROUTES DE VISUALISATION DES LEÇONS
+# ============================================================================
+
+@app.route('/lessons/mathematics')
+@login_required
+def lessons_mathematics():
+    """Page de liste des leçons de Mathématiques"""
+    return render_template('lessons_mathematics.html')
+
+
+@app.route('/lessons/physics')
+@login_required
+def lessons_physics():
+    """Page de liste des leçons de Physique"""
+    return render_template('lessons_physics.html')
+
+
+@app.route('/lessons/chemistry')
+@login_required
+def lessons_chemistry():
+    """Page de liste des leçons de Chimie"""
+    return render_template('lessons_chemistry.html')
+
+
+@app.route('/lessons/svt')
+@login_required
+def lessons_svt():
+    """Page de liste des leçons de SVT"""
+    return render_template('lessons_svt.html')
+
+
+@app.route('/lesson/<int:lesson_id>')
+@login_required
+def lesson_detail(lesson_id):
+    """Page de détail d'une leçon"""
+    return render_template('lesson_detail.html')
+
+
+# ============================================================================
+# API ENDPOINTS POUR LES LEÇONS
+# ============================================================================
+
+@app.route('/api/lessons/<subject>')
+@login_required
+def get_lessons_by_subject(subject):
+    """Récupère toutes les leçons d'une matière pour l'utilisateur connecté"""
+    try:
+        # Mapper les noms de matières URL vers les noms en base
+        subject_map = {
+            'mathematics': 'Mathématiques',
+            'physics': 'Physique',
+            'chemistry': 'Chimie',
+            'svt': 'SVT'
+        }
+        
+        subject_name = subject_map.get(subject)
+        if not subject_name:
+            return jsonify({'success': False, 'error': 'Matière invalide'}), 400
+        
+        # Récupérer les leçons de l'utilisateur pour cette matière
+        lessons = Lesson.query.filter_by(
+            user_id=current_user.id,
+            subject=subject_name
+        ).order_by(Lesson.created_at.desc()).all()
+        
+        # Convertir en JSON
+        lessons_data = [{
+            'id': lesson.id,
+            'subject': lesson.subject,
+            'original_transcript': lesson.original_transcript,
+            'improved_transcript': lesson.improved_transcript,
+            'duration_seconds': lesson.duration_seconds,
+            'language': lesson.language,
+            'status': lesson.status,
+            'created_at': lesson.created_at.isoformat(),
+            'updated_at': lesson.updated_at.isoformat()
+        } for lesson in lessons]
+        
+        return jsonify({
+            'success': True,
+            'lessons': lessons_data,
+            'count': len(lessons_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des leçons: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/lesson/<int:lesson_id>')
+@login_required
+def get_lesson_detail(lesson_id):
+    """Récupère les détails d'une leçon spécifique"""
+    try:
+        lesson = Lesson.query.filter_by(
+            id=lesson_id,
+            user_id=current_user.id
+        ).first()
+        
+        if not lesson:
+            return jsonify({'success': False, 'error': 'Leçon introuvable'}), 404
+        
+        lesson_data = {
+            'id': lesson.id,
+            'subject': lesson.subject,
+            'original_transcript': lesson.original_transcript,
+            'improved_transcript': lesson.improved_transcript,
+            'duration_seconds': lesson.duration_seconds,
+            'language': lesson.language,
+            'status': lesson.status,
+            'audio_filename': lesson.audio_filename,
+            'audio_url': lesson.audio_url,
+            'error_message': lesson.error_message,
+            'created_at': lesson.created_at.isoformat(),
+            'updated_at': lesson.updated_at.isoformat()
+        }
+        
+        return jsonify({
+            'success': True,
+            'lesson': lesson_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de la leçon: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/lesson/<int:lesson_id>', methods=['DELETE'])
+@login_required
+def delete_lesson(lesson_id):
+    """Supprime une leçon"""
+    try:
+        lesson = Lesson.query.filter_by(
+            id=lesson_id,
+            user_id=current_user.id
+        ).first()
+        
+        if not lesson:
+            return jsonify({'success': False, 'error': 'Leçon introuvable'}), 404
+        
+        # Supprimer le fichier audio si existe
+        if lesson.audio_filename:
+            audio_path = os.path.join('uploads', 'audio', lesson.audio_filename)
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+        
+        # Supprimer de la base de données
+        db.session.delete(lesson)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Leçon supprimée avec succès'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression de la leçon: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')

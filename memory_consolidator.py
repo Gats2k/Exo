@@ -9,7 +9,8 @@ import time
 from datetime import datetime, timedelta, date
 from sqlalchemy import or_, func
 
-from app import app, socketio
+# Avoid importing `app` at module import time to prevent circular imports.
+# Import `app` lazily inside functions that need an application context.
 from database import db
 from models import (
     User, UserMemory, ConsolidatedConversation,
@@ -36,7 +37,8 @@ def _update_memory_profile(user_id, data):
         data: Dictionnaire contenant les champs à mettre à jour
     """
     try:
-        with app.app_context():
+        from app import app as _app
+        with _app.app_context():
             memory = UserMemory.query.filter_by(user_id=user_id).first()
 
             if not memory:
@@ -90,7 +92,8 @@ def _log_study_session(user_id, data):
         data: Dict avec 'matiere' et 'sujet'
     """
     try:
-        with app.app_context():
+        from app import app as _app
+        with _app.app_context():
             memory = UserMemory.query.filter_by(user_id=user_id).first()
 
             if not memory:
@@ -224,7 +227,8 @@ IMPORTANT :
                     _log_study_session(user_id, arguments)
 
             # Mettre à jour les métadonnées (streak, nb_interactions)
-            with app.app_context():
+            from app import app as _app
+            with _app.app_context():
                 memory = UserMemory.query.filter_by(user_id=user_id).first()
                 if memory:
                     _update_streak(memory)

@@ -15,7 +15,6 @@ import sys
 from threading import Lock, Thread
 from queue import Queue
 from collections import defaultdict
-from app import socketio
 from models import User, UserMemory
 from models import WhatsAppMessage
 # Import de la configuration IA centralisée

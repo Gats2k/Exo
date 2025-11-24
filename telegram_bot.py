@@ -1401,7 +1401,12 @@ def setup_telegram_bot():
         logger.info("Starting Telegram bot setup...")
 
         # Create the Application
-        application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
+        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not token:
+            logger.warning("TELEGRAM_BOT_TOKEN not set - skipping Telegram bot setup.")
+            return None
+
+        application = Application.builder().token(token).build()
 
         # Empêcher la fermeture auto de la boucle d'événements
         application._shutdown_asyncgens = False
@@ -1424,10 +1429,17 @@ def setup_telegram_bot():
         raise
 
 try:
-    application = setup_telegram_bot()
-    logger.info("Objet 'application' Telegram initialisé pour import.")
+    # Only attempt to initialize the Telegram bot if the env var requests it
+    run_telegram = os.environ.get('RUN_TELEGRAM_BOT', '').lower() in ('1', 'true', 'yes')
+    if run_telegram:
+        application = setup_telegram_bot()
+        if application:
+            logger.info("Objet 'application' Telegram initialisé pour import.")
+        else:
+            logger.info("Telegram application not created (no token).")
+    else:
+        application = None
+        logger.info("RUN_TELEGRAM_BOT not enabled - skipping Telegram setup.")
 except Exception as e:
     logger.error(f"Échec de l'initialisation de l'objet 'application' Telegram au chargement du module: {e}", exc_info=True)
-    # Gérer cette erreur critique - peut-être arrêter l'app?
-    # Pour l'instant, on logge et on continue, mais la route webhook plantera.
     application = None

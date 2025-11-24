@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enregistrer - Mathématiques - Exô</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/audio_styles_fixed.css') }}">
+</head>
+
+<body class="audio-page">
+    <!-- Bouton "Voir mes cours" en haut à droite -->
+    <a href="/lessons/mathematics" class="view-lessons-btn">
+        <i class="bi bi-journal-text"></i>
+        Voir mes cours
+    </a>
+
+    <div class="container">
+        <a href="/subjects" class="back-button">
+            <i class="bi bi-arrow-left"></i>
+            Retour aux matières
+        </a>
+
+        <div class="audio-container">
+            <div class="subject-icon">
+                <i class="bi bi-book"></i>
+            </div>
+
+            <h1 class="subject-title">Mathématiques</h1>
+
+            <p class="instruction-text">
+                Cliquez sur le bouton ci-dessous pour commencer l'enregistrement de votre cours
+            </p>
+
+            <button id="recordButton" class="record-button">
+                <div class="record-icon">
+                    <i class="bi bi-mic-fill"></i>
+                </div>
+                <span class="record-text">Enregistrer</span>
+            </button>
+
+            <div id="timer" class="timer">00:00</div>
+
+            <div id="actionButtons" class="action-buttons" style="display: none;">
+                <button id="stopButton" class="action-btn stop-btn">
+                    <i class="bi bi-stop-circle"></i>
+                    Arrêter
+                </button>
+            </div>
+
+            <div id="saveSection" class="save-section" style="display: none;">
+                <div class="audio-preview">
+                    <i class="bi bi-file-earmark-music"></i>
+                    <span id="audioInfo">Audio enregistré</span>
+                </div>
+                <div class="save-buttons">
+                    <button id="saveButton" class="action-btn save-btn">
+                        <i class="bi bi-check-circle"></i>
+                        Sauvegarder
+                    </button>
+                    <button id="cancelButton" class="action-btn cancel-btn">
+                        <i class="bi bi-x-circle"></i>
+                        Annuler
+                    </button>
+                </div>
+            </div>
+
+            <div id="statusMessage" class="status-message"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/subject_audio_recorder.js') }}"></script>
+    <script>
+        const subject = 'Mathématiques';
+        initAudioRecorder(subject);
+    </script>
+</body>
+
+</html>

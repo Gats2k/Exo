@@ -339,3 +339,39 @@ class ReminderLog(db.Model):
         db.Index('ix_reminder_log_sent_at', desc(sent_at)),
         db.Index('ix_reminder_log_status', 'status'),
     )
+
+class Lesson(db.Model):
+    """Table pour stocker les leçons enregistrées via audio par matière"""
+    __tablename__ = 'lesson'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    subject = db.Column(db.String(50), nullable=False)  # Mathématiques, Physique, Chimie, SVT
+    
+    # Audio
+    audio_filename = db.Column(db.String(255))  # Nom du fichier audio
+    audio_url = db.Column(db.String(512))  # URL si stocké en ligne
+    
+    # Transcription
+    original_transcript = db.Column(db.Text)  # Transcription brute de Groq Whisper
+    improved_transcript = db.Column(db.Text)  # Transcription améliorée par l'IA
+    
+    # Métadonnées
+    duration_seconds = db.Column(db.Integer)  # Durée en secondes
+    language = db.Column(db.String(10), default='fr')  # Langue détectée
+    status = db.Column(db.String(20), default='processing')  # processing, completed, failed
+    error_message = db.Column(db.Text)  # Message d'erreur si échec
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relations
+    user = db.relationship('User', backref=db.backref('lessons', lazy=True))
+    
+    # Index pour les requêtes fréquentes
+    __table_args__ = (
+        db.Index('ix_lesson_user_id_created_at', 'user_id', desc(created_at)),
+        db.Index('ix_lesson_subject', 'subject'),
+        db.Index('ix_lesson_status', 'status'),
+    )

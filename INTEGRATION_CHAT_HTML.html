@@ -1,0 +1,122 @@
+<!-- 
+MODIFICATIONS À APPORTER À chat.html pour intégrer l'enregistrement audio
+
+1. Dans la section <head>, ajouter les liens vers les fichiers CSS et JS :
+-->
+
+<!-- Ajouter dans le <head> après les autres fichiers CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/audio_styles.css') }}">
+
+<!-- Ajouter avant la fermeture du </body> -->
+<script src="{{ url_for('static', filename='js/audio_recorder.js') }}"></script>
+
+
+<!-- 
+2. Modifier la section input-actions-container (lignes 164-175) pour ajouter le bouton audio :
+-->
+
+<div class="input-actions-container">
+    <!-- Bouton de caméra existant -->
+    <label for="camera-input" class="input-action">
+        <i class="bi bi-camera"></i>
+        <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
+    </label>
+    
+    <!-- Bouton d'image existant -->
+    <label for="image-input" class="input-action">
+        <i class="bi bi-image"></i>
+        <input type="file" id="image-input" accept="image/*" style="display: none;">
+    </label>
+    
+    <!-- NOUVEAU : Bouton d'enregistrement audio -->
+    <button id="audio-record-btn" class="input-action" title="Enregistrer un cours vocal">
+        <i class="bi bi-mic"></i>
+    </button>
+    
+    <!-- Textarea et bouton d'envoi existants -->
+    <textarea rows="1" placeholder="Partagez votre exercise..."></textarea>
+    <button class="send-btn"><i class="bi bi-rocket-fill"></i></button>
+</div>
+
+
+<!-- 
+3. OPTIONNEL : Ajouter un visualiseur audio pendant l'enregistrement
+   Ajouter ce code après la div "input-container" :
+-->
+
+<!-- Visualiseur audio (optionnel) -->
+<div class="audio-visualizer" id="audioVisualizer">
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+</div>
+
+
+<!-- 
+4. RÉSUMÉ DES CHANGEMENTS :
+
+A. Dans <head> :
+   - Ajouter : <link rel="stylesheet" href="{{ url_for('static', filename='css/audio_styles.css') }}">
+
+B. Dans .input-actions-container (ligne ~164) :
+   - Ajouter le bouton audio entre le bouton image et le textarea
+   - Code : <button id="audio-record-btn" class="input-action" title="Enregistrer un cours vocal">
+             <i class="bi bi-mic"></i>
+           </button>
+
+C. Avant </body> :
+   - Ajouter : <script src="{{ url_for('static', filename='js/audio_recorder.js') }}"></script>
+
+D. Optionnel - Après .input-container :
+   - Ajouter le visualiseur audio pour un effet visuel pendant l'enregistrement
+-->
+
+
+<!-- 
+EXEMPLE DE STRUCTURE COMPLÈTE DE LA SECTION INPUT :
+-->
+
+<div class="input-container">
+    <div class="image-preview-container">
+        <!-- Image preview will be displayed here -->
+    </div>
+    <div class="input-actions-container">
+        <label for="camera-input" class="input-action">
+            <i class="bi bi-camera"></i>
+            <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
+        </label>
+        <label for="image-input" class="input-action">
+            <i class="bi bi-image"></i>
+            <input type="file" id="image-input" accept="image/*" style="display: none;">
+        </label>
+        
+        <!-- ✨ NOUVEAU BOUTON AUDIO ✨ -->
+        <button id="audio-record-btn" class="input-action" title="Enregistrer un cours vocal">
+            <i class="bi bi-mic"></i>
+        </button>
+        
+        <textarea rows="1" placeholder="Partagez votre exercise..."></textarea>
+        <button class="send-btn"><i class="bi bi-rocket-fill"></i></button>
+    </div>
+</div>
+
+<!-- ✨ NOUVEAU VISUALISEUR AUDIO (OPTIONNEL) ✨ -->
+<div class="audio-visualizer" id="audioVisualizer">
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+    <div class="audio-bar"></div>
+</div>
+
+
+<!-- 
+NOTES IMPORTANTES :
+- Les icônes utilisent Bootstrap Icons (bi-mic, bi-stop-circle)
+- Le bouton change d'apparence pendant l'enregistrement (classe "recording")
+- Les fichiers doivent être placés dans :
+  * static/css/audio_styles.css
+  * static/js/audio_recorder.js
+-->

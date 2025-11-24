@@ -2,28 +2,30 @@ import os
 import json
 import logging
 import time
+from typing import Optional
 from openai import OpenAI
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
 
 # ===================================
-# INITIALISATION DES CLIENTS IA
+# INITIALISATION DES CLIENTS IA (LAZY)
 # ===================================
 
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-deepseek_client = OpenAI(
-    api_key=os.getenv('DEEPSEEK_API_KEY'),
-    base_url="https://api.deepseek.com"
-)
-qwen_client = OpenAI(
-    api_key=os.getenv('DASHSCOPE_API_KEY'),
-    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-)
-gemini_openai_client = OpenAI(
-    api_key=os.getenv('GEMINI_API_KEY'),
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-)
+def _create_openai_client(api_key: Optional[str], base_url: Optional[str] = None) -> Optional[OpenAI]:
+    """Crée un client OpenAI si une clé est fournie, sinon retourne None."""
+    if not api_key:
+        return None
+    kwargs = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return OpenAI(**kwargs)
+
+# Cached clients (créés à la demande)
+openai_client: Optional[OpenAI] = None
+deepseek_client: Optional[OpenAI] = None
+qwen_client: Optional[OpenAI] = None
+gemini_openai_client: Optional[OpenAI] = None
 
 ASSISTANT_ID = os.getenv('OPENAI_ASSISTANT_ID')
 CONTEXT_MESSAGE_LIMIT = int(os.environ.get('CONTEXT_MESSAGE_LIMIT', '30'))
@@ -63,7 +65,14 @@ GEMINI_INSTRUCTIONS = load_instructions_from_file(
 # MODÈLE ACTUEL
 # ===================================
 
-CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+CURRENT_MODEL = os.environ.get('CURRENT_MODEL')
+if not CURRENT_MODEL:
+    # Favoriser Deepseek par défaut si une clé Deepseek est présente,
+    # sinon conserver le comportement historique ('openai').
+    if os.environ.get('DEEPSEEK_API_KEY'):
+        CURRENT_MODEL = 'deepseek'
+    else:
+        CURRENT_MODEL = 'openai'
 
 # ===================================
 # FONCTIONS DE SÉLECTION
@@ -71,14 +80,46 @@ CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
 
 def get_ai_client():
     """Retourne le client IA approprié selon le modèle actuel"""
+    global openai_client, deepseek_client, qwen_client, gemini_openai_client
+
+    # Deepseek models
     if CURRENT_MODEL in ['deepseek', 'deepseek-reasoner']:
+        if deepseek_client is None:
+            deepseek_client = _create_openai_client(os.getenv('DEEPSEEK_API_KEY'), base_url="https://api.deepseek.com")
+        if deepseek_client is None:
+            raise RuntimeError("Deepseek client not configured. Set DEEPSEEK_API_KEY or change CURRENT_MODEL.")
         return deepseek_client
-    elif CURRENT_MODEL == 'qwen':
+
+    # Qwen
+    if CURRENT_MODEL == 'qwen':
+        if qwen_client is None:
+            qwen_client = _create_openai_client(os.getenv('DASHSCOPE_API_KEY'), base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+        if qwen_client is None:
+            raise RuntimeError("Qwen client not configured. Set DASHSCOPE_API_KEY.")
         return qwen_client
-    elif CURRENT_MODEL == 'gemini':
+
+    # Gemini
+    if CURRENT_MODEL == 'gemini':
+        if gemini_openai_client is None:
+            gemini_openai_client = _create_openai_client(os.getenv('GEMINI_API_KEY'), base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+        if gemini_openai_client is None:
+            raise RuntimeError("Gemini client not configured. Set GEMINI_API_KEY.")
         return gemini_openai_client
-    else:
+
+    # Default / openai
+    if openai_client is None:
+        openai_client = _create_openai_client(os.getenv('OPENAI_API_KEY'))
+    if openai_client:
         return openai_client
+
+    # Fallback: if OpenAI not configured, prefer Deepseek if available
+    if os.getenv('DEEPSEEK_API_KEY'):
+        if deepseek_client is None:
+            deepseek_client = _create_openai_client(os.getenv('DEEPSEEK_API_KEY'), base_url="https://api.deepseek.com")
+        if deepseek_client:
+            return deepseek_client
+
+    raise RuntimeError("No AI client configured for CURRENT_MODEL='%s'. Set the appropriate API key in environment." % CURRENT_MODEL)
 
 
 def get_model_name():
@@ -115,7 +156,12 @@ def reload_model_settings():
     global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
 
     # Recharger le modèle depuis l'environnement
-    CURRENT_MODEL = os.environ.get('CURRENT_MODEL', 'openai')
+    CURRENT_MODEL = os.environ.get('CURRENT_MODEL')
+    if not CURRENT_MODEL:
+        if os.environ.get('DEEPSEEK_API_KEY'):
+            CURRENT_MODEL = 'deepseek'
+        else:
+            CURRENT_MODEL = 'openai'
 
     # Charger les instructions depuis les fichiers
     DEEPSEEK_INSTRUCTIONS = load_instructions_from_file(
@@ -154,9 +200,20 @@ def reload_model_settings():
     try:
         with open(config_file_path, 'w') as f:
             json.dump(config_data, f)
+        # S'assurer que le fichier a les permissions correctes (skippé sous Windows)
+        try:
+            if os.name != 'nt':
+                os.chmod(config_file_path, 0o666)
+        except Exception:
+            # Ne pas faire échouer la recharge pour des erreurs de permissions
+            logger.debug("Could not chmod ai_config.json; continuing.")
 
-        # S'assurer que le fichier a les permissions correctes
-        os.chmod(config_file_path, 0o666)
+        # Clear cached clients so they will be re-created lazily with new env vars
+        global openai_client, deepseek_client, qwen_client, gemini_openai_client
+        openai_client = None
+        deepseek_client = None
+        qwen_client = None
+        gemini_openai_client = None
 
         logger.info(f"AI model settings saved to {config_file_path}: {CURRENT_MODEL}")
     except Exception as e:

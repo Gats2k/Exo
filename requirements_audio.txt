@@ -1,0 +1,16 @@
+# Dépendance à ajouter pour la fonctionnalité d'enregistrement audio
+
+# API Groq pour la transcription Whisper
+groq>=0.4.0
+
+# ======================================
+# Pour l'ajouter à votre requirements.txt existant :
+# ======================================
+# Ajoutez simplement cette ligne à votre fichier requirements.txt :
+# groq>=0.4.0
+#
+# Puis installez avec :
+# pip install groq
+#
+# ou
+# pip install -r requirements.txt
