@@ -86,7 +86,8 @@ def execute_chat_completion(
     stream: bool = False,
     socketio_emitter = None,
     message_id = None,
-    add_system_instructions: bool = True  # <-- NOUVEAU PARAMÈTRE
+    add_system_instructions: bool = True,  # <-- NOUVEAU PARAMÈTRE
+    context: str = 'chat'  # <-- NOUVEAU: contexte pour les instructions
 ) -> Optional[str]:
     """
     Exécute un appel Chat Completion pour les modèles non-OpenAI.
@@ -98,6 +99,7 @@ def execute_chat_completion(
         socketio_emitter: Objet socketio pour émettre (si stream=True)
         message_id: ID du message pour l'émission (si stream=True)
         add_system_instructions: Si True, ajoute les instructions système par défaut.
+        context: Contexte d'utilisation ('chat' ou 'lesson')
 
     Returns:
         - Si stream=False: retourne la réponse complète (string)
@@ -115,7 +117,7 @@ def execute_chat_completion(
             raise ValueError(f"Model name not found for {current_model}")
 
         # 2. Préparer les messages en ajoutant les instructions système SEULEMENT SI DEMANDÉ
-        system_prompt = get_system_instructions() if add_system_instructions else None
+        system_prompt = get_system_instructions(context=context) if add_system_instructions else None
 
         final_messages = prepare_messages_for_api(
             messages_history,
@@ -124,7 +126,7 @@ def execute_chat_completion(
         )
 
         # 3. Appeler l'API
-        logger.debug(f"Calling API with model={model_name}, stream={stream}")
+        logger.debug(f"Calling API with model={model_name}, stream={stream}, context={context}")
         response = ai_client.chat.completions.create(
             model=model_name,
             messages=final_messages,

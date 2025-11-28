@@ -70,12 +70,13 @@ Commence directement par le cours amélioré sans introduction comme "Voici le c
             {"role": "user", "content": improvement_prompt}
         ]
         
-        # Obtenir la réponse de l'IA avec execute_chat_completion
+        # Obtenir la réponse de l'IA avec execute_chat_completion en mode LESSON (ton factuel)
         improved_text = execute_chat_completion(
             messages_history=messages_history,
             current_model=CURRENT_MODEL,
             stream=False,
-            add_system_instructions=True
+            add_system_instructions=True,
+            context='lesson'  # <-- Utiliser le contexte LESSON pour un ton factuel
         )
         
         if improved_text:
@@ -87,7 +88,7 @@ Commence directement par le cours amélioré sans introduction comme "Voici le c
                 'improved_text': improved_text
             }
         else:
-            logger.error(f"❌ Erreur lors de l'amélioration: Réponse vide")
+            logger.error(f"❌ Erreur lors du l'amélioration: Réponse vide")
             return {
                 'success': False,
                 'error': 'Réponse IA vide'
@@ -389,3 +390,71 @@ def save_lesson_from_audio(audio_file, subject: str, user_id: int) -> dict:
         if temp_audio_path:
             cleanup_audio_file(temp_audio_path)
             logger.info("🧹 Fichier temporaire nettoyé")
+
+
+@login_required
+def handle_transcribe_only():
+    """
+    Route Flask pour transcrire un fichier audio sans le sauvegarder comme leçon.
+    Utilisé pour la dictée vocale dans le chat.
+    
+    Returns:
+        JSON response avec le texte transcrit
+    """
+    try:
+        # Vérifier que le service est disponible
+        if not is_audio_service_available():
+            return jsonify({
+                'success': False,
+                'error': 'Service de transcription audio non disponible'
+            }), 503
+        
+        # Vérifier qu'un fichier audio a été envoyé
+        if 'audio' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'Aucun fichier audio trouvé'
+            }), 400
+        
+        audio_file = request.files['audio']
+        
+        if audio_file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'Nom de fichier vide'
+            }), 400
+        
+        logger.info(f"🎙️ Réception audio pour dictée: {audio_file.filename}")
+        
+        # Sauvegarder le fichier audio temporairement
+        temp_audio_path = save_uploaded_audio(audio_file, audio_file.filename)
+        
+        try:
+            # Transcrire l'audio avec Groq Whisper
+            logger.info("📝 Transcription (dictée) en cours...")
+            transcription_result = transcribe_audio_groq(temp_audio_path, language="fr")
+            
+            if not transcription_result.get('success'):
+                return jsonify({
+                    'success': False,
+                    'error': transcription_result.get('error', 'Erreur de transcription')
+                }), 500
+            
+            transcript = transcription_result.get('text', '')
+            logger.info(f"✅ Dictée réussie: {len(transcript)} caractères")
+            
+            return jsonify({
+                'success': True,
+                'transcript': transcript
+            })
+        
+        finally:
+            # Nettoyer le fichier temporaire
+            cleanup_audio_file(temp_audio_path)
+    
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la dictée: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Erreur serveur: {str(e)}'
+        }), 500

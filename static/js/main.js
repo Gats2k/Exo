@@ -1,4 +1,4 @@
-window.toggleSubjectsMenu = function(event) {
+window.toggleSubjectsMenu = function (event) {
     event.stopPropagation();
     const navItem = event.currentTarget;
     const dropdown = navItem.querySelector('.subjects-dropdown');
@@ -17,7 +17,7 @@ window.toggleSubjectsMenu = function(event) {
 };
 
 // Define functions in global scope
-window.toggleDropdown = function(id, event) {
+window.toggleDropdown = function (id, event) {
     event.stopPropagation();
     const dropdown = document.getElementById(`dropdown-${id}`);
     const allDropdowns = document.querySelectorAll('.dropdown-menu');
@@ -31,7 +31,7 @@ window.toggleDropdown = function(id, event) {
     dropdown.classList.toggle('show');
 };
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Récupérer les éléments existants
     const sidebar = document.querySelector('.sidebar');
     const mortarboardIcon = document.querySelector('.bi-mortarboard');
@@ -56,62 +56,62 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Ajouter le code d'initialisation du menu utilisateur
     const userMenuButton = document.getElementById('userMenuButton');
     const userMenuDropdown = document.getElementById('userMenuDropdown');
 
     if (userMenuButton && userMenuDropdown) {
-        userMenuButton.addEventListener('click', function(e) {
+        userMenuButton.addEventListener('click', function (e) {
             e.stopPropagation();
             userMenuDropdown.classList.toggle('show');
         });
-// Fonction pour vérifier et récupérer les messages dont le streaming s'est arrêté
-function checkStalledStream(messageId) {
-    const streamInfo = activeStreamMessages[messageId];
+        // Fonction pour vérifier et récupérer les messages dont le streaming s'est arrêté
+        function checkStalledStream(messageId) {
+            const streamInfo = activeStreamMessages[messageId];
 
-    // Si le message n'est plus en mode streaming, ne rien faire
-    if (!streamInfo) {
-        return;
-    }
-
-    console.log(`Attempting to recover stalled message ${messageId}`);
-
-    // Récupérer le message complet depuis le serveur
-    fetch(`/api/recover_message/${messageId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.content) {
-                // Vérifier si le contenu récupéré est différent de ce que nous avons déjà
-                if (data.content !== streamInfo.content) {
-                    // Mettre à jour le contenu avec la réponse complète
-                    streamInfo.content = data.content;
-                    streamInfo.element.innerHTML = data.content.replace(/\n/g, '<br>');
-                    console.log(`Stalled message ${messageId} recovered successfully`);
-
-                    // Ajouter une classe pour indiquer que le message a été récupéré
-                    streamInfo.element.closest('.message').classList.add('recovered');
-                }
+            // Si le message n'est plus en mode streaming, ne rien faire
+            if (!streamInfo) {
+                return;
             }
 
-            // Même si on n'a pas récupéré de contenu, considérer le streaming comme terminé
-            // pour éviter que le message reste en état de chargement indéfiniment
-            delete activeStreamMessages[messageId];
-        })
-        .catch(error => {
-            console.error(`Failed to recover stalled message ${messageId}:`, error);
+            console.log(`Attempting to recover stalled message ${messageId}`);
 
-            // En cas d'échec, quand même terminer le streaming pour ne pas bloquer l'interface
-            delete activeStreamMessages[messageId];
+            // Récupérer le message complet depuis le serveur
+            fetch(`/api/recover_message/${messageId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.content) {
+                        // Vérifier si le contenu récupéré est différent de ce que nous avons déjà
+                        if (data.content !== streamInfo.content) {
+                            // Mettre à jour le contenu avec la réponse complète
+                            streamInfo.content = data.content;
+                            streamInfo.element.innerHTML = formatMessageContent(data.content);
+                            console.log(`Stalled message ${messageId} recovered successfully`);
 
-            // Ajouter une indication visuelle que le message est incomplet
-            streamInfo.element.closest('.message').classList.add('incomplete');
-            streamInfo.element.innerHTML += '<div class="error-notice">⚠️ Message incomplet, actualisez la page pour réessayer</div>';
-        });
-}
+                            // Ajouter une classe pour indiquer que le message a été récupéré
+                            streamInfo.element.closest('.message').classList.add('recovered');
+                        }
+                    }
+
+                    // Même si on n'a pas récupéré de contenu, considérer le streaming comme terminé
+                    // pour éviter que le message reste en état de chargement indéfiniment
+                    delete activeStreamMessages[messageId];
+                })
+                .catch(error => {
+                    console.error(`Failed to recover stalled message ${messageId}:`, error);
+
+                    // En cas d'échec, quand même terminer le streaming pour ne pas bloquer l'interface
+                    delete activeStreamMessages[messageId];
+
+                    // Ajouter une indication visuelle que le message est incomplet
+                    streamInfo.element.closest('.message').classList.add('incomplete');
+                    streamInfo.element.innerHTML += '<div class="error-notice">⚠️ Message incomplet, actualisez la page pour réessayer</div>';
+                });
+        }
 
         // Fermer le menu si on clique ailleurs sur la page
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (!userMenuButton.contains(e.target) && !userMenuDropdown.contains(e.target)) {
                 userMenuDropdown.classList.remove('show');
             }
@@ -119,7 +119,7 @@ function checkStalledStream(messageId) {
     }
 });
 
-window.startRename = function(id, event) {
+window.startRename = function (id, event) {
     event.preventDefault();
     event.stopPropagation();
 
@@ -136,7 +136,7 @@ window.startRename = function(id, event) {
     document.getElementById(`dropdown-${id}`).classList.remove('show');
 };
 
-window.handleTitleKeydown = function(event, id) {
+window.handleTitleKeydown = function (event, id) {
     if (event.key === 'Enter') {
         event.preventDefault();
         const input = event.target;
@@ -162,7 +162,7 @@ window.handleTitleKeydown = function(event, id) {
     }
 };
 
-window.deleteConversation = function(id, event) {
+window.deleteConversation = function (id, event) {
     event.preventDefault();
     event.stopPropagation();
     if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
@@ -173,9 +173,9 @@ window.deleteConversation = function(id, event) {
     }
 };
 
-window.openConversation = function(id, event, isTelegram, isWhatsApp) {
+window.openConversation = function (id, event, isTelegram, isWhatsApp) {
     if (!event.target.closest('.dropdown') && !event.target.closest('.title-input')) {
-        window.socket.emit('open_conversation', { 
+        window.socket.emit('open_conversation', {
             id: id,
             is_telegram: isTelegram || false,
             is_whatsapp: isWhatsApp || false
@@ -185,39 +185,39 @@ window.openConversation = function(id, event, isTelegram, isWhatsApp) {
 
 function setupHeartbeat() {
     // Envoyer un ping toutes les 15 secondes pour maintenir la connexion active
-    const heartbeatInterval = setInterval(function() {
+    const heartbeatInterval = setInterval(function () {
         if (socket.connected) {
             socket.emit('heartbeat');
             console.log('Heartbeat envoyé');
 
             // Actualiser le cookie de session
-            fetch('/refresh_session', { 
+            fetch('/refresh_session', {
                 method: 'POST',
                 credentials: 'same-origin'
             })
-            .then(response => {
-                if (!response.ok) {
-                    console.warn('Échec du rafraîchissement de session, statut:', response.status);
-                    // Si le serveur répond avec une erreur, forcer une reconnexion
-                    if (response.status === 401 || response.status === 403) {
-                        console.log('Session expirée, tentative de restauration...');
-                        // Tenter de restaurer la session avec le thread_id stocké localement
-                        const storedThreadId = localStorage.getItem('thread_id');
-                        if (storedThreadId) {
-                            socket.emit('restore_session', { thread_id: storedThreadId });
+                .then(response => {
+                    if (!response.ok) {
+                        console.warn('Échec du rafraîchissement de session, statut:', response.status);
+                        // Si le serveur répond avec une erreur, forcer une reconnexion
+                        if (response.status === 401 || response.status === 403) {
+                            console.log('Session expirée, tentative de restauration...');
+                            // Tenter de restaurer la session avec le thread_id stocké localement
+                            const storedThreadId = localStorage.getItem('thread_id');
+                            if (storedThreadId) {
+                                socket.emit('restore_session', { thread_id: storedThreadId });
+                            }
                         }
                     }
-                }
-            })
-            .catch(error => {
-                console.error('Erreur lors du rafraîchissement de session:', error);
-            });
+                })
+                .catch(error => {
+                    console.error('Erreur lors du rafraîchissement de session:', error);
+                });
         } else {
             console.log('Socket déconnecté, tentative de reconnexion...');
             socket.connect();
 
             // Après reconnexion, tenter de restaurer le thread actif
-            socket.once('connect', function() {
+            socket.once('connect', function () {
                 console.log('Reconnecté, tentative de restauration du thread...');
                 const storedThreadId = localStorage.getItem('thread_id');
                 if (storedThreadId) {
@@ -229,12 +229,12 @@ function setupHeartbeat() {
     }, 15000);
 
     // Nettoyer l'intervalle quand l'utilisateur quitte la page
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function () {
         clearInterval(heartbeatInterval);
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Détecter si nous sommes sur la page admin ou la page chat
     const isAdminPage = window.location.pathname.includes('/admin');
 
@@ -242,6 +242,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const socket = io();
     // Make socket available globally for our conversation functions
     window.socket = socket;
+
+    // Configurer marked.js
+    if (window.marked) {
+        marked.setOptions({
+            breaks: true, // Convertir les sauts de ligne en <br>
+            gfm: true,    // GitHub Flavored Markdown
+            headerIds: false,
+            mangle: false
+        });
+    }
+
+    // Fonction utilitaire pour formater le contenu des messages
+    function formatMessageContent(content) {
+        if (!content) return '';
+        if (window.marked) {
+            return marked.parse(content);
+        }
+        return content.replace(/\n/g, '<br>');
+    }
 
     let restoreTimeoutId = null; // Variable pour gérer le timeout de restauration
 
@@ -257,21 +276,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Démarrer timeout : si rien après 3s, afficher l'accueil
             restoreTimeoutId = setTimeout(() => {
-                 console.warn('[DEBUG JS] Timeout de restauration atteint (3s). Affichage de l\'accueil.');
-                 if(chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
-                 showWelcomeScreen(); // Afficher l'état d'accueil
+                console.warn('[DEBUG JS] Timeout de restauration atteint (3s). Affichage de l\'accueil.');
+                if (chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
+                showWelcomeScreen(); // Afficher l'état d'accueil
             }, 3000);
 
         } else {
             // Aucun ID : Afficher l'accueil immédiatement
             console.log('[DEBUG JS] Aucun thread_id trouvé. Affichage de l\'accueil.');
-            if(chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
+            if (chatContainer) chatContainer.classList.remove('initially-hidden'); // <-- Agir sur chatContainer
             showWelcomeScreen();
         }
     });
 
     // Ajouter après le login réussi dans le code existant
-    socket.on('login_success', function(data) {
+    socket.on('login_success', function (data) {
         // Stocker l'ID utilisateur dans le localStorage
         if (data.user_id) {
             localStorage.setItem('user_id', data.user_id);
@@ -279,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Gérer la reconnexion pour préserver le contexte
-    socket.on('reconnect', function() {
+    socket.on('reconnect', function () {
         console.log('Reconnecté au serveur, récupération de la conversation');
 
         // Si nous avons un thread_id dans la session stockée localement, réutilisons-le
@@ -307,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Ajouter un écouteur pour la confirmation de restauration de session
-    socket.on('conversation_opened', function(data) {
+    socket.on('conversation_opened', function (data) {
         if (data.success) {
             console.log('Session restaurée avec succès');
         }
@@ -344,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastActiveTime = Date.now();
 
     // Surveiller la visibilité de la page
-    document.addEventListener('visibilitychange', function() {
+    document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') {
             pageVisibilityState = 'hidden';
             console.log('Page mise en arrière-plan');
@@ -371,13 +390,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mettre à jour le temps d'activité lors des interactions utilisateur
     ['click', 'keydown', 'scroll', 'mousemove', 'touchstart'].forEach(eventType => {
-        document.addEventListener(eventType, function() {
+        document.addEventListener(eventType, function () {
             lastActiveTime = Date.now();
         }, { passive: true });
     });
 
     // Vérifier périodiquement l'état de la page et du thread
-    setInterval(function() {
+    setInterval(function () {
         // Si la page est visible et le socket est connecté
         if (pageVisibilityState === 'visible' && socket.connected) {
             // Vérifier si un thread_id est stocké localement
@@ -518,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleImageUpload(file) {
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 const base64Image = e.target.result;
 
                 // Ouvrir le modal de recadrage
@@ -546,7 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cropModal.style.display = 'flex';
 
         // Initialiser Cropper.js après que l'image soit chargée
-        cropImage.onload = function() {
+        cropImage.onload = function () {
             if (cropper) {
                 cropper.destroy();
             }
@@ -632,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Rendre la fonction removeImage capable de nettoyer le cropper si nécessaire
-    window.removeImage = function() {
+    window.removeImage = function () {
         currentImage = null;
         imagePreviewContainer.innerHTML = '';
         imagePreviewContainer.classList.remove('visible');
@@ -643,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    cameraInput.addEventListener('change', function(e) {
+    cameraInput.addEventListener('change', function (e) {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
         }
@@ -651,7 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
         this.value = '';
     });
 
-    imageInput.addEventListener('change', function(e) {
+    imageInput.addEventListener('change', function (e) {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
         }
@@ -737,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    socket.on('receive_message', function(data) {
+    socket.on('receive_message', function (data) {
         removeLoadingIndicator();
 
         // Vérifier si ce message est déjà géré par le streaming
@@ -753,7 +772,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.image) {
             content += `<img src="${data.image}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
         }
-        content += data.message.replace(/\n/g, '<br>');
+        content += formatMessageContent(data.message);
 
         // Déterminer si un feedback existe déjà
         const feedbackPositive = data.feedback === 'positive';
@@ -791,13 +810,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Gestion de l'événement de limite atteinte
-    socket.on('limit_exceeded', function(data) {
+    socket.on('limit_exceeded', function (data) {
         // Afficher une notification à l'utilisateur
         showLimitExceededModal(data);
     });
 
     // Nouvel événement pour indiquer le début d'un message streamé
-    socket.on('message_started', function(data) {
+    socket.on('message_started', function (data) {
         removeLoadingIndicator();
 
         // Créer un nouvel élément de message pour le streaming
@@ -844,7 +863,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Nouvel événement pour recevoir les chunks de réponse en streaming
-    socket.on('response_stream', function(data) {
+    socket.on('response_stream', function (data) {
         // Vérifier si nous avons le message enregistré
         if (!activeStreamMessages[data.message_id]) {
             console.error('Received stream for unknown message:', data.message_id);
@@ -870,7 +889,7 @@ document.addEventListener('DOMContentLoaded', function() {
             streamInfo.lastUpdate = Date.now();
 
             // Mettre à jour l'affichage
-            contentElement.innerHTML = streamInfo.content.replace(/\n/g, '<br>');
+            contentElement.innerHTML = formatMessageContent(streamInfo.content);
         }
 
         // Si c'est le message final, terminer le streaming
@@ -878,14 +897,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Si un message complet est fourni, l'utiliser
             if (data.full_response) {
                 streamInfo.content = data.full_response;
-                contentElement.innerHTML = streamInfo.content.replace(/\n/g, '<br>');
+                contentElement.innerHTML = formatMessageContent(streamInfo.content);
             }
 
             // Nettoyer les informations de streaming
             delete activeStreamMessages[data.message_id];
         } else {
             // Configurer un timer pour détecter les streamings bloqués (10 secondes sans mises à jour)
-            streamInfo.timeoutId = setTimeout(function() {
+            streamInfo.timeoutId = setTimeout(function () {
                 console.log(`Streaming potentially stalled for message ${data.message_id}, attempting recovery...`);
                 checkStalledStream(data.message_id);
             }, 10000);
@@ -896,7 +915,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Listen for conversation updates
-    socket.on('conversation_updated', function(data) {
+    socket.on('conversation_updated', function (data) {
         if (data.success) {
             // UI already updated in handleTitleKeydown for the sidebar item, 
             // but we should also update the header title if this is the currently open conversation
@@ -919,14 +938,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    socket.on('conversation_deleted', function(data) {
+    socket.on('conversation_deleted', function (data) {
         if (data.success) {
             // UI already updated in deleteConversation
             console.log('Conversation deleted successfully');
         }
     });
 
-    socket.on('conversation_opened', function(data) {
+    socket.on('conversation_opened', function (data) {
         if (data.success) {
 
             clearTimeout(restoreTimeoutId);
@@ -937,7 +956,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 elementCible.classList.remove('initially-hidden');
                 console.log('[DEBUG JS conversation_opened] Classe initially-hidden retirée.');
             } else {
-                 console.error('[DEBUG JS conversation_opened] Element cible pour remove(initially-hidden) non trouvé!');
+                console.error('[DEBUG JS conversation_opened] Element cible pour remove(initially-hidden) non trouvé!');
             }
 
             // Clear current messages
@@ -948,14 +967,14 @@ document.addEventListener('DOMContentLoaded', function() {
             titleElement.textContent = data.title;
 
             // Sauvegarder le VRAI thread_id dans le stockage local
-           if (data.thread_id) { // <-- Vérifier data.thread_id (la chaîne alphanumérique)
-               console.log(`[DEBUG JS conversation_opened] Stockage localStorage thread_id: "${data.thread_id}"`);
-               localStorage.setItem('thread_id', data.thread_id); // <-- Stocker le VRAI thread_id
-           } else {
+            if (data.thread_id) { // <-- Vérifier data.thread_id (la chaîne alphanumérique)
+                console.log(`[DEBUG JS conversation_opened] Stockage localStorage thread_id: "${data.thread_id}"`);
+                localStorage.setItem('thread_id', data.thread_id); // <-- Stocker le VRAI thread_id
+            } else {
                 // Log d'erreur si le thread_id attendu n'est pas reçu
                 console.warn('[DEBUG JS conversation_opened] Pas de thread_id reçu dans les données, localStorage non mis à jour. Vérifiez l\'émission backend !', data);
                 // Ne PAS stocker data.conversation_id ici, car ce serait incorrect.
-           }
+            }
 
             // Add each message from the conversation history
             data.messages.forEach(msg => {
@@ -967,7 +986,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (msg.image_url) {
                     content += `<img src="${msg.image_url}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>`;
                 }
-                content += msg.content.replace(/\n/g, '<br>');
+                content += formatMessageContent(msg.content);
 
                 messageDiv.innerHTML = `
                     <div class="message-content">
@@ -1224,43 +1243,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Tenter de récupérer le contenu du message
                     fetch(`/api/recover_message/${messageId}`)
-                    .then(response => {
-                        // Vérifier si la requête a réussi (status 2xx) ET si le contenu JSON indique un succès
-                        if (response.ok) {
-                            return response.json().then(data => {
-                                if (data.success && data.content) {
-                                    // Mettre à jour le contenu du message
-                                    contentDiv.innerHTML = data.content.replace(/\n/g, '<br>');
-                                    messageDiv.classList.remove('recovered-failed'); // Retirer l'échec si réussi
-                                    console.log(`Message ${messageId} récupéré avec succès via API.`);
-                                } else {
-                                    // Succès HTTP mais contenu non trouvé dans le JSON
-                                    console.warn(`API /recover_message a retourné success:false pour ${messageId}. Contenu non disponible.`);
-                                    contentDiv.innerHTML = '[Contenu non disponible]';
-                                    messageDiv.classList.add('recovered-failed'); // Marquer comme échec
-                                }
-                            });
-                        } else {
-                            // Gérer les erreurs HTTP (ex: 404 Not Found)
-                            console.error(`Erreur HTTP ${response.status} lors de la récupération du message ${messageId}.`);
-                            contentDiv.innerHTML = `[Erreur ${response.status}]`;
+                        .then(response => {
+                            // Vérifier si la requête a réussi (status 2xx) ET si le contenu JSON indique un succès
+                            if (response.ok) {
+                                return response.json().then(data => {
+                                    if (data.success && data.content) {
+                                        // Mettre à jour le contenu du message
+                                        contentDiv.innerHTML = data.content.replace(/\n/g, '<br>');
+                                        messageDiv.classList.remove('recovered-failed'); // Retirer l'échec si réussi
+                                        console.log(`Message ${messageId} récupéré avec succès via API.`);
+                                    } else {
+                                        // Succès HTTP mais contenu non trouvé dans le JSON
+                                        console.warn(`API /recover_message a retourné success:false pour ${messageId}. Contenu non disponible.`);
+                                        contentDiv.innerHTML = '[Contenu non disponible]';
+                                        messageDiv.classList.add('recovered-failed'); // Marquer comme échec
+                                    }
+                                });
+                            } else {
+                                // Gérer les erreurs HTTP (ex: 404 Not Found)
+                                console.error(`Erreur HTTP ${response.status} lors de la récupération du message ${messageId}.`);
+                                contentDiv.innerHTML = `[Erreur ${response.status}]`;
+                                messageDiv.classList.add('recovered-failed'); // Marquer comme échec
+                                // Pas besoin de rejeter ici, on gère l'erreur directement
+                            }
+                        })
+                        .catch(error => {
+                            // Gérer les erreurs réseau ou de parsing JSON
+                            console.error(`Erreur réseau ou parsing lors de la récupération du message ${messageId}:`, error);
+                            contentDiv.innerHTML = '[Erreur réseau]';
                             messageDiv.classList.add('recovered-failed'); // Marquer comme échec
-                            // Pas besoin de rejeter ici, on gère l'erreur directement
-                        }
-                    })
-                    .catch(error => {
-                        // Gérer les erreurs réseau ou de parsing JSON
-                        console.error(`Erreur réseau ou parsing lors de la récupération du message ${messageId}:`, error);
-                        contentDiv.innerHTML = '[Erreur réseau]';
-                        messageDiv.classList.add('recovered-failed'); // Marquer comme échec
-                    });
+                        });
                 }
             }
         });
     }
 
     // Gestionnaire d'événement amélioré pour new_conversation (AVEC LOGS DE DEBUG)
-    socket.on('new_conversation', function(data) {
+    socket.on('new_conversation', function (data) {
         // --- DEBUT DEBUG ---
         console.log('[DEBUG] Event "new_conversation" RECU. Données:', JSON.stringify(data));
         // --- FIN DEBUG ---
@@ -1390,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     sendBtn.addEventListener('click', sendMessage);
 
-    input.addEventListener('keydown', function(e) {
+    input.addEventListener('keydown', function (e) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         if (e.key === 'Enter') {
@@ -1438,20 +1457,20 @@ document.addEventListener('DOMContentLoaded', function() {
         textarea.setSelectionRange(selectionStart, selectionEnd);
     }
 
-    input.addEventListener('input', function() {
+    input.addEventListener('input', function () {
         adjustTextareaHeight(this);
     });
 
     const actionButtons = document.querySelectorAll('.action-btn');
     actionButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             button.classList.toggle('active');
         });
     });
 
 
     // Close dropdowns when clicking outside
-    document.addEventListener('click', function(event) {
+    document.addEventListener('click', function (event) {
         if (!event.target.closest('.dropdown')) {
             document.querySelectorAll('.dropdown-menu').forEach(menu => {
                 menu.classList.remove('show');
@@ -1469,8 +1488,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Close subjects dropdown when sidebar closes
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
+    const observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
             if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
                 if (!sidebar.classList.contains('visible')) {
                     document.querySelectorAll('.subjects-dropdown').forEach(dropdown => {
@@ -1492,7 +1511,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add handler for new conversation button
     const newConversationBtn = document.querySelector('.new-conversation-btn');
     if (newConversationBtn) {
-        newConversationBtn.addEventListener('click', function() {
+        newConversationBtn.addEventListener('click', function () {
 
             showWelcomeScreen(); // Appel unique pour réinitialiser l'UI
 
@@ -1505,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Listen for session cleared confirmation
-    socket.on('session_cleared', function(data) {
+    socket.on('session_cleared', function (data) {
         if (data.success) {
             console.log('Session cleared successfully');
 
@@ -1521,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Listen for feedback submission confirmation
-    socket.on('feedback_submitted', function(data) {
+    socket.on('feedback_submitted', function (data) {
         if (data.success) {
             console.log('Feedback submitted successfully');
             // Le feedback a été enregistré avec succès dans la base de données
@@ -1530,7 +1549,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add event handlers for feedback buttons
-    document.addEventListener('click', function(event) {
+    document.addEventListener('click', function (event) {
         const feedbackBtn = event.target.closest('.feedback-btn');
         if (feedbackBtn) {
             event.preventDefault();

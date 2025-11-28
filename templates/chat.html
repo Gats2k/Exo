@@ -34,13 +34,13 @@
         <h6 class="history-section-title">Historique récent</h6>
         <div class="recent-history">
             {% for item in conversation_history %}
-            <div class="history-item {% if item.is_telegram %}telegram-item{% endif %}{% if item.is_whatsapp %}whatsapp-item{% endif %}" onclick="openConversation('{{ item.id }}', event, {% if item.is_telegram %}true{% else %}false{% endif %}, {% if item.is_whatsapp %}true{% else %}false{% endif %})">
+            <div class="history-item {% if item.is_telegram %}telegram-item{% endif %}{% if item.is_whatsapp %}whatsapp-item{% endif %}"
+                onclick="openConversation('{{ item.id }}', event, {% if item.is_telegram %}true{% else %}false{% endif %}, {% if item.is_whatsapp %}true{% else %}false{% endif %})">
                 <div class="history-content">
                     <div class="history-title" id="title-{{ item.id }}">{{ item.title }}</div>
                     <div class="history-title-edit" id="edit-{{ item.id }}" style="display: none;">
-                        <input type="text" class="title-input" value="{{ item.title }}" 
-                               onkeydown="handleTitleKeydown(event, '{{ item.id }}')"
-                               onclick="event.stopPropagation()">
+                        <input type="text" class="title-input" value="{{ item.title }}"
+                            onkeydown="handleTitleKeydown(event, '{{ item.id }}')" onclick="event.stopPropagation()">
                     </div>
                     <div class="history-subject">{{ item.subject }}</div>
                 </div>
@@ -77,9 +77,9 @@
             <div class="conversation-title-container">
                 <div class="conversation-title">
                     {% if history %}
-                        {{ conversation.title if conversation and conversation.title else "Nouvelle conversation" }}
+                    {{ conversation.title if conversation and conversation.title else "Nouvelle conversation" }}
                     {% else %}
-                        Nouvelle conversation
+                    Nouvelle conversation
                     {% endif %}
                 </div>
                 <button class="new-conversation-btn" title="Nouvelle conversation">
@@ -101,7 +101,7 @@
             </div>
         </div>
 
-        
+
         <div class="chat-container initially-hidden">
             <div class="welcome-container">
                 <h1 class="welcome-title">Bienvenue sur Exô</h1>
@@ -113,16 +113,19 @@
                     <div class="message {{ msg.role }}">
                         <div class="message-content">
                             {% if msg.image_url %}
-                            <img src="{{ msg.image_url }}" style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>
+                            <img src="{{ msg.image_url }}"
+                                style="max-width: 200px; border-radius: 4px; margin-bottom: 8px;"><br>
                             {% endif %}
                             {{ msg.content | safe }}
                         </div>
                         {% if msg.role == 'assistant' %}
                         <div class="message-feedback">
-                            <button class="feedback-btn thumbs-up" data-message-id="{{ msg.id }}" data-feedback-type="positive">
+                            <button class="feedback-btn thumbs-up" data-message-id="{{ msg.id }}"
+                                data-feedback-type="positive">
                                 <i class="bi bi-hand-thumbs-up"></i>
                             </button>
-                            <button class="feedback-btn thumbs-down" data-message-id="{{ msg.id }}" data-feedback-type="negative">
+                            <button class="feedback-btn thumbs-down" data-message-id="{{ msg.id }}"
+                                data-feedback-type="negative">
                                 <i class="bi bi-hand-thumbs-down"></i>
                             </button>
                         </div>
@@ -155,6 +158,10 @@
                 <!-- Image preview will be displayed here -->
             </div>
             <div class="input-actions-container">
+                <!-- Bouton d'enregistrement audio -->
+                <button class="input-action" id="audioRecordBtn" title="Enregistrer un cours">
+                    <i class="bi bi-mic-fill"></i>
+                </button>
                 <label for="camera-input" class="input-action">
                     <i class="bi bi-camera"></i>
                     <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
@@ -188,5 +195,21 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal d'enregistrement audio supprimé (remplacé par dictée directe) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/markdown_styles.css') }}">
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chat_audio_recorder.js') }}"></script>
+<script>
+    // Initialiser le gestionnaire d'enregistrement audio pour le chat
+    document.addEventListener('DOMContentLoaded', function () {
+        initChatAudioRecorder();
+    });
+</script>
 {% endblock %}

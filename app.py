@@ -219,6 +219,13 @@ def audio_upload():
     """Route pour uploader et traiter un fichier audio"""
     return handle_audio_upload()
 
+@app.route('/api/transcribe-only', methods=['POST'])
+@login_required
+def transcribe_only():
+    """Route pour transcrire l'audio sans sauvegarder de leçon (dictée)"""
+    from audio_handler import handle_transcribe_only
+    return handle_transcribe_only()
+
 @app.route('/privacy-policy')
 def privacy_policy():
     """Privacy Policy page"""

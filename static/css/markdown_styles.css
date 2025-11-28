@@ -1,0 +1,100 @@
+/* ===== STYLES MARKDOWN ===== */
+.message-content h1,
+.lesson-text h1,
+.message-content h2,
+.lesson-text h2,
+.message-content h3,
+.lesson-text h3 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.message-content h1,
+.lesson-text h1 {
+    font-size: 1.5em;
+}
+
+.message-content h2,
+.lesson-text h2 {
+    font-size: 1.3em;
+}
+
+.message-content h3,
+.lesson-text h3 {
+    font-size: 1.1em;
+}
+
+.message-content p,
+.lesson-text p {
+    margin-bottom: 1em;
+    line-height: 1.6;
+}
+
+.message-content ul,
+.lesson-text ul,
+.message-content ol,
+.lesson-text ol {
+    margin-bottom: 1em;
+    padding-left: 1.5em;
+}
+
+.message-content li,
+.lesson-text li {
+    margin-bottom: 0.5em;
+}
+
+.message-content code,
+.lesson-text code {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+}
+
+.message-content pre,
+.lesson-text pre {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1em;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-bottom: 1em;
+}
+
+.message-content pre code,
+.lesson-text pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+}
+
+.message-content blockquote,
+.lesson-text blockquote {
+    border-left: 4px solid var(--primary-light);
+    margin: 0 0 1em 0;
+    padding-left: 1em;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.message-content strong,
+.lesson-text strong {
+    font-weight: 700;
+    color: var(--primary-light);
+    /* Optionnel: mettre en valeur les mots importants */
+}
+
+/* Ajustements spécifiques pour le chat */
+.message-content {
+    font-size: 0.95em;
+}
+
+.message-content *:first-child {
+    margin-top: 0;
+}
+
+.message-content *:last-child {
+    margin-bottom: 0;
+}

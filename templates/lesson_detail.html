@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Détail du cours - Exô</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/markdown_styles.css') }}">
     <style>
         * {
             margin: 0;
@@ -238,7 +241,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Responsive */
@@ -296,6 +301,7 @@
                 transform: translateX(400px);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
@@ -307,6 +313,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- Loading -->
@@ -405,7 +412,7 @@
         };
 
         // Charger la leçon
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadLesson();
         });
 
@@ -445,9 +452,9 @@
 
             // Date
             const date = new Date(lesson.created_at);
-            document.getElementById('lessonDate').textContent = date.toLocaleDateString('fr-FR', { 
-                day: 'numeric', 
-                month: 'long', 
+            document.getElementById('lessonDate').textContent = date.toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
                 year: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
@@ -467,7 +474,14 @@
             document.getElementById('originalText').innerHTML = formatText(lesson.original_transcript || 'Aucune transcription disponible');
 
             // Bouton retour
-            document.getElementById('backBtn').href = `/lessons/${lesson.subject.toLowerCase().replace('é', 'e')}`;
+            const subjectMap = {
+                'Mathématiques': 'mathematics',
+                'Physique': 'physics',
+                'Chimie': 'chemistry',
+                'SVT': 'svt'
+            };
+            const subjectUrl = subjectMap[lesson.subject] || 'mathematics';
+            document.getElementById('backBtn').href = `/lessons/${subjectUrl}`;
 
             // Afficher
             document.getElementById('loading').style.display = 'none';
@@ -483,6 +497,16 @@
         }
 
         function formatText(text) {
+            if (!text) return '';
+            // Utiliser marked.parse si disponible, sinon fallback simple
+            if (window.marked) {
+                // Configurer marked pour les sauts de ligne
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true
+                });
+                return marked.parse(text);
+            }
             // Convertir les sauts de ligne en <br> et préserver la structure
             return text.replace(/\n/g, '<br>');
         }
@@ -505,8 +529,8 @@
         }
 
         function copyContent(tab = currentTab) {
-            const textElement = tab === 'improved' 
-                ? document.getElementById('improvedText') 
+            const textElement = tab === 'improved'
+                ? document.getElementById('improvedText')
                 : document.getElementById('originalText');
 
             const text = textElement.innerText;
@@ -541,7 +565,17 @@
 
                 if (data.success) {
                     alert('Leçon supprimée avec succès');
-                    window.location.href = `/lessons/${currentLesson.subject.toLowerCase().replace('é', 'e')}`;
+
+                    // Mapping pour les URLs
+                    const subjectMap = {
+                        'Mathématiques': 'mathematics',
+                        'Physique': 'physics',
+                        'Chimie': 'chemistry',
+                        'SVT': 'svt'
+                    };
+
+                    const subjectUrl = subjectMap[currentLesson.subject] || 'mathematics';
+                    window.location.href = `/lessons/${subjectUrl}`;
                 } else {
                     alert('Erreur: ' + data.error);
                 }
@@ -552,4 +586,5 @@
         }
     </script>
 </body>
+
 </html>
