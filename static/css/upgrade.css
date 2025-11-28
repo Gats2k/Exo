@@ -18,7 +18,7 @@
 }
 
 .current-plan-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(to bottom right, #312E81, #581C87, #831843);
     color: white;
     padding: 2rem;
     border-radius: 16px;
@@ -107,7 +107,7 @@
 
 .plan-card.current {
     border-color: #10b981;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: #10B981;
     color: white;
 }
 
@@ -184,7 +184,7 @@
 }
 
 .upgrade-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     color: white;
 }
 
@@ -225,7 +225,8 @@
     z-index: 1000;
 }
 
-.payment-modal, .processing-modal {
+.payment-modal,
+.processing-modal {
     background: white;
     border-radius: 16px;
     max-width: 500px;
@@ -378,7 +379,7 @@
 .btn-pay {
     flex: 2;
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     color: white;
     border: none;
     border-radius: 8px;
@@ -409,8 +410,13 @@
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .processing-content h3 {

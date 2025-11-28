@@ -1,15 +1,48 @@
 :root {
-    --main-gradient-start: #312E81;  /* indigo-900 */
-    --main-gradient-middle: #581C87; /* purple-900 */
-    --main-gradient-end: #831843;    /* pink-900 */
-    --accent-color: #4169E1;
+    /* ===== GRADIENT PRINCIPAL ===== */
+    --main-gradient-start: #312E81;
+    /* indigo-900 */
+    --main-gradient-middle: #581C87;
+    /* purple-900 */
+    --main-gradient-end: #831843;
+    /* pink-900 */
+
+    /* ===== COULEURS PRIMAIRES ===== */
+    --primary-light: #6366F1;
+    /* indigo-500 */
+    --primary-medium: #8B5CF6;
+    /* violet-500 */
+    --primary-dark: #A855F7;
+    /* purple-500 */
+
+    /* ===== COULEURS D'ACCENT ===== */
+    --accent-success: #10B981;
+    /* green-500 - pour succès */
+    --accent-warning: #F59E0B;
+    /* amber-500 - pour avertissements */
+    --accent-error: #EF4444;
+    /* red-500 - pour erreurs */
+    --accent-info: #3B82F6;
+    /* blue-500 - pour info */
+
+    /* ===== TONS NEUTRES ===== */
     --text-light: #FFFFFF;
-    --text-muted: #A0A0A0;
+    --text-muted: #9CA3AF;
+    /* gray-400 */
+    --text-dark: #1F2937;
+    /* gray-800 */
+    --bg-overlay: rgba(0, 0, 0, 0.3);
+    --border-light: rgba(255, 255, 255, 0.2);
+
+    /* ===== AUTRES ===== */
+    --accent-color: #6366F1;
+    /* Harmonisé avec primary-light */
+    --highlight-color: #10B981;
+    /* Garde le vert pour succès */
     --sidebar-width: 300px;
-    --container-width: 400px; /* Valeur par défaut, peut être ajustée */
+    --container-width: 400px;
     --sidebar-icon-size: 1.2rem;
     --sidebar-text-size: 1.5rem;
-    --highlight-color: #4ADE80; /* Couleur verte pour mise en évidence */
 }
 
 body {
@@ -75,9 +108,18 @@ body.policy-page {
 
 /* Animation pour la mise à jour des statistiques */
 @keyframes highlight-update {
-    0% { background-color: transparent; }
-    30% { background-color: rgba(74, 222, 128, 0.2); } /* Couleur verte semi-transparente */
-    100% { background-color: transparent; }
+    0% {
+        background-color: transparent;
+    }
+
+    30% {
+        background-color: rgba(74, 222, 128, 0.2);
+    }
+
+    /* Couleur verte semi-transparente */
+    100% {
+        background-color: transparent;
+    }
 }
 
 .highlight-update {
@@ -87,9 +129,12 @@ body.policy-page {
 /* Sidebar Styles */
 .sidebar {
     width: var(--sidebar-width);
-    background-color: rgba(0, 0, 0, 0.3); /* équivalent à bg-black/30 */
-    backdrop-filter: blur(16px);          /* équivalent à backdrop-blur-xl */
-    -webkit-backdrop-filter: blur(16px);  /* support Safari */
+    background-color: rgba(0, 0, 0, 0.3);
+    /* équivalent à bg-black/30 */
+    backdrop-filter: blur(16px);
+    /* équivalent à backdrop-blur-xl */
+    -webkit-backdrop-filter: blur(16px);
+    /* support Safari */
     color: var(--text-light);
     display: flex;
     flex-direction: column;
@@ -143,7 +188,8 @@ body.policy-page {
 }
 
 .nav-item {
-    position: relative;  /* Make sure the parent has relative positioning */
+    position: relative;
+    /* Make sure the parent has relative positioning */
     display: flex;
     align-items: center;
     padding: 12px;
@@ -186,12 +232,15 @@ body.policy-page {
     margin-top: 10px;
     flex-grow: 1;
     overflow-y: scroll;
-    scrollbar-width: none;  /* Pour Firefox */
-    -ms-overflow-style: none;  /* Pour Internet Explorer et Edge */
+    scrollbar-width: none;
+    /* Pour Firefox */
+    -ms-overflow-style: none;
+    /* Pour Internet Explorer et Edge */
 }
 
 .recent-history::-webkit-scrollbar {
-    display: none;  /* Pour Chrome, Safari et Opera */
+    display: none;
+    /* Pour Chrome, Safari et Opera */
 }
 
 .history-item {
@@ -252,13 +301,15 @@ body.policy-page {
     transition: margin-left 0.3s ease;
     width: 100%;
     position: relative;
-    overflow-y: hidden; /* Empêche le scroll de la zone principale */
+    overflow-y: hidden;
+    /* Empêche le scroll de la zone principale */
     height: 100vh;
 }
 
 .chat-header {
     padding: 20px;
-    padding-left: 60px; /* Space for the toggle button */
+    padding-left: 60px;
+    /* Space for the toggle button */
     color: var(--text-light);
     display: flex;
     justify-content: space-between;
@@ -284,7 +335,8 @@ body.policy-page {
     padding: 10px;
     text-align: center;
     min-width: max-content;
-    max-width: max(60%, 200px); /* Ensures "Nouvelle conversation" fits and allows longer titles */
+    max-width: max(60%, 200px);
+    /* Ensures "Nouvelle conversation" fits and allows longer titles */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -312,7 +364,8 @@ body.policy-page {
     gap: 8px;
     font-size: 1.5em;
     position: absolute;
-    left: 40px; /* Distance par rapport à l'icône de la sidebar */
+    left: 40px;
+    /* Distance par rapport à l'icône de la sidebar */
     top: 17px;
 }
 
@@ -323,7 +376,8 @@ body.policy-page {
     position: absolute;
     right: 20px;
     top: 20px;
-    gap: var(--credits-spacing, 5px); /* Variable pour contrôler l'espacement */
+    gap: var(--credits-spacing, 5px);
+    /* Variable pour contrôler l'espacement */
 }
 
 .reload-credits {
@@ -372,7 +426,8 @@ body.policy-page {
 }
 
 .chat-messages::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
+    /* Chrome, Safari, Opera */
 }
 
 .message {
@@ -428,7 +483,8 @@ body.policy-page {
     gap: 15px;
     margin-top: 8px;
     padding: 0 10px;
-    height: 2rem; /* Approximately 2 inches */
+    height: 2rem;
+    /* Approximately 2 inches */
 }
 
 .feedback-btn {
@@ -524,17 +580,19 @@ body.policy-page {
     bottom: 0;
 }
 
-.input-container .input-action, 
+.input-container .input-action,
 .input-container .send-btn {
     align-self: flex-end;
-    margin-top: 0px; /* Pour maintenir l'alignement initial */
+    margin-top: 0px;
+    /* Pour maintenir l'alignement initial */
     margin-right: 8px;
     margin-bottom: 0px;
 }
 
 .send-btn {
     align-self: flex-end;
-    margin-top: 0px; /* Pour maintenir l'alignement initial */
+    margin-top: 0px;
+    /* Pour maintenir l'alignement initial */
     margin-right: 5px;
     margin-bottom: 0px;
 }
@@ -610,7 +668,8 @@ body.policy-page {
 /* Import de la police - à mettre dans le head du HTML */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700&display=swap');
 
-.bi-mortarboard, .bi-mortarboard-fill {
+.bi-mortarboard,
+.bi-mortarboard-fill {
     font-size: var(--sidebar-icon-size, 1.2rem);
     color: #FFD700;
 }
@@ -623,7 +682,8 @@ body.policy-page {
 .sidebar-toggle span {
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: var(--sidebar-text-size, 1rem);
-    font-weight: 700; /* Texte en gras */
+    font-weight: 700;
+    /* Texte en gras */
     color: var(--text-light);
 }
 
@@ -669,7 +729,7 @@ body.policy-page {
         max-width: 90%;
     }
 
-    .message.user, 
+    .message.user,
     .message.assistant {
         padding: 0 5px;
     }
@@ -684,7 +744,8 @@ body.policy-page {
         padding: 0 0 0 3px;
         max-width: 85%;
         width: auto;
-        margin-right: 10px; /* Garantit une marge à droite */
+        margin-right: 10px;
+        /* Garantit une marge à droite */
         overflow-wrap: break-word;
         word-wrap: break-word;
         word-break: break-word;
@@ -738,14 +799,17 @@ body.policy-page {
     }
 
     .input-container textarea {
-        max-height: 100px; /* Hauteur maximale sur mobile */
-        overflow-y: auto; /* Permet le défilement */
+        max-height: 100px;
+        /* Hauteur maximale sur mobile */
+        overflow-y: auto;
+        /* Permet le défilement */
         min-height: 10px;
     }
 
     /* Pour s'assurer que le conteneur s'adapte au textarea */
     .input-container {
-        max-height: 120px; /* Un peu plus grand que le textarea pour les boutons */
+        max-height: 120px;
+        /* Un peu plus grand que le textarea pour les boutons */
         overflow: visible;
     }
 
@@ -756,10 +820,11 @@ body.policy-page {
         max-width: max(50%, 150px);
     }
 
-    .input-container .input-action, 
+    .input-container .input-action,
     .input-container .send-btn {
         margin-top: 0px;
-        margin-right: 1px; /* Ajout du padding à droite */
+        margin-right: 1px;
+        /* Ajout du padding à droite */
         margin-bottom: 0px;
     }
 }
@@ -808,8 +873,7 @@ body.policy-page {
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
-    max-height: 100vh
-    padding: 2rem;
+    max-height: 100vh padding: 2rem;
     background: linear-gradient(to bottom right, var(--main-gradient-start), var(--main-gradient-middle), var(--main-gradient-end));
     color: var(--text-light);
     overflow-y: auto;
@@ -851,7 +915,7 @@ body.policy-page {
     padding-bottom: 0.5rem;
 }
 
-.privacy-policy-content p, 
+.privacy-policy-content p,
 .privacy-policy-content ul {
     margin-bottom: 1rem;
     line-height: 1.6;
@@ -983,8 +1047,16 @@ body.policy-page {
 }
 
 @keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1); }
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
+    }
 }
 
 /* Add these styles after the .chat-container styles */
@@ -1000,7 +1072,8 @@ body.policy-page {
     width: 100%;
     max-width: 700px;
     z-index: 97;
-    bottom: calc(50% + 100px); /* Initial position below center */
+    bottom: calc(50% + 100px);
+    /* Initial position below center */
 }
 
 .welcome-container.visible {
@@ -1009,9 +1082,17 @@ body.policy-page {
 }
 
 @keyframes pulseScale {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
 }
 
 .welcome-title {
@@ -1045,7 +1126,8 @@ body.policy-page {
     transition: opacity 0.3s ease;
     pointer-events: none;
     z-index: 97;
-    top: calc(50% + 50px); /* Initial position below center */
+    top: calc(50% + 50px);
+    /* Initial position below center */
 }
 
 .suggestions-container.visible {
@@ -1103,7 +1185,8 @@ body.policy-page {
     }
 
     .welcome-container {
-        bottom: calc(50% + 80px); /* Réduit de 80px à 40px */
+        bottom: calc(50% + 80px);
+        /* Réduit de 80px à 40px */
     }
 
     .suggestions-container {
@@ -1157,7 +1240,8 @@ body.policy-page {
     position: absolute;
     top: -8px;
     right: -8px;
-    background: rgba(255, 59, 59, 0.5);  /* Rouge léger avec 50% d'opacité */
+    background: rgba(255, 59, 59, 0.5);
+    /* Rouge léger avec 50% d'opacité */
     border: none;
     border-radius: 50%;
     width: 24px;
@@ -1172,7 +1256,8 @@ body.policy-page {
 }
 
 .remove-image:hover {
-    background: rgba(255, 59, 59, 0.7);  /* Rouge plus foncé au survol */
+    background: rgba(255, 59, 59, 0.7);
+    /* Rouge plus foncé au survol */
 }
 
 .input-actions-container {
@@ -1270,27 +1355,34 @@ body.policy-page {
 
     position: absolute;
 
-    top: 100%;  /* Position below the parent nav-item */
+    top: 100%;
+    /* Position below the parent nav-item */
 
     left: 0;
 
     width: 100%;
 
-    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(30, 30, 50, 0.90)); /* Gradient plus complexe */
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(30, 30, 50, 0.90));
+    /* Gradient plus complexe */
 
-    box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.4); /* Ombre intérieure pour effet de profondeur */
+    box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.4);
+    /* Ombre intérieure pour effet de profondeur */
 
-    backdrop-filter: blur(20px) saturate(95%) contrast(125%); /* Combinaison d'effets */
+    backdrop-filter: blur(20px) saturate(95%) contrast(125%);
+    /* Combinaison d'effets */
 
-    -webkit-backdrop-filter: blur(20px) saturate(85%) contrast(125%); /* Pour Safari */
+    -webkit-backdrop-filter: blur(20px) saturate(85%) contrast(125%);
+    /* Pour Safari */
 
     border-radius: 8px;
 
     overflow: hidden;
 
-    margin-top: 4px;  /* Small gap between nav-item and dropdown */
+    margin-top: 4px;
+    /* Small gap between nav-item and dropdown */
 
-    z-index: 1050;    /* Ensure it appears above other elements */
+    z-index: 1050;
+    /* Ensure it appears above other elements */
 
     border: 1px solid rgba(255, 255, 255, 0.08);
 
@@ -1376,7 +1468,8 @@ body.policy-page {
 
 .user-menu-item:hover {
     background-color: rgba(255, 255, 255, 0.15);
-    color: var(--text-light); /* Garde la couleur du texte inchangée au survol */
+    color: var(--text-light);
+    /* Garde la couleur du texte inchangée au survol */
 }
 
 /* À SUPPRIMER */
@@ -1415,6 +1508,7 @@ body.policy-page {
 
 /* À MODIFIER */
 @media (max-width: 768px) {
+
     /* À SUPPRIMER */
     .reload-credits {
         right: 10px;
@@ -1452,17 +1546,22 @@ body.policy-page {
 }
 
 @keyframes pulse {
-    0%, 80%, 100% { 
+
+    0%,
+    80%,
+    100% {
         transform: scale(0.6);
         opacity: 0.5;
     }
-    40% { 
+
+    40% {
         transform: scale(1);
-        opacity: 1; 
+        opacity: 1;
     }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
+
     /* Container principal et viewport */
     .chat-viewport {
         width: 90%;
@@ -1501,7 +1600,8 @@ body.policy-page {
     }
 
     /* Empêcher les débordements horizontaux */
-    .main-area, .chat-messages {
+    .main-area,
+    .chat-messages {
         overflow-x: hidden;
     }
 
@@ -1565,6 +1665,7 @@ body.policy-page {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-light);
 }
+
 .close-crop-btn {
     background: none;
     border: none;
@@ -1588,17 +1689,20 @@ body.policy-page {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.crop-btn, .cancel-crop-btn {
+.crop-btn,
+.cancel-crop-btn {
     padding: 8px 16px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-weight: 500;
 }
+
 .crop-btn {
     background-color: var(--accent-color);
     color: white;
 }
+
 .cancel-crop-btn {
     background-color: rgba(255, 255, 255, 0.1);
     color: var(--text-light);
@@ -1649,7 +1753,8 @@ body.policy-page {
         padding: 10px;
     }
 
-    .crop-btn, .cancel-crop-btn {
+    .crop-btn,
+    .cancel-crop-btn {
         padding: 6px 12px;
         font-size: 0.9em;
     }
@@ -1657,26 +1762,509 @@ body.policy-page {
 
 .history-item.updated {
     animation: highlight-update 1.5s ease;
-    background-color: rgba(255, 215, 0, 0.2); /* Fond doré subtil pour les mises à jour */
+    background-color: rgba(255, 215, 0, 0.2);
+    /* Fond doré subtil pour les mises à jour */
 }
 
 .history-item.new-item {
     animation: highlight-new 1.5s ease;
-    background-color: rgba(64, 196, 255, 0.3); /* Fond bleu clair pour les nouveaux éléments */
+    background-color: rgba(64, 196, 255, 0.3);
+    /* Fond bleu clair pour les nouveaux éléments */
 }
 
 @keyframes highlight-update {
-    0% { background-color: rgba(255, 215, 0, 0.4); }
-    50% { background-color: rgba(255, 215, 0, 0.2); }
-    100% { background-color: transparent; }
+    0% {
+        background-color: rgba(255, 215, 0, 0.4);
+    }
+
+    50% {
+        background-color: rgba(255, 215, 0, 0.2);
+    }
+
+    100% {
+        background-color: transparent;
+    }
 }
 
 @keyframes highlight-new {
-    0% { background-color: rgba(64, 196, 255, 0.5); }
-    50% { background-color: rgba(64, 196, 255, 0.3); }
-    100% { background-color: transparent; }
+    0% {
+        background-color: rgba(64, 196, 255, 0.5);
+    }
+
+    50% {
+        background-color: rgba(64, 196, 255, 0.3);
+    }
+
+    100% {
+        background-color: transparent;
+    }
 }
 
 .chat-messages.initially-hidden {
-    visibility: hidden; /* Rend l'élément invisible mais conserve sa place */
+    visibility: hidden;
+    /* Rend l'élément invisible mais conserve sa place */
+}
+
+/* ===================================
+   MODAL D'ENREGISTREMENT AUDIO
+   =================================== */
+
+/* Modal overlay */
+#audioModalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+}
+
+/* Modal container */
+.audio-record-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2001;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.audio-modal-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+/* Modal header */
+.audio-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-medium) 100%);
+    color: white;
+}
+
+.audio-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.close-audio-modal {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+}
+
+.close-audio-modal:hover {
+    opacity: 0.8;
+}
+
+/* Modal body */
+.audio-modal-body {
+    padding: 24px;
+}
+
+/* Subject selection */
+.subject-selection {
+    text-align: center;
+}
+
+.modal-instruction {
+    font-size: 1rem;
+    color: #4b5563;
+    margin-bottom: 20px;
+}
+
+.subject-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.subject-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 120px;
+}
+
+.subject-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.subject-card i {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+    color: #667eea;
+}
+
+.subject-card span {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+/* Recording interface */
+.recording-interface {
+    text-align: center;
+}
+
+.selected-subject-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-medium) 100%);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    color: white;
+}
+
+.selected-subject-display i {
+    font-size: 1.5rem;
+}
+
+.selected-subject-display span {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Record button */
+.modal-record-button {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent-error) 0%, #DC2626 100%);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4);
+}
+
+.modal-record-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.5);
+}
+
+.modal-record-button:active {
+    transform: scale(0.95);
+}
+
+.modal-record-button.recording {
+    background: linear-gradient(135deg, var(--accent-error) 0%, #DC2626 100%);
+    animation: pulse-record 1.5s infinite;
+}
+
+@keyframes pulse-record {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 4px 25px rgba(239, 68, 68, 0.7);
+    }
+}
+
+.record-icon i {
+    font-size: 2.5rem;
+}
+
+.record-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+/* Timer */
+.modal-timer {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 20px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Action buttons */
+.modal-action-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.modal-action-btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.modal-action-btn i {
+    font-size: 1.2rem;
+}
+
+.modal-action-btn.stop-btn {
+    background: linear-gradient(135deg, var(--accent-error) 0%, #DC2626 100%);
+    color: white;
+}
+
+.modal-action-btn.stop-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.modal-action-btn.save-btn {
+    background: var(--accent-success);
+    color: white;
+}
+
+.modal-action-btn.save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.modal-action-btn.cancel-btn {
+    background: var(--text-muted);
+    color: white;
+}
+
+.modal-action-btn.cancel-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+}
+
+/* Save section */
+.modal-save-section {
+    margin-top: 20px;
+}
+
+.audio-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.audio-preview i {
+    font-size: 2rem;
+    color: #667eea;
+}
+
+.audio-preview span {
+    font-size: 1rem;
+    color: #374151;
+    font-weight: 500;
+}
+
+.save-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+/* Status message */
+.modal-status-message {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: center;
+}
+
+.modal-status-message.info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.modal-status-message.success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.modal-status-message.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Lesson result card in chat */
+.lesson-result-card {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px 0;
+}
+
+.lesson-result-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 1.1rem;
+}
+
+.lesson-result-header i {
+    font-size: 1.5rem;
+}
+
+.lesson-result-info {
+    margin-bottom: 16px;
+}
+
+.lesson-info-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.lesson-info-item i {
+    font-size: 1.1rem;
+}
+
+.lesson-transcript-section {
+    margin: 16px 0;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border-left: 3px solid #667eea;
+}
+
+.lesson-transcript-section.improved {
+    border-left-color: #10b981;
+}
+
+.transcript-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.transcript-label i {
+    font-size: 1.2rem;
+}
+
+.transcript-content {
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.lesson-result-actions {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.view-lessons-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-medium) 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.view-lessons-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    color: white;
+}
+
+.view-lessons-link i {
+    font-size: 1.1rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .audio-record-modal {
+        width: 95%;
+        max-height: 95vh;
+    }
+
+    .subject-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .subject-card {
+        min-height: 100px;
+        padding: 20px 16px;
+    }
+
+    .modal-record-button {
+        width: 100px;
+        height: 100px;
+    }
+
+    .record-icon i {
+        font-size: 2rem;
+    }
+
+    .modal-timer {
+        font-size: 1.75rem;
+    }
+
+    .modal-action-btn {
+        padding: 10px 20px;
+        font-size: 0.95rem;
+    }
+
+    .lesson-result-card {
+        padding: 16px;
+    }
 }

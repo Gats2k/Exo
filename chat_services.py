@@ -128,8 +128,8 @@ def handle_message_logic(data, socketio_instance):
                     f"---\n"
                 )
 
-        # On récupère les instructions de base du système
-        base_instructions = get_system_instructions()
+        # On récupère les instructions de base du système pour le contexte CHAT
+        base_instructions = get_system_instructions(context='chat')
 
         # Construire le prompt système final avec le warning si nécessaire
         if system_warning_message:

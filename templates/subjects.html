@@ -5,7 +5,7 @@
         margin: 0;
         padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(to bottom right, #312E81, #581C87, #831843);
         min-height: 100vh;
         display: flex;
         align-items: center;
@@ -101,19 +101,19 @@
     }
 
     .subject-icon.math {
-        background: linear-gradient(135deg, #4E73DF 0%, #2E59D9 100%);
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     }
 
     .subject-icon.physics {
-        background: linear-gradient(135deg, #9B59B6 0%, #8E44AD 100%);
+        background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
     }
 
     .subject-icon.chemistry {
-        background: linear-gradient(135deg, #27AE60 0%, #229954 100%);
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
     }
 
     .subject-icon.svt {
-        background: linear-gradient(135deg, #16A085 0%, #138D75 100%);
+        background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
     }
 
     .subject-name {
@@ -163,7 +163,7 @@
     <div class="subjects-grid">
         <a href="{{ url_for('record_mathematics') }}" class="subject-card">
             <div class="subject-icon math">
-                <i class="bi bi-book" style="color: white;"></i>
+                <i class="bi bi-calculator" style="color: white;"></i>
             </div>
             <div class="subject-name">Mathématiques</div>
             <div class="subject-description">Algèbre, géométrie, analyse</div>
@@ -171,7 +171,7 @@
 
         <a href="{{ url_for('record_physics') }}" class="subject-card">
             <div class="subject-icon physics">
-                <i class="bi bi-atome" style="color: white;"></i>
+                <i class="bi bi-lightning" style="color: white;"></i>
             </div>
             <div class="subject-name">Physique</div>
             <div class="subject-description">Mécanique, ondes, électricité...</div>
@@ -179,7 +179,7 @@
 
         <a href="{{ url_for('record_chemistry') }}" class="subject-card">
             <div class="subject-icon chemistry">
-                <i class="bi bi-file-earmark-medical" style="color: white;"></i>
+                <i class="bi bi-droplet" style="color: white;"></i>
             </div>
             <div class="subject-name">Chimie</div>
             <div class="subject-description">Organique, minérale, réactions...</div>
@@ -187,7 +187,7 @@
 
         <a href="{{ url_for('record_svt') }}" class="subject-card">
             <div class="subject-icon svt">
-                <i class="bi bi-microscope" style="color: white;"></i>
+                <i class="bi bi-tree" style="color: white;"></i>
             </div>
             <div class="subject-name">SVT</div>
             <div class="subject-description">Biologie, géologie, écologie...</div>

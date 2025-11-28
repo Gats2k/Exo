@@ -10,7 +10,7 @@
     padding: 0 !important;
     min-height: 100vh !important;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(to bottom right, #312E81, #581C87, #831843) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -104,7 +104,7 @@
 .audio-page .subject-icon {
     width: 100px !important;
     height: 100px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%) !important;
     border-radius: 25px !important;
     display: flex !important;
     align-items: center !important;
@@ -154,7 +154,7 @@
 .audio-page .record-button {
     width: 200px !important;
     height: 200px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%) !important;
     border: none !important;
     border-radius: 50% !important;
     cursor: pointer !important;
@@ -183,9 +183,12 @@
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
     }
+
     50% {
         box-shadow: 0 10px 40px rgba(102, 126, 234, 0.8), 0 0 0 20px rgba(102, 126, 234, 0.1);
     }
@@ -244,34 +247,34 @@
 }
 
 .audio-page .stop-btn {
-    background: #f5365c !important;
+    background: #EF4444 !important;
     color: white !important;
 }
 
 .audio-page .stop-btn:hover {
-    background: #ec0c38 !important;
+    background: #DC2626 !important;
     transform: translateY(-2px) !important;
     box-shadow: 0 5px 20px rgba(245, 54, 92, 0.4) !important;
 }
 
 .audio-page .save-btn {
-    background: #2dce89 !important;
+    background: #10B981 !important;
     color: white !important;
 }
 
 .audio-page .save-btn:hover {
-    background: #24a46d !important;
+    background: #059669 !important;
     transform: translateY(-2px) !important;
     box-shadow: 0 5px 20px rgba(45, 206, 137, 0.4) !important;
 }
 
 .audio-page .cancel-btn {
-    background: #8898aa !important;
+    background: #9CA3AF !important;
     color: white !important;
 }
 
 .audio-page .cancel-btn:hover {
-    background: #6a7989 !important;
+    background: #6B7280 !important;
     transform: translateY(-2px) !important;
     box-shadow: 0 5px 20px rgba(136, 152, 170, 0.4) !important;
 }
@@ -403,8 +406,13 @@
 
 /* Animation de chargement */
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .audio-page .loading-spinner {

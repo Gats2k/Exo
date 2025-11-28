@@ -41,25 +41,59 @@ def load_instructions_from_file(file_path, default_value):
             return f.read()
     return default_value
 
-DEEPSEEK_INSTRUCTIONS = load_instructions_from_file(
-    os.environ.get('DEEPSEEK_INSTRUCTIONS_FILE', 'instructions/deepseek.txt'),
+# ===================================
+# INSTRUCTIONS POUR LE CONTEXTE CHAT (ton familier, emojis)
+# ===================================
+
+DEEPSEEK_CHAT_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('DEEPSEEK_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/deepseek.txt'),
     'You are a helpful educational assistant'
 )
 
-DEEPSEEK_REASONER_INSTRUCTIONS = load_instructions_from_file(
-    os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
+DEEPSEEK_REASONER_CHAT_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('DEEPSEEK_REASONER_CHAT_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
     'You are a helpful educational assistant focused on reasoning'
 )
 
-QWEN_INSTRUCTIONS = load_instructions_from_file(
-    os.environ.get('QWEN_INSTRUCTIONS_FILE', 'instructions/qwen.txt'),
+QWEN_CHAT_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('QWEN_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/qwen.txt'),
     'You are a helpful educational assistant'
 )
 
-GEMINI_INSTRUCTIONS = load_instructions_from_file(
-    os.environ.get('GEMINI_INSTRUCTIONS_FILE', 'instructions/gemini.txt'),
+GEMINI_CHAT_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('GEMINI_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/gemini.txt'),
     'You are a helpful educational assistant'
 )
+
+# ===================================
+# INSTRUCTIONS POUR LE CONTEXTE LESSON (ton factuel, neutre)
+# ===================================
+
+DEEPSEEK_LESSON_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('DEEPSEEK_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/deepseek.txt'),
+    'You are a professional academic transcription improvement system'
+)
+
+DEEPSEEK_REASONER_LESSON_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('DEEPSEEK_REASONER_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/deepseek.txt'),
+    'You are a professional academic transcription improvement system'
+)
+
+QWEN_LESSON_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('QWEN_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/qwen.txt'),
+    'You are a professional academic transcription improvement system'
+)
+
+GEMINI_LESSON_INSTRUCTIONS = load_instructions_from_file(
+    os.environ.get('GEMINI_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/gemini.txt'),
+    'You are a professional academic transcription improvement system'
+)
+
+# Rétrocompatibilité : garder les anciennes variables pour ne pas casser le code existant
+DEEPSEEK_INSTRUCTIONS = DEEPSEEK_CHAT_INSTRUCTIONS
+DEEPSEEK_REASONER_INSTRUCTIONS = DEEPSEEK_REASONER_CHAT_INSTRUCTIONS
+QWEN_INSTRUCTIONS = QWEN_CHAT_INSTRUCTIONS
+GEMINI_INSTRUCTIONS = GEMINI_CHAT_INSTRUCTIONS
 
 # ===================================
 # MODÈLE ACTUEL
@@ -135,16 +169,39 @@ def get_model_name():
     return None
 
 
-def get_system_instructions():
-    """Retourne les instructions système appropriées selon le modèle actuel"""
-    if CURRENT_MODEL == 'deepseek':
-        return DEEPSEEK_INSTRUCTIONS
-    elif CURRENT_MODEL == 'deepseek-reasoner':
-        return DEEPSEEK_REASONER_INSTRUCTIONS
-    elif CURRENT_MODEL == 'qwen':
-        return QWEN_INSTRUCTIONS
-    elif CURRENT_MODEL == 'gemini':
-        return GEMINI_INSTRUCTIONS
+def get_system_instructions(context='chat'):
+    """
+    Retourne les instructions système appropriées selon le modèle actuel et le contexte
+    
+    Args:
+        context (str): Le contexte d'utilisation ('chat' ou 'lesson')
+                      - 'chat': Ton familier, emojis, conversationnel
+                      - 'lesson': Ton factuel, neutre, académique
+    
+    Returns:
+        str: Les instructions système appropriées
+    """
+    if context == 'lesson':
+        # Instructions pour le traitement des cours (ton factuel)
+        if CURRENT_MODEL == 'deepseek':
+            return DEEPSEEK_LESSON_INSTRUCTIONS
+        elif CURRENT_MODEL == 'deepseek-reasoner':
+            return DEEPSEEK_REASONER_LESSON_INSTRUCTIONS
+        elif CURRENT_MODEL == 'qwen':
+            return QWEN_LESSON_INSTRUCTIONS
+        elif CURRENT_MODEL == 'gemini':
+            return GEMINI_LESSON_INSTRUCTIONS
+    else:
+        # Instructions pour le chat (ton familier) - par défaut
+        if CURRENT_MODEL == 'deepseek':
+            return DEEPSEEK_CHAT_INSTRUCTIONS
+        elif CURRENT_MODEL == 'deepseek-reasoner':
+            return DEEPSEEK_REASONER_CHAT_INSTRUCTIONS
+        elif CURRENT_MODEL == 'qwen':
+            return QWEN_CHAT_INSTRUCTIONS
+        elif CURRENT_MODEL == 'gemini':
+            return GEMINI_CHAT_INSTRUCTIONS
+    
     # Pour OpenAI ou tout autre cas, retourner une chaîne vide pour éviter les erreurs.
     return ""
 
@@ -153,7 +210,10 @@ def reload_model_settings():
     """
     Recharge les paramètres du modèle depuis l'environnement et les sauvegarde dans un fichier JSON.
     """
-    global CURRENT_MODEL, DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
+    global CURRENT_MODEL
+    global DEEPSEEK_CHAT_INSTRUCTIONS, DEEPSEEK_REASONER_CHAT_INSTRUCTIONS, QWEN_CHAT_INSTRUCTIONS, GEMINI_CHAT_INSTRUCTIONS
+    global DEEPSEEK_LESSON_INSTRUCTIONS, DEEPSEEK_REASONER_LESSON_INSTRUCTIONS, QWEN_LESSON_INSTRUCTIONS, GEMINI_LESSON_INSTRUCTIONS
+    global DEEPSEEK_INSTRUCTIONS, DEEPSEEK_REASONER_INSTRUCTIONS, QWEN_INSTRUCTIONS, GEMINI_INSTRUCTIONS
 
     # Recharger le modèle depuis l'environnement
     CURRENT_MODEL = os.environ.get('CURRENT_MODEL')
@@ -163,23 +223,47 @@ def reload_model_settings():
         else:
             CURRENT_MODEL = 'openai'
 
-    # Charger les instructions depuis les fichiers
-    DEEPSEEK_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('DEEPSEEK_INSTRUCTIONS_FILE', 'instructions/deepseek.txt'),
+    # Charger les instructions CHAT depuis les fichiers
+    DEEPSEEK_CHAT_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('DEEPSEEK_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/deepseek.txt'),
         'You are a helpful educational assistant'
     )
-    DEEPSEEK_REASONER_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('DEEPSEEK_REASONER_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
+    DEEPSEEK_REASONER_CHAT_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('DEEPSEEK_REASONER_CHAT_INSTRUCTIONS_FILE', 'instructions/deepseek_reasoner.txt'),
         'You are a helpful educational assistant focused on reasoning'
     )
-    QWEN_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('QWEN_INSTRUCTIONS_FILE', 'instructions/qwen.txt'),
+    QWEN_CHAT_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('QWEN_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/qwen.txt'),
         'You are a helpful educational assistant'
     )
-    GEMINI_INSTRUCTIONS = load_instructions_from_file(
-        os.environ.get('GEMINI_INSTRUCTIONS_FILE', 'instructions/gemini.txt'),
+    GEMINI_CHAT_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('GEMINI_CHAT_INSTRUCTIONS_FILE', 'instructions/chat/gemini.txt'),
         'You are a helpful educational assistant'
     )
+
+    # Charger les instructions LESSON depuis les fichiers
+    DEEPSEEK_LESSON_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('DEEPSEEK_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/deepseek.txt'),
+        'You are a professional academic transcription improvement system'
+    )
+    DEEPSEEK_REASONER_LESSON_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('DEEPSEEK_REASONER_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/deepseek.txt'),
+        'You are a professional academic transcription improvement system'
+    )
+    QWEN_LESSON_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('QWEN_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/qwen.txt'),
+        'You are a professional academic transcription improvement system'
+    )
+    GEMINI_LESSON_INSTRUCTIONS = load_instructions_from_file(
+        os.environ.get('GEMINI_LESSON_INSTRUCTIONS_FILE', 'instructions/lesson/gemini.txt'),
+        'You are a professional academic transcription improvement system'
+    )
+
+    # Rétrocompatibilité
+    DEEPSEEK_INSTRUCTIONS = DEEPSEEK_CHAT_INSTRUCTIONS
+    DEEPSEEK_REASONER_INSTRUCTIONS = DEEPSEEK_REASONER_CHAT_INSTRUCTIONS
+    QWEN_INSTRUCTIONS = QWEN_CHAT_INSTRUCTIONS
+    GEMINI_INSTRUCTIONS = GEMINI_CHAT_INSTRUCTIONS
 
     # Utiliser un chemin absolu pour le fichier de configuration
     config_file_path = os.path.join(
@@ -191,10 +275,14 @@ def reload_model_settings():
     config_data = {
         'timestamp': time.time(),
         'CURRENT_MODEL': CURRENT_MODEL,
-        'DEEPSEEK_INSTRUCTIONS': DEEPSEEK_INSTRUCTIONS,
-        'DEEPSEEK_REASONER_INSTRUCTIONS': DEEPSEEK_REASONER_INSTRUCTIONS,
-        'QWEN_INSTRUCTIONS': QWEN_INSTRUCTIONS,
-        'GEMINI_INSTRUCTIONS': GEMINI_INSTRUCTIONS
+        'DEEPSEEK_CHAT_INSTRUCTIONS': DEEPSEEK_CHAT_INSTRUCTIONS,
+        'DEEPSEEK_REASONER_CHAT_INSTRUCTIONS': DEEPSEEK_REASONER_CHAT_INSTRUCTIONS,
+        'QWEN_CHAT_INSTRUCTIONS': QWEN_CHAT_INSTRUCTIONS,
+        'GEMINI_CHAT_INSTRUCTIONS': GEMINI_CHAT_INSTRUCTIONS,
+        'DEEPSEEK_LESSON_INSTRUCTIONS': DEEPSEEK_LESSON_INSTRUCTIONS,
+        'DEEPSEEK_REASONER_LESSON_INSTRUCTIONS': DEEPSEEK_REASONER_LESSON_INSTRUCTIONS,
+        'QWEN_LESSON_INSTRUCTIONS': QWEN_LESSON_INSTRUCTIONS,
+        'GEMINI_LESSON_INSTRUCTIONS': GEMINI_LESSON_INSTRUCTIONS
     }
 
     try:
