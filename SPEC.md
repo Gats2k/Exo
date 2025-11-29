@@ -6,7 +6,7 @@ Exô est une plateforme d'assistance éducative multi-plateforme qui fournit des
 - Bots Telegram et WhatsApp
 - Un moteur IA interchangeable (Deepseek, OpenAI Assistants, Qwen, Gemini)
 
-Fonctionnalités clés : gestion des conversations, upload d'images (OCR + vision), suivi mémoire utilisateur (profil pédagogique), gestion d'abonnements/paiement, tâches planifiées pour consolidation et rappels.
+Fonctionnalités clés : gestion des conversations, upload d'images (OCR + vision), suivi mémoire utilisateur (profil pédagogique), gestion d'abonnements/paiement, tâches planifiées pour consolidation et rappels, rendu Markdown des réponses IA, dictée vocale (Speech-to-Text), enregistrement et transcription de cours.
 
 
 ## 2. Architecture & composants
@@ -30,6 +30,39 @@ Tables principales (dans `models.py`) :
 - `user_usage` : comptage messages / warnings journaliers.
 - `user_memory` : données de profil et derniers sujets (utilisé par consolidation).
 - `consolidated_conversation` : trace des consolidations déjà faites.
+- `lesson` : leçons enregistrées (audio, transcriptions, matière, statut de traitement, **images capturées avec OCR**).
+- `message_feedback` : feedbacks utilisateur (pouces levés/baissés) sur les réponses IA.
+
+
+## 3.1. Stockage des données
+
+### 📍 Base de données principale
+**Localisation** : `d:\2K\instance\dev.sqlite3`
+
+**Type** : SQLite (fichier local `.sqlite3`)
+
+**Configuration** : Définie dans `app.py` (lignes 59-67). Si aucune variable `DATABASE_URL` n'est fournie, l'application utilise automatiquement `sqlite:///dev.sqlite3` pour le développement local.
+
+**Contenu** :
+- **Utilisateurs** : Comptes web, Telegram, WhatsApp avec informations d'authentification
+- **Conversations** : Historique complet des échanges avec l'IA (titres, horodatages, contexte)
+- **Messages** : Contenu textuel, images envoyées, rôles (user/assistant)
+- **Leçons** : Enregistrements audio de cours avec transcriptions originales et versions améliorées par l'IA, organisés par matière (Mathématiques, Physique, Chimie, SVT)
+- **Feedbacks** : Évaluations utilisateur (👍/👎) sur les réponses de l'IA
+- **Abonnements** : Statuts Premium, transactions, plans tarifaires
+- **Mémoire utilisateur** : Profils pédagogiques, sujets récents pour personnalisation
+
+### 📂 Fichiers temporaires et uploads
+- **Images utilisateur** : `d:\2K\static\uploads/` (stockage temporaire des images envoyées dans le chat)
+- **Images de leçons** : `d:\2K\static\uploads\lessons/` (stockage permanent des captures de cours avec métadonnées OCR en base de données)
+- **Audio temporaire** : `C:\Users\omen\AppData\Local\Temp\` (fichiers audio nettoyés automatiquement après transcription)
+
+### 🔄 Migration vers production
+**Important** : SQLite est adapté au développement local mais **non recommandé pour la production**. Pour un déploiement avec plusieurs utilisateurs simultanés, migrer vers :
+- **PostgreSQL** (recommandé) : Meilleure gestion de la concurrence, performances optimales
+- **MySQL/MariaDB** : Alternative viable
+
+La migration est facilitée par Flask-Migrate (Alembic) déjà intégré au projet.
 
 
 ## 4. Variables d'environnement importantes
@@ -40,6 +73,9 @@ Tables principales (dans `models.py`) :
   - `GEMINI_API_KEY`
   - `DASHSCOPE_API_KEY` (Qwen)
   - `DEEPSEEK_INSTRUCTIONS_FILE`, `DEEPSEEK_REASONER_INSTRUCTIONS_FILE`, `QWEN_INSTRUCTIONS_FILE`, `GEMINI_INSTRUCTIONS_FILE`
+- OCR :
+  - `MATHPIX_APP_ID` : ID de l'application Mathpix pour OCR de formules mathématiques et texte manuscrit
+  - `MATHPIX_APP_KEY` : Clé API Mathpix
 - Telegram : `TELEGRAM_BOT_TOKEN`, `RUN_TELEGRAM_BOT` (true/false)
 - WhatsApp / payments : `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `EASYTRANSFERT_API_KEY`, `IPN_BASE_URL`, `WAVE_BUSINESS_NAME_ID`
 - Web / DB : `DATABASE_URL` (ou `SQLALCHEMY_DATABASE_URI`), `FLASK_SECRET_KEY`
@@ -54,7 +90,20 @@ Tables principales (dans `models.py`) :
   - `/` : chat (nécessite auth)
   - `/login`, `/register` : auth
   - `/admin`, `/admin/settings/model` : admin & changement modèle
+  - `/subjects` : page des matières
+  - `/lessons/<subject>` : liste des leçons par matière (mathematics, physics, chemistry, svt)
+  - `/lesson/<id>` : détail d'une leçon avec transcription
   - `/privacy-policy`
+- API :
+  - `/api/audio/upload` : upload et traitement audio complet (transcription + amélioration IA)
+  - `/api/transcribe-only` : transcription simple pour dictée vocale (sans sauvegarde)
+  - `/api/save-audio` : enregistrement de cours avec sélection de matière
+  - `/api/lessons/<subject>` : récupération des leçons par matière
+  - `/api/lesson/<id>` : récupération d'une leçon spécifique
+  - `/api/lesson/<id>` (DELETE) : suppression d'une leçon
+  - `/api/lesson/create-with-image` (POST) : création de leçon à partir d'une image (OCR + analyse IA)
+  - `/api/lesson/<id>/add-image` (POST) : ajout d'image à une leçon existante
+  - `/api/lesson/<id>/delete-image/<image_id>` (DELETE) : suppression d'une image spécifique
 - Bots / Webhooks :
   - `/telegram_webhook` : webhook Telegram
   - `/whatsapp/webhook` : verify (GET) et receive (POST)
@@ -94,11 +143,61 @@ python app.py
 
 
 ## 9. Changements récents effectués (par rapport à l'état initial)
-- `ai_config.py` : instanciation paresseuse (lazy) des clients IA, préférence Deepseek par défaut si clé présente, purge cache clients lors de `reload_model_settings`, chmod skipped on Windows.
+- `ai_config.py` : instanciation paresseuse (lazy) des clients IA, préférence Deepseek par défaut si clé présente, purge cache clients lors de `reload_model_settings`, chmod skipped on Windows. Ajout de contextes IA distincts (chat vs lesson) avec instructions spécifiques.
 - `telegram_bot.py` : defensive init — skip setup if `TELEGRAM_BOT_TOKEN` absent; controlled by `RUN_TELEGRAM_BOT`.
-- `app.py` : fallback `sqlite:///dev.sqlite3` when no DB URI configured.
+- `app.py` : fallback `sqlite:///dev.sqlite3` when no DB URI configured. Ajout de `/api/transcribe-only` pour dictée vocale.
 - `whatsapp_bot.py`, `memory_consolidator.py` : réduction des imports top-level causeurs de circular import (imports locaux là où nécessaire).
 - Ajout de `scripts/test_ai_client.py` pour vérifier localement la création du client IA.
+- **Rendu Markdown** (27/11/2025) :
+  - Intégration de `marked.js` dans `chat.html` et `lesson_detail.html`
+  - Création de `static/css/markdown_styles.css` pour styliser les éléments Markdown (titres, listes, code, blockquotes)
+  - Modification de `main.js` : ajout de `formatMessageContent()` utilisant `marked.parse()` pour rendre le Markdown dans les messages
+  - Application du rendu Markdown dans les événements `receive_message`, `response_stream`, `conversation_opened` et `checkStalledStream`
+- **Dictée vocale** (27/11/2025) :
+  - Transformation de `chat_audio_recorder.js` : suppression du modal complexe, enregistrement direct au clic sur le bouton micro
+  - Ajout de `handle_transcribe_only()` dans `audio_handler.py` : transcription simple sans sauvegarde de leçon
+  - Insertion automatique du texte transcrit dans la zone de saisie du chat
+  - Ajout d'animations visuelles (pulsation rouge pendant l'enregistrement, spinner pendant la transcription)
+- **Système de leçons** :
+  - Création du modèle `Lesson` avec support multi-matières
+  - Pages de visualisation par matière (`/lessons/<subject>`)
+  - Page de détail avec lecture de transcription (`/lesson/<id>`)
+  - Fonction `save_lesson_from_audio()` pour traitement complet (transcription Groq + amélioration IA)
+  - Redirection intelligente après suppression avec mapping des matières
+- **Capture d'images et OCR pour les leçons** (29/11/2025) :
+  - **Frontend** :
+    - Ajout du bouton "Ajouter une capture" sur toutes les pages de leçons (Mathématiques, Physique, Chimie, SVT)
+    - Modal interactif (`lesson_image_uploader.js` + `lesson_image_uploader.css`) permettant :
+      - Prévisualisation de l'image avant upload
+      - Choix entre "Créer une nouvelle leçon" ou "Ajouter à une leçon existante"
+      - Sélection d'une leçon existante via dropdown dynamique
+      - Affichage du texte OCR extrait après traitement
+    - Galerie d'images dans `lesson_detail.html` :
+      - Onglet "Captures" affichant toutes les images associées à une leçon
+      - Métadonnées : date d'upload, détection de formules mathématiques, détection de diagrammes
+      - Modal de visualisation plein écran avec texte OCR
+      - Bouton de suppression par image
+  - **Backend** :
+    - Intégration de **Mathpix OCR** (`mathpix_utils.py`) pour extraction de texte manuscrit/imprimé
+    - Configuration avancée pour détecter : formules mathématiques, tableaux, diagrammes chimiques, schémas biologiques
+    - Endpoints API :
+      - `/api/lesson/create-with-image` : création de leçon à partir d'une image
+      - `/api/lesson/<id>/add-image` : ajout d'image à une leçon existante
+      - `/api/lesson/<id>/delete-image/<image_id>` : suppression d'image
+    - **Analyse IA automatique** (`ai_utils.generate_lesson_from_ocr()`) :
+      - Correction des erreurs OCR
+      - Structuration du contenu en Markdown (titres, listes, paragraphes)
+      - Formatage des formules scientifiques
+      - Ajout d'explications pédagogiques
+      - Gestion des cas où l'OCR échoue (message d'erreur explicite)
+  - **Modèle de données** :
+    - Ajout du champ `images` (JSON) au modèle `Lesson`
+    - Structure : `[{"id": "uuid", "url": "/path", "ocr_text": "...", "has_math": bool, "has_diagram": bool, "uploaded_at": "ISO8601"}]`
+    - Stockage des images dans `/static/uploads/lessons/`
+  - **Variables d'environnement requises** :
+    - `MATHPIX_APP_ID` : ID de l'application Mathpix
+    - `MATHPIX_APP_KEY` : Clé API Mathpix
+    - **Important** : Pas d'espaces autour du `=` dans le `.env`
 
 
 ## 10. Recommandations & prochains travaux

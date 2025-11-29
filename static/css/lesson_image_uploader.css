@@ -1,0 +1,244 @@
+/* Styles pour le modal d'upload d'images de leçons */
+
+.image-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.image-modal {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.image-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 30px;
+    border-bottom: 1px solid #eee;
+}
+
+.image-modal-header h3 {
+    margin: 0;
+    color: #5E72E4;
+    font-size: 24px;
+}
+
+.close-modal-btn {
+    background: none;
+    border: none;
+    font-size: 32px;
+    color: #999;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.close-modal-btn:hover {
+    color: #333;
+}
+
+.image-modal-body {
+    padding: 30px;
+}
+
+.upload-section {
+    margin-bottom: 20px;
+}
+
+.upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    border: 3px dashed #5E72E4;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: rgba(94, 114, 228, 0.05);
+}
+
+.upload-label:hover {
+    background: rgba(94, 114, 228, 0.1);
+    border-color: #4C63D2;
+}
+
+.upload-label i {
+    font-size: 48px;
+    color: #5E72E4;
+    margin-bottom: 15px;
+}
+
+.upload-label span {
+    font-size: 16px;
+    color: #666;
+    font-weight: 500;
+}
+
+.image-preview {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.image-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.upload-options {
+    margin: 30px 0;
+}
+
+.upload-options h4 {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 18px;
+}
+
+.option-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.option-btn {
+    flex: 1;
+    min-width: 200px;
+    padding: 20px;
+    background: rgba(94, 114, 228, 0.1);
+    border: 2px solid #5E72E4;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    color: #5E72E4;
+    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.option-btn:hover {
+    background: #5E72E4;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(94, 114, 228, 0.3);
+}
+
+.option-btn i {
+    font-size: 32px;
+}
+
+.lesson-selector {
+    margin: 30px 0;
+}
+
+.lesson-selector h4 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 18px;
+}
+
+.lesson-select {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+    margin-bottom: 15px;
+    transition: border-color 0.3s;
+}
+
+.lesson-select:focus {
+    outline: none;
+    border-color: #5E72E4;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 15px;
+    background: #5E72E4;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.submit-btn:hover {
+    background: #4C63D2;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(94, 114, 228, 0.4);
+}
+
+.ocr-result {
+    margin: 30px 0;
+    padding: 20px;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 12px;
+    border-left: 4px solid #10B981;
+}
+
+.ocr-result h4 {
+    margin-bottom: 15px;
+    color: #10B981;
+    font-size: 18px;
+}
+
+.ocr-text {
+    color: #333;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.upload-status {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.upload-status.info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+    border: 1px solid #3B82F6;
+}
+
+.upload-status.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+    border: 1px solid #10B981;
+}
+
+.upload-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border: 1px solid #EF4444;
+}
+
+.upload-status.warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #F59E0B;
+    border: 1px solid #F59E0B;
+}

@@ -533,3 +533,49 @@ def generate_reminder_message(
             'evening': "Yo poto! C'est le moment de bosser! 🔥"
         }
         return fallback_messages.get(reminder_type, fallback_messages['night'])
+
+def generate_lesson_from_ocr(ocr_text: str, subject: str) -> str:
+    """
+    Génère un cours structuré à partir du texte OCR d'une image.
+    
+    Args:
+        ocr_text: Le texte brut extrait par OCR
+        subject: La matière du cours
+        
+    Returns:
+        str: Le cours structuré et amélioré
+    """
+    from ai_config import CURRENT_MODEL
+    import logging
+    
+    if not ocr_text or len(ocr_text.strip()) < 5:
+        return "⚠️ L'analyse de l'image n'a pas permis d'extraire suffisamment de texte. L'image est peut-être floue ou ne contient pas de texte manuscrit lisible. Veuillez réessayer avec une image plus claire."
+
+    system_prompt = f"""Tu es un professeur expert en {subject}. 
+Ta mission est de transformer le contenu brut extrait d'une image de cours manuscrit (OCR) en un cours structuré, clair et pédagogique.
+
+Directives :
+1. Corrige les erreurs potentielles de l'OCR (coquilles, mauvaise reconnaissance).
+2. Structure le contenu avec des titres Markdown (#, ##), des listes à puces et des paragraphes clairs.
+3. Si des formules mathématiques/physiques/chimiques sont présentes, assure-toi qu'elles sont correctes et bien formatées (LaTeX entre $...$ ou $$...$$ est accepté).
+4. Ajoute des explications brèves si des points semblent obscurs, mais reste fidèle au contenu original.
+5. Adopte un ton encourageant et pédagogique.
+6. Si le texte est très court ou incompréhensible, indique-le poliment et essaie d'interpréter ce qui est visible.
+
+N'invente pas de contenu qui n'est pas suggéré par le texte original, mais tu peux reformuler pour la clarté."""
+
+    full_prompt = f"{system_prompt}\n\n---\n\nContenu à traiter :\n{ocr_text}"
+    messages = [{"role": "user", "content": full_prompt}]
+    
+    try:
+        response = execute_chat_completion(
+            messages_history=messages,
+            current_model=CURRENT_MODEL,
+            stream=False,
+            add_system_instructions=False
+        )
+        return response
+        
+    except Exception as e:
+        logging.error(f"Erreur lors de la génération du cours depuis OCR: {str(e)}")
+        return f"Erreur lors de l'analyse IA. Voici le texte brut :\n\n{ocr_text}"

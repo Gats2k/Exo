@@ -431,6 +431,241 @@ def save_audio():
         logger.error(f"❌ Erreur critique dans save_audio: {str(e)}", exc_info=True)
         return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
 
+
+@app.route('/api/lesson/create-with-image', methods=['POST'])
+@login_required
+def create_lesson_with_image():
+    """
+    Créer une nouvelle leçon à partir d'une image (sans audio)
+    
+    Reçoit:
+    - image: fichier image
+    - subject: matière (Mathématiques, Physique, Chimie, SVT)
+    
+    Processus:
+    1. Sauvegarde de l'image
+    2. OCR avec Mathpix
+    3. Création de la leçon en BD
+    """
+    try:
+        from mathpix_utils import process_image_with_mathpix
+        import uuid
+        import os
+        from werkzeug.utils import secure_filename
+        
+        image_file = request.files.get('image')
+        subject = request.form.get('subject')
+        
+        if not image_file or not subject:
+            return jsonify({'error': 'Image ou matière manquante'}), 400
+        
+        logger.info(f"📸 Création de leçon {subject} avec image pour utilisateur {current_user.id}")
+        
+        # Créer le dossier pour les images de leçons
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'lessons')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # Sauvegarder l'image
+        filename = secure_filename(image_file.filename)
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        image_path = os.path.join(upload_folder, unique_filename)
+        image_file.save(image_path)
+        
+        # URL relative pour la BD
+        image_url = f"/static/uploads/lessons/{unique_filename}"
+        
+        # Traiter avec OCR
+        import base64
+        with open(image_path, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        ocr_result = process_image_with_mathpix(f"data:image/jpeg;base64,{image_data}")
+        
+        ocr_text = ""
+        if "error" not in ocr_result:
+            ocr_text = ocr_result.get("formatted_summary", ocr_result.get("text", ""))
+            
+        logger.info(f"OCR Result length: {len(ocr_text)}")
+        logger.debug(f"OCR Text preview: {ocr_text[:100]}")
+        
+        # Générer le contenu amélioré via IA
+        from ai_utils import generate_lesson_from_ocr
+        improved_content = generate_lesson_from_ocr(ocr_text, subject)
+        
+        # Créer la leçon
+        lesson = Lesson(
+            user_id=current_user.id,
+            subject=subject,
+            original_transcript=ocr_text,  # OCR brut
+            improved_transcript=improved_content,  # Contenu structuré par IA
+            images=[{
+                "id": str(uuid.uuid4()),
+                "url": image_url,
+                "ocr_text": ocr_text,
+                "has_math": ocr_result.get("has_math", False),
+                "has_diagram": ocr_result.get("has_diagram", False),
+                "uploaded_at": datetime.utcnow().isoformat()
+            }],
+            status='completed'
+        )
+        
+        db.session.add(lesson)
+        db.session.commit()
+        
+        logger.info(f"✅ Leçon {lesson.id} créée avec image")
+        
+        return jsonify({
+            'success': True,
+            'lesson_id': lesson.id,
+            'subject': subject,
+            'ocr_text': ocr_text,
+            'image_url': image_url
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur create_lesson_with_image: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
+
+
+@app.route('/api/lesson/<int:lesson_id>/add-image', methods=['POST'])
+@login_required
+def add_image_to_lesson(lesson_id):
+    """
+    Ajouter une image à une leçon existante
+    
+    Reçoit:
+    - image: fichier image
+    """
+    try:
+        from mathpix_utils import process_image_with_mathpix
+        import uuid
+        import os
+        from werkzeug.utils import secure_filename
+        
+        lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first()
+        
+        if not lesson:
+            return jsonify({'error': 'Leçon non trouvée'}), 404
+        
+        image_file = request.files.get('image')
+        if not image_file:
+            return jsonify({'error': 'Image manquante'}), 400
+        
+        logger.info(f"📸 Ajout d'image à la leçon {lesson_id}")
+        
+        # Créer le dossier
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'lessons')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # Sauvegarder l'image
+        filename = secure_filename(image_file.filename)
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        image_path = os.path.join(upload_folder, unique_filename)
+        image_file.save(image_path)
+        
+        image_url = f"/static/uploads/lessons/{unique_filename}"
+        
+        # OCR
+        import base64
+        with open(image_path, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        ocr_result = process_image_with_mathpix(f"data:image/jpeg;base64,{image_data}")
+        
+        ocr_text = ""
+        if "error" not in ocr_result:
+            ocr_text = ocr_result.get("formatted_summary", ocr_result.get("text", ""))
+        
+        # Générer le contenu amélioré pour cette image
+        from ai_utils import generate_lesson_from_ocr
+        new_content = generate_lesson_from_ocr(ocr_text, lesson.subject)
+        
+        # Mettre à jour le contenu de la leçon
+        if lesson.improved_transcript:
+            lesson.improved_transcript += f"\n\n---\n\n### Ajout (Capture)\n\n{new_content}"
+        else:
+            lesson.improved_transcript = new_content
+            
+        if lesson.original_transcript:
+             lesson.original_transcript += f"\n\n[Capture ajoutée]\n{ocr_text}"
+        else:
+             lesson.original_transcript = ocr_text
+        
+        # Ajouter l'image à la liste (copie pour forcer la détection de changement SQLAlchemy)
+        current_images = list(lesson.images) if lesson.images else []
+        current_images.append({
+            "id": str(uuid.uuid4()),
+            "url": image_url,
+            "ocr_text": ocr_text,
+            "has_math": ocr_result.get("has_math", False),
+            "has_diagram": ocr_result.get("has_diagram", False),
+            "uploaded_at": datetime.utcnow().isoformat()
+        })
+        lesson.images = current_images
+        
+        db.session.commit()
+        
+        logger.info(f"✅ Image ajoutée à la leçon {lesson_id}")
+        
+        return jsonify({
+            'success': True,
+            'lesson_id': lesson_id,
+            'ocr_text': ocr_text,
+            'image_url': image_url
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur add_image_to_lesson: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
+
+
+@app.route('/api/lesson/<int:lesson_id>/delete-image/<image_id>', methods=['DELETE'])
+@login_required
+def delete_lesson_image(lesson_id, image_id):
+    """
+    Supprimer une image d'une leçon
+    """
+    try:
+        import os
+        
+        lesson = Lesson.query.filter_by(id=lesson_id, user_id=current_user.id).first()
+        
+        if not lesson:
+            return jsonify({'error': 'Leçon non trouvée'}), 404
+        
+        if not lesson.images:
+            return jsonify({'error': 'Aucune image dans cette leçon'}), 404
+        
+        # Trouver et supprimer l'image
+        image_to_delete = None
+        for img in lesson.images:
+            if img.get('id') == image_id:
+                image_to_delete = img
+                break
+        
+        if not image_to_delete:
+            return jsonify({'error': 'Image non trouvée'}), 404
+        
+        # Supprimer le fichier physique
+        image_path = os.path.join('d:\\2K', image_to_delete['url'].lstrip('/'))
+        if os.path.exists(image_path):
+            os.remove(image_path)
+        
+        # Retirer de la liste
+        lesson.images.remove(image_to_delete)
+        db.session.commit()
+        
+        logger.info(f"✅ Image {image_id} supprimée de la leçon {lesson_id}")
+        
+        return jsonify({'success': True}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur delete_lesson_image: {str(e)}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': f'Erreur serveur: {str(e)}'}), 500
+
 # ============================================================================
 # FIN DES ROUTES MATIÈRES
 # ============================================================================
@@ -549,6 +784,7 @@ def get_lesson_detail(lesson_id):
             'status': lesson.status,
             'audio_filename': lesson.audio_filename,
             'audio_url': lesson.audio_url,
+            'images': lesson.images,  # Ajout du champ images
             'error_message': lesson.error_message,
             'created_at': lesson.created_at.isoformat(),
             'updated_at': lesson.updated_at.isoformat()

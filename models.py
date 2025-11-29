@@ -356,6 +356,9 @@ class Lesson(db.Model):
     original_transcript = db.Column(db.Text)  # Transcription brute de Groq Whisper
     improved_transcript = db.Column(db.Text)  # Transcription améliorée par l'IA
     
+    # Images (captures de cours manuscrits)
+    images = db.Column(db.JSON)  # Liste d'objets: [{"id": "...", "url": "...", "ocr_text": "...", "uploaded_at": "..."}]
+    
     # Métadonnées
     duration_seconds = db.Column(db.Integer)  # Durée en secondes
     language = db.Column(db.String(10), default='fr')  # Langue détectée
